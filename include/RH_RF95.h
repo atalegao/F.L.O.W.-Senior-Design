@@ -184,6 +184,12 @@
 #define RH_RF95_RX_PAYLOAD_CRC_ON                     0x02
 #define RH_RF95_LOW_DATA_RATE_OPTIMIZE                0x01
 
+// //  1d,     1e,      26
+//     { 0x72,   0x74,    0x00}, // Bw125Cr45Sf128 (the chip default) //74 = 128 Spreading factor, AGC_AUTO_ON
+//     { 0x92,   0x74,    0x00}, // Bw500Cr45Sf128        //92 = BW500 = 80 + CRC_on = 2 + coding rate 4_7
+//     { 0x48,   0x94,    0x00}, // Bw31_25Cr48Sf512
+//     { 0x78,   0xc4,    0x00}, // Bw125Cr48Sf4096
+
 // RH_RF95_REG_1E_MODEM_CONFIG2                       0x1e
 #define RH_RF95_SPREADING_FACTOR                      0xf0
 #define RH_RF95_SPREADING_FACTOR_64CPS                0x60
