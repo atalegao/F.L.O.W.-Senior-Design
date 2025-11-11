@@ -1,4 +1,3 @@
-All of the writing to registers needs to be implemented in USART because it it in the LoRa microcontroller (like the this->write in the example code)
 #include "stm32f0xx.h"
 
 #define PREAMBLE_LENGTH 8
@@ -27,7 +26,7 @@ All of the writing to registers needs to be implemented in USART because it it i
 //example code:
 // https://github.com/Seeed-Studio/Grove_LoRa_433MHz_and_915MHz_RF/blob/master/RH_RF95.cpp
 
-void lora_uart_init(){
+void lora_uart_init(){ //done, not tested
     //setup UART for lora
     //this uses usart5, tx = C12, rx = D2
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN;
@@ -60,7 +59,7 @@ void lora_uart_init(){
     }
 }
 
-    bool lora_init(){
+    bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         ALSO NEED TO SET ADDRESS of the node
 
@@ -111,9 +110,14 @@ void lora_uart_init(){
 
     }
 
-//send a message
-bool lora_send(uint8_t* data, uint8_t len) { //don't know what is going on here
-    if (len > RH_RF95_MAX_MESSAGE_LEN) {
+bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
+    //THIS IS FOR SENDING A LORA MESSAGE, NOT WRTING TO REGISTERS IN THE LORA MICRO
+    //this handles sending a lora message
+    //length is the length of the message in bytes
+    //data is the payload data being sent
+
+    //this function will need to be updated
+    if (length > RH_RF95_MAX_MESSAGE_LEN) {
         return false;
     }
 
@@ -121,17 +125,17 @@ bool lora_send(uint8_t* data, uint8_t len) { //don't know what is going on here
     setModeIdle();
 
     // Position at the beginning of the FIFO
-    this->write(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);
+    lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);
 
     // The headers
-    this->write(RH_RF95_REG_00_FIFO, this->_txHeaderTo);
-    this->write(RH_RF95_REG_00_FIFO, this->_txHeaderFrom);
-    this->write(RH_RF95_REG_00_FIFO, this->_txHeaderId);
-    this->write(RH_RF95_REG_00_FIFO, this->_txHeaderFlags);
+    lora_write_single(RH_RF95_REG_00_FIFO, this->_txHeaderTo);
+    lora_write_single(RH_RF95_REG_00_FIFO, this->_txHeaderFrom);
+    lora_write_single(RH_RF95_REG_00_FIFO, this->_txHeaderId);
+    lora_write_single(RH_RF95_REG_00_FIFO, this->_txHeaderFlags);
 
     // The message data
-    this->burstWrite(RH_RF95_REG_00_FIFO, data, len);
-    this->write(RH_RF95_REG_22_PAYLOAD_LENGTH, len + RH_RF95_HEADER_LEN);
+    lora_write_multiple(RH_RF95_REG_00_FIFO, data, length);
+    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length + RH_RF95_HEADER_LEN);
 
     setModeTx(); // Start the transmitter
     // when Tx is done, interruptHandler will fire and radio mode will return to STANDBY
@@ -140,9 +144,87 @@ bool lora_send(uint8_t* data, uint8_t len) { //don't know what is going on here
     return true;
 }
 
+bool lora_receive (){ //not done, not tested
+
+}
+
+void lora_write_multiple(unit8_t reg, unit8_t* value, unit8_t length){//done, not tested
+    //THIS IS FOR WRTING TO REGISTERS IN THE LORA MICRO, NOT SENDING A LORA MESSAGE
+    //writes value to the address specified in reg 
+    //reg is in the LoRa microcontroller 
+    //length is the number of bytes written
+    uart_write('W');
+    uart_write(reg | RH_WRITE_MASK);
+    uart_write(length);
+    for (int i = 0; i < length; i ++) {
+        uart_write(*(value + i));
+    }
+}
+
+void lora_read_multiple(unit8_t reg, unit8_t* result, unit8_t length){//done, not tested
+    //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
+    //reads value in the register reg and places it in result
+    //reg is in the LoRa microcontroller
+    //length is the number of bytes to read 
+    unit8_t val = 0;
+    uart_write('R');
+    uart_write(reg & ~RH_WRITE_MASK);
+    uart_write(length);
+
+    int i = 0;
+    while (1) {
+        if (_ss.available()) { //available means uart is not currently reading a message, figure out how to do this
+            *(result + i) = uart_read();
+            i ++;
+            if (i >= length) {
+                break;
+            }
+        }
+    }
+    //////////////////////////////////////UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
+}
+
+void lora_write_single(unit8_t reg, unit8_t value){//done, not tested
+    //THIS IS FOR WRTING TO REGISTERS IN THE LORA MICRO, NOT SENDING A LORA MESSAGE
+    //writes value to the address specified in reg 
+    //reg is in the LoRa microcontroller 
+    uart_write('W');
+    uart_write(reg | RH_WRITE_MASK);
+    uart_write(1);
+    uart_write(value);
+}
+
+unit8_t lora_read_single(unit8_t reg){//done, not tested
+    //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
+    //reads value in the register reg
+    //reg is in the LoRa microcontroller
+    unit8_t val = 0;
+    uart_write('R');
+    uart_write(reg & ~RH_WRITE_MASK);
+    uart_write(1);
+    while (1) {
+        if (_ss.available()) {//available means uart is not currently reading a message, figure out how to do this
+            val = uart_read();
+            break;
+        }
+    }
+    return val;
+}
+
+unit8_t uart_read(){ //not done, not tested
+    //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART
+    //USE lora_read_single, lora_read_multiple, or lora_receive instead
+
+    //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
+}
+
+void uart_write(unit8_t data){ //not done, not tested
+    //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
+    //USE lora_write_single, lora_write_multiple, or lora_send instead
+}
+
 //change mode to receive
 
-//create data packet
 
 //https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/2527/113060006_Web.pdf
 //https://semtech.my.salesforce.com/sfc/p/#E0000000JelG/a/2R0000001Rbr/6EfVZUorrpoKFfvaF_Fkpgp5kzjiNyiAbqcpqh9qSjE 
