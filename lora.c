@@ -1,3 +1,4 @@
+All of the writing to registers needs to be implemented in USART because it it in the LoRa microcontroller (like the this->write in the example code)
 #include "stm32f0xx.h"
 
 #define PREAMBLE_LENGTH 8
