@@ -9,10 +9,10 @@
 //#define USE_DEFAULT_SETTINGS
 
 #ifdef USE_CUSTOM_SETTINGS
-#define BANDWIDTH  RH_RF95_BW_125KHZ //values in RH_RF95.h
-#define CODING_RATE RH_RF95_CODING_RATE_4_8 //chart on page 24, values in RH_RF95.h
-#define SPREADING_FACTOR RH_RF95_SPREADING_FACTOR_4096CPS //chart on page 24, values in RH_RF95.h
-#define CRC_ON RH_RF95_RX_PAYLOAD_CRC_ON //values in RH_RF95.h, 0 if no CRC else RH_RF95_RX_PAYLOAD_CRC_ON for CRC
+#define BANDWIDTH           RH_RF95_BW_125KHZ //values in RH_RF95.h
+#define CODING_RATE         RH_RF95_CODING_RATE_4_8 //chart on page 24, values in RH_RF95.h
+#define SPREADING_FACTOR    RH_RF95_SPREADING_FACTOR_4096CPS //chart on page 24, values in RH_RF95.h
+#define CRC_ON              RH_RF95_RX_PAYLOAD_CRC_ON //values in RH_RF95.h, 0 if no CRC else RH_RF95_RX_PAYLOAD_CRC_ON for CRC
 
 #endif
 
@@ -28,6 +28,7 @@
 
 void lora_uart_init(){ //done, not tested
     //setup UART for lora
+    USE DMA
     //this uses usart5, tx = C12, rx = D2
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN;
 
@@ -57,11 +58,15 @@ void lora_uart_init(){ //done, not tested
     while(((USART5->ISR & USART_ISR_TEACK) != USART_ISR_TEACK) | ((USART5->ISR & USART_ISR_REACK) != USART_ISR_REACK)){
         //nothing
     }
+    setbuf(stdin,0);
+    setbuf(stdout,0);
+    setbuf(stderr,0);
 }
 
     bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         ALSO NEED TO SET ADDRESS of the node
+        CHANGE THESE TO lora_write_single since they are on lora micro////////////////////////////////////////////////////
 
         //setPreambleLength Default is 8 bytes
         RH_RF95_REG_20_PREAMBLE_MSB = PREAMBLE_LENGTH >> 8; 
@@ -173,15 +178,13 @@ void lora_read_multiple(unit8_t reg, unit8_t* result, unit8_t length){//done, no
 
     int i = 0;
     while (1) {
-        if (_ss.available()) { //available means uart is not currently reading a message, figure out how to do this
-            *(result + i) = uart_read();
-            i ++;
-            if (i >= length) {
-                break;
-            }
+        //available means uart is not currently reading a message, figure out how to do this
+        *(result + i) = uart_read();
+        i ++;
+        if (i >= length) {
+            break;
         }
     }
-    //////////////////////////////////////UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
 }
 
 void lora_write_single(unit8_t reg, unit8_t value){//done, not tested
@@ -202,28 +205,104 @@ unit8_t lora_read_single(unit8_t reg){//done, not tested
     uart_write('R');
     uart_write(reg & ~RH_WRITE_MASK);
     uart_write(1);
-    while (1) {
-        if (_ss.available()) {//available means uart is not currently reading a message, figure out how to do this
-            val = uart_read();
-            break;
-        }
-    }
+    val = uart_read();
     return val;
 }
 
-unit8_t uart_read(){ //not done, not tested
-    //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART
-    //USE lora_read_single, lora_read_multiple, or lora_receive instead
 
-    //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
+WHEN DOES LORA MODULE START SENDING MESSAGE?
+at very end right?, once complete, valid message, then start sending?
+
+#define FIFOSIZE 16 //number of bytes in a message
+char serfifo[FIFOSIZE];
+int seroffset = 0;
+
+void enable_tty_interrupt(void) {
+    RCC->AHBENR |= RCC_AHBENR_DMA2EN;
+    DMA2->CSELR |= DMA2_CSELR_CH2_USART5_RX;
+    
+    NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
+    USART5->CR3 |= USART_CR3_DMAR; //enable DMA for reception
+    USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
+
+    DMA2_Channel2->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
+    
+    DMA2_Channel2->CMAR = (uint32_t)(&serfifo);//set CMAR
+    DMA2_Channel2->CPAR = (uint32_t)&(USART5->RDR);//set CPAR
+    DMA2_Channel2->CNDTR = FIFOSIZE;//set CNDTR
+    DMA2_Channel2->CCR &= ~DMA_CCR_DIR;//set DIR to P->M
+    DMA2_Channel2->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
+    DMA2_Channel2->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits
+    DMA2_Channel2->CCR |= DMA_CCR_MINC;//MINC increments on CMAR
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
+    DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
+    DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
+    DMA2_Channel2->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
+    
+    DMA2_Channel2->CCR |= DMA_CCR_EN;
 }
 
-void uart_write(unit8_t data){ //not done, not tested
-    //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
-    //USE lora_write_single, lora_write_multiple, or lora_send instead
+
+// Works like line_buffer_getchar(), but does not check or clear ORE nor wait on new characters in USART
+char interrupt_getchar() {
+    while (fifo_newline(&input_fifo) == 0){ //spin here until newline
+        asm volatile ("wfi"); // wait for an interrupt
+    }
+    // Return a character from the line buffer.
+    char ch = fifo_remove(&input_fifo);
+    return ch;
+}
+
+int __io_putchar(int c) {
+    // new
+    if(c == '\n'){
+        while(!(USART5->ISR & USART_ISR_TXE));
+        USART5->TDR = '\r';
+    }
+    //end of new
+    while(!(USART5->ISR & USART_ISR_TXE));
+    USART5->TDR = c;
+    return c;
+}
+
+int __io_getchar(void) {
+    int c;
+    c = interrupt_getchar();
+    return(c);
+}
+
+void USART3_8_IRQHandler(void) {  //UART interrupt handler
+    while(DMA2_Channel2->CNDTR != sizeof serfifo - seroffset) {
+        if (!fifo_full(&input_fifo))
+            insert_echo_char(serfifo[seroffset]);
+        seroffset = (seroffset + 1) % sizeof serfifo;
+    }
 }
 
 //change mode to receive
+
+
+// unit8_t uart_read(){ //done?, not tested
+//     //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART
+//     //USE lora_read_single, lora_read_multiple, or lora_receive instead
+
+//     unit8_t c = 0;
+
+//     //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
+//     while (!(USART5->ISR & USART_ISR_RXNE)) { 
+//         c = USART5->RDR;
+//     }
+//     return c;
+// }
+
+// void uart_write(unit8_t data){ //done?, not tested
+//     //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
+//     //USE lora_write_single, lora_write_multiple, or lora_send instead
+//     while(!(USART5->ISR & USART_ISR_TXE)) { 
+//         USART5->TDR = data;
+//     }
+// }
 
 
 //https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/2527/113060006_Web.pdf
