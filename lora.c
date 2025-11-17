@@ -168,9 +168,10 @@ void lora_uart_init(){ //done, not tested
 WHEN DOES LORA MODULE START SENDING MESSAGE?
 at very end right?, once complete, valid message, then start sending?
 I think you have to read addr0 several times in a row to read the data, it is automatically put in the FIFO buffer
-//message receives are handled by DMA and are placed in serfifo
+//Since messages are not automatically sent to module, (have to write to read them), don't use DMA, just use read
+//message receives are handled by lora_read_fifo_all
 //message sends are handled by lora_send
-//register reads are handled by lora_read_single
+//register reads are handled by lora_read_single and lora_read_multiple
 //register writes are handled by lora_write_single and lora_write_multiple
 
 unit8_t lora_read_fifo_single(){//done, not tested
@@ -182,6 +183,13 @@ unit8_t lora_read_fifo_single(){//done, not tested
     val = uart_read_single_only();
     return val; 
     // 52, 00, 01
+}
+
+void lora_read_fifo_all(unit8_t* data, unit8_t message_length){//done, not tested
+    //THIS IS FOR READING THE ENTIRE LORA MESSAGE, 
+     for (int i = 0; i < length; i ++) {
+        *(data + i) = lora_read_fifo_single()
+    }
 }
 
 bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
@@ -245,27 +253,27 @@ void lora_write_multiple(unit8_t reg, unit8_t* value, unit8_t length){//done, no
     }
 }
 
-//this function is replaced by DMA
-// void lora_read_multiple(unit8_t reg, unit8_t* result, unit8_t length){//done, not tested
-//     //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
-//     //reads value in the register reg and places it in result
-//     //reg is in the LoRa microcontroller
-//     //length is the number of bytes to read 
-//     unit8_t val = 0;
-//     uart_write('R');
-//     uart_write(reg & ~RH_WRITE_MASK);
-//     uart_write(length);
 
-//     int i = 0;
-//     while (1) {
-//         //available means uart is not currently reading a message, figure out how to do this
-//         *(result + i) = uart_read_single_only();
-//         i ++;
-//         if (i >= length) {
-//             break;
-//         }
-//     }
-// }
+void lora_read_multiple(unit8_t reg, unit8_t* result, unit8_t length){//done, not tested
+    //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
+    //reads value in the register reg and places it in result
+    //reg is in the LoRa microcontroller
+    //length is the number of bytes to read 
+    unit8_t val = 0;
+    uart_write('R');
+    uart_write(reg & ~RH_WRITE_MASK);
+    uart_write(length);
+
+    int i = 0;
+    while (1) {
+        //available means uart is not currently reading a message, figure out how to do this
+        *(result + i) = uart_read_single_only();
+        i ++;
+        if (i >= length) {
+            break;
+        }
+    }
+}
 
 void lora_write_single(unit8_t reg, unit8_t value){//done, not tested
     //THIS IS FOR WRTING TO REGISTERS IN THE LORA MICRO, NOT SENDING A LORA MESSAGE
@@ -291,46 +299,6 @@ unit8_t lora_read_single(unit8_t reg){//done, not tested
     //worked with 52 0F 01
     // 52 00 01 read vale written by write
 }
-
-char serfifo[FIFOSIZE]; //array of data read from LoRa module
-int seroffset = 0;
-
-void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
-    RCC->AHBENR |= RCC_AHBENR_DMA2EN;
-    DMA2->CSELR |= DMA2_CSELR_CH2_USART5_RX;
-    
-    NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
-    USART5->CR3 |= USART_CR3_DMAR; //enable DMA for reception
-    USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
-
-    DMA2_Channel2->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
-    
-    DMA2_Channel2->CMAR = (uint32_t)(&serfifo);//set CMAR
-    DMA2_Channel2->CPAR = (uint32_t)&(USART5->RDR);//set CPAR
-    DMA2_Channel2->CNDTR = FIFOSIZE;//set CNDTR
-    DMA2_Channel2->CCR &= ~DMA_CCR_DIR;//set DIR to P->M
-    DMA2_Channel2->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
-    DMA2_Channel2->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
-    DMA2_Channel2->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits
-    DMA2_Channel2->CCR |= DMA_CCR_MINC;//MINC increments on CMAR
-    DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
-    DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
-    DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
-    DMA2_Channel2->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
-    
-    DMA2_Channel2->CCR |= DMA_CCR_EN;
-}
-
-void USART3_8_IRQHandler(void) {  //UART interrupt handler
-    unit8_t index = 0;
-    while(DMA2_Channel2->CNDTR != index) {
-        serfifo[seroffset] = uart_read();
-        index += 1;
-    }
-}
-
-//change mode to receive
-
 
 unit8_t uart_read(){ //not done (add timeout logic), not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART 
@@ -368,3 +336,42 @@ void uart_write(unit8_t data){ //done, not tested
         USART5->TDR = data;
     }
 }
+
+
+
+// char serfifo[FIFOSIZE]; //array of data read from LoRa module
+// int seroffset = 0;
+
+// void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
+//     RCC->AHBENR |= RCC_AHBENR_DMA2EN;
+//     DMA2->CSELR |= DMA2_CSELR_CH2_USART5_RX;
+    
+//     NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
+//     USART5->CR3 |= USART_CR3_DMAR; //enable DMA for reception
+//     USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
+
+//     DMA2_Channel2->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
+    
+//     DMA2_Channel2->CMAR = (uint32_t)(&serfifo);//set CMAR
+//     DMA2_Channel2->CPAR = (uint32_t)&(USART5->RDR);//set CPAR
+//     DMA2_Channel2->CNDTR = FIFOSIZE;//set CNDTR
+//     DMA2_Channel2->CCR &= ~DMA_CCR_DIR;//set DIR to P->M
+//     DMA2_Channel2->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
+//     DMA2_Channel2->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
+//     DMA2_Channel2->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits
+//     DMA2_Channel2->CCR |= DMA_CCR_MINC;//MINC increments on CMAR
+//     DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
+//     DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
+//     DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
+//     DMA2_Channel2->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
+    
+//     DMA2_Channel2->CCR |= DMA_CCR_EN;
+// }
+
+// void USART3_8_IRQHandler(void) {  //UART interrupt handler
+//     unit8_t index = 0;
+//     while(DMA2_Channel2->CNDTR != index) {
+//         serfifo[seroffset] = uart_read();
+//         index += 1;
+//     }
+// }
