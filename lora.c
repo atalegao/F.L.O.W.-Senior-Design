@@ -1,5 +1,6 @@
 #include "stm32f0xx.h"
 
+#define RH_WRITE_MASK 0x80
 #define PREAMBLE_LENGTH 8
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
@@ -151,7 +152,8 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //setModeIdle();
 
     // Position at the beginning of the FIFO
-    lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);
+    lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);// 57, reg | 80, 01, value (2 hex)
+    //reg, value
 
     // The headers
     lora_write_single(RH_RF95_REG_00_FIFO, ADDRTO);
@@ -169,6 +171,18 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
 
     //this->write(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
     return true;
+}
+
+void set_mode_sleep(){
+    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP);
+}
+
+void set_mode_(){
+    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY);
+}
+
+void set_mode_sleep(){
+    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP);
 }
 
 void lora_write_multiple(unit8_t reg, unit8_t* value, unit8_t length){//done, not tested
@@ -210,10 +224,11 @@ void lora_write_single(unit8_t reg, unit8_t value){//done, not tested
     //THIS IS FOR WRTING TO REGISTERS IN THE LORA MICRO, NOT SENDING A LORA MESSAGE
     //writes value to the address specified in reg 
     //reg is in the LoRa microcontroller 
-    uart_write('W');
-    uart_write(reg | RH_WRITE_MASK);
+    uart_write('W'); //0x57
+    uart_write(reg | RH_WRITE_MASK); // try 00 | 80 = 80
     uart_write(1);
     uart_write(value);
+    //57 80 01 FF //writes FF to addr 00 worked 
 }
 
 unit8_t lora_read_single(unit8_t reg){//done, not tested
@@ -221,11 +236,13 @@ unit8_t lora_read_single(unit8_t reg){//done, not tested
     //reads value in the register reg
     //reg is in the LoRa microcontroller
     unit8_t val = 0;
-    uart_write('R');
-    uart_write(reg & ~RH_WRITE_MASK);
-    uart_write(1);
+    uart_write('R'); //0x52
+    uart_write(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
+    uart_write(1); //0x01
     val = uart_read_single_only();
-    return val;
+    return val; //baud is 57600
+    //worked with 52 0F 01
+    // 52 00 01 read vale written by write
 }
 
 char serfifo[FIFOSIZE]; //array of data read from LoRa module
