@@ -43,6 +43,38 @@
 //chip LoRa chip is based on datasheet:
 //https://semtech.my.salesforce.com/sfc/p/#E0000000JelG/a/2R0000001Rbr/6EfVZUorrpoKFfvaF_Fkpgp5kzjiNyiAbqcpqh9qSjE 
 
+
+
+//need to first set settings for the modules (both)
+// 57 A0 01 00 
+// 57 A0 01 08
+// 57 86 01 D9
+// 57 86 01 00
+// 57 86 01 00
+// 57 CD 01 04
+// 57 89 01 88
+// 57 9D 01 1A
+// 57 9E 01 C4
+//in one line:
+// 57 A0 01 00 57 A0 01 08 57 86 01 D9 57 86 01 00 57 86 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
+
+//receive a message (one module)
+// 57 81 01 05 (receive mode) 
+// then 52 00 01 for each byte of the message
+
+//send a message (other module)
+// 57 8d 01 00
+// 57 80 01 10 
+// 57 80 01 10 
+// 57 80 01 00 
+// 57 80 01 00 
+// 57 80 02 F0 0F 
+// 57 A2 01 06
+// 57 81 01 03 
+// 57 C0 01 40
+//in one line:
+// 57 8d 01 00 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03 57 C0 01 40 //data is F0 0F
+
 void lora_uart_init(){ //done, not tested
     //setup UART for lora
     //this uses usart5, tx = C12, rx = D2
@@ -81,17 +113,19 @@ void lora_uart_init(){ //done, not tested
 
     bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
-        ALSO NEED TO SET ADDRESS of the node
+        // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
+        // (default is off)
 
         //setPreambleLength Default is 8 bytes
-        lora_write_single(RH_RF95_REG_20_PREAMBLE_MSB, PREAMBLE_LENGTH >> 8); 
-        lora_write_single(RH_RF95_REG_21_PREAMBLE_LSB, PREAMBLE_LENGTH & 0xff);
+        // 57, reg | 80, 01, value (2 hex)
+        lora_write_single(RH_RF95_REG_20_PREAMBLE_MSB, PREAMBLE_LENGTH >> 8); // 57 A0 01 00 
+        lora_write_single(RH_RF95_REG_21_PREAMBLE_LSB, PREAMBLE_LENGTH & 0xff); // 57 A0 01 08
 
         //setFrequency(868.0);
-        uint32_t frf = (CENTER_FREQUENCY * 1000000.0) / RH_RF95_FSTEP;
-        lora_write_single(RH_RF95_REG_06_FRF_MSB, (frf >> 16) & 0xff);
-        lora_write_single(RH_RF95_REG_07_FRF_MID, (frf >> 8) & 0xff);
-        lora_write_single(RH_RF95_REG_08_FRF_LSB, frf & 0xff);
+        uint32_t frf = (CENTER_FREQUENCY * 1000000.0) / RH_RF95_FSTEP; //14,221,312, D9_00_00
+        lora_write_single(RH_RF95_REG_06_FRF_MSB, (frf >> 16) & 0xff); // 57 86 01 D9
+        lora_write_single(RH_RF95_REG_07_FRF_MID, (frf >> 8) & 0xff); // 57 86 01 00
+        lora_write_single(RH_RF95_REG_08_FRF_LSB, frf & 0xff); // 57 86 01 00
 
         //setTxPower(13);
         int8_t power = TXPOWER;
@@ -105,14 +139,15 @@ void lora_uart_init(){ //done, not tested
             lora_write_single(RH_RF95_REG_4D_PA_DAC, RH_RF95_PA_DAC_ENABLE);
             power -= 3;
         } else {
-            lora_write_single(RH_RF95_REG_4D_PA_DAC, RH_RF95_PA_DAC_DISABLE);
+            lora_write_single(RH_RF95_REG_4D_PA_DAC, RH_RF95_PA_DAC_DISABLE); // 57 CD 01 04
         }
-        lora_write_single(RH_RF95_REG_09_PA_CONFIG, RH_RF95_PA_SELECT | (power - 5));
+        lora_write_single(RH_RF95_REG_09_PA_CONFIG, RH_RF95_PA_SELECT | (power - 5)); // 57 89 01 88
 
         #ifdef USE_CUSTOM_SETTINGS
 
-        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE);
-        lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //AGC is automatic gain control, all examples use this, so I included it
+        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE); // 57 9D 01 1A
+        lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
+        //AGC is automatic gain control, all examples use this, so I included it
         return true;
         #endif
         
@@ -132,10 +167,22 @@ void lora_uart_init(){ //done, not tested
 
 WHEN DOES LORA MODULE START SENDING MESSAGE?
 at very end right?, once complete, valid message, then start sending?
+I think you have to read addr0 several times in a row to read the data, it is automatically put in the FIFO buffer
 //message receives are handled by DMA and are placed in serfifo
 //message sends are handled by lora_send
 //register reads are handled by lora_read_single
 //register writes are handled by lora_write_single and lora_write_multiple
+
+unit8_t lora_read_fifo_single(){//done, not tested
+    //THIS IS FOR READING ONE BYTE OF A LORA MESSAGE, 
+    unit8_t val = 0;
+    uart_write('R'); //0x52
+    uart_write(0X00 & ~RH_WRITE_MASK); //0x00 & ~0x80, so 0x00
+    uart_write(1); //0x01
+    val = uart_read_single_only();
+    return val; 
+    // 52, 00, 01
+}
 
 bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //THIS IS FOR SENDING A LORA MESSAGE, NOT WRTING TO REGISTERS IN THE LORA MICRO
@@ -152,22 +199,22 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //setModeIdle();
 
     // Position at the beginning of the FIFO
-    lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);// 57, reg | 80, 01, value (2 hex)
+    // 57, reg | 80, 01, value (2 hex)
+    lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);// 57, 8d, 01, 00 (2 hex)
     //reg, value
 
     // The headers
-    lora_write_single(RH_RF95_REG_00_FIFO, ADDRTO);
-    lora_write_single(RH_RF95_REG_00_FIFO, ADDRFROM);
-    lora_write_single(RH_RF95_REG_00_FIFO, HEADERID);
-    lora_write_single(RH_RF95_REG_00_FIFO, HEADERFLAGS);
+    lora_write_single(RH_RF95_REG_00_FIFO, ADDRTO); // 57, 80, 01, 10
+    lora_write_single(RH_RF95_REG_00_FIFO, ADDRFROM); // 57, 80, 01, 10
+    lora_write_single(RH_RF95_REG_00_FIFO, HEADERID); // 57, 80, 01, 00
+    lora_write_single(RH_RF95_REG_00_FIFO, HEADERFLAGS); // 57, 80, 01, 00
 
-    // The message data
-    lora_write_multiple(RH_RF95_REG_00_FIFO, data, length);
-    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length + RH_RF95_HEADER_LEN);
+    lora_write_multiple(RH_RF95_REG_00_FIFO, data, length); //57, 80, 02, F0, 0F //sends F0 0F
+    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length + RH_RF95_HEADER_LEN); //57 , A2, 01, 06
 
     //change module to send mode
-    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);
-    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone
+    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
+    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
 
     //this->write(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
     return true;
@@ -177,12 +224,12 @@ void set_mode_sleep(){
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP);
 }
 
-void set_mode_(){
+void set_mode_standby(){
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY);
 }
 
-void set_mode_sleep(){
-    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP);
+void set_mode_continuous_receive(){
+    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_RXCONTINUOUS); // 57, 81, 01, 05
 }
 
 void lora_write_multiple(unit8_t reg, unit8_t* value, unit8_t length){//done, not tested
