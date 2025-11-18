@@ -43,9 +43,16 @@
 //chip LoRa chip is based on datasheet:
 //https://semtech.my.salesforce.com/sfc/p/#E0000000JelG/a/2R0000001Rbr/6EfVZUorrpoKFfvaF_Fkpgp5kzjiNyiAbqcpqh9qSjE 
 
+//to test if working:
+//52 0F 01 (on hterm, set baud = 57600)
 
+//to test if message was received:
+//52 13 01 //0B is default, value is number of payload bytes in last message
 
 //need to first set settings for the modules (both)
+// 57 81 01 80
+// 57 8E 01 00
+// 57 8F 01 00
 // 57 A0 01 00 
 // 57 A0 01 08
 // 57 86 01 D9
@@ -54,13 +61,20 @@
 // 57 CD 01 04
 // 57 89 01 88
 // 57 9D 01 1A
+
 // 57 9E 01 C4
 //in one line:
-// 57 A0 01 00 57 A0 01 08 57 86 01 D9 57 86 01 00 57 86 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
+// 57 81 01 80 57 8E 01 00 57 8F 01 00 57 A0 01 00 57 A0 01 08 57 86 01 D9 57 86 01 00 57 86 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
 
 //receive a message (one module)
 // 57 81 01 05 (receive mode) 
+// 57 C0 01 00 
 // then 52 00 01 for each byte of the message
+
+//try
+//52 10 01 //read start addr of last packet received
+//57 8D 01 output of above //set FIFO pointer to addr of last packet received
+//52 00 01 //read
 
 //send a message (other module)
 // 57 8d 01 00
@@ -115,6 +129,13 @@ void lora_uart_init(){ //done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
         // (default is off)
+
+        //set mode to LORA sleep
+        lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE); // 57 81 01 80
+
+        //setup FIFO
+        lora_write_single(RH_RF95_REG_0E_FIFO_TX_BASE_ADDR, 0); //57 8E 01 00
+        lora_write_single(RH_RF95_REG_0F_FIFO_RX_BASE_ADDR, 0); //57 8F 01 00
 
         //setPreambleLength Default is 8 bytes
         // 57, reg | 80, 01, value (2 hex)
@@ -228,7 +249,7 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     return true;
 }
 
-void set_mode_sleep(){
+void set_mode_sleep(){/////////////////////////////////////maybe or values with RH_RF95_LONG_RANGE_MODE to put in LoRa mode
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP);
 }
 
@@ -238,6 +259,7 @@ void set_mode_standby(){
 
 void set_mode_continuous_receive(){
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_RXCONTINUOUS); // 57, 81, 01, 05
+    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x00); // 57 C0 01 00
 }
 
 void lora_write_multiple(unit8_t reg, unit8_t* value, unit8_t length){//done, not tested
