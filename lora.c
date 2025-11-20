@@ -43,11 +43,29 @@
 //chip LoRa chip is based on datasheet:
 //https://semtech.my.salesforce.com/sfc/p/#E0000000JelG/a/2R0000001Rbr/6EfVZUorrpoKFfvaF_Fkpgp5kzjiNyiAbqcpqh9qSjE 
 
-//to test if working:
-//52 0F 01 (on hterm, set baud = 57600)
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Sending is not working
+//try:
+    //checking if all hex conversions below are correct
+    //checking if the tx interrupt goes high after send (make sure to not clear it by removing last line of send)
+    //mode of the module should automatically change to stand-by mode when sengin is done
+    //check to make sure setup/init is correct (does everything)
+    //check the writes all work (by reading the registers that were written to) (some registers can only be written to in certain modes)
+    //check that sending multiple commands at once works in hterm
+    //check that writing and reading multiple bytes at a time work
+
+//write formula: 57, reg | 0x80, 01, value (2 hex)
+
+//read formula: 52, reg & ~0x80, 01
+
+
+//to test if module is connected:
+//52 0F 01 (on hterm, set baud = 57600), should get a response
 
 //to test if message was received:
 //52 13 01 //0B is default, value is number of payload bytes in last message
+//can also read 11
+//52 11 01
 
 //need to first set settings for the modules (both)
 // 57 81 01 80
@@ -61,22 +79,17 @@
 // 57 CD 01 04
 // 57 89 01 88
 // 57 9D 01 1A
-
 // 57 9E 01 C4
 //in one line:
 // 57 81 01 80 57 8E 01 00 57 8F 01 00 57 A0 01 00 57 A0 01 08 57 86 01 D9 57 86 01 00 57 86 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
 
 //receive a message (one module)
-// 57 81 01 05 (receive mode) 
-// 57 C0 01 00 
-// then 52 00 01 for each byte of the message
-
-//try
 //52 10 01 //read start addr of last packet received
 //57 8D 01 output of above //set FIFO pointer to addr of last packet received
-//52 00 01 //read
+//52 00 01 //read one byte of the message
 
 //send a message (other module)
+// 57 81 01 01
 // 57 8d 01 00
 // 57 80 01 10 
 // 57 80 01 10 
@@ -86,8 +99,12 @@
 // 57 A2 01 06
 // 57 81 01 03 
 // 57 C0 01 40
+// 57 92 01 ff //this clears interrupt register, likely not necessary for testing
 //in one line:
-// 57 8d 01 00 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03 57 C0 01 40 //data is F0 0F
+// 57 81 01 01 57 8d 01 00 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03 57 C0 01 40 57 92 01 ff
+// //data is F0 0F
+
+
 
 void lora_uart_init(){ //done, not tested
     //setup UART for lora
@@ -226,6 +243,7 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
 
     //this->waitPacketSent(); // Make sure we dont interrupt an outgoing message
     //setModeIdle();
+    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY); //new 57, 81, 01, 01
 
     // Position at the beginning of the FIFO
     // 57, reg | 80, 01, value (2 hex)
@@ -245,7 +263,7 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
 
-    //this->write(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
+    lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags, new 57 92 01 ff
     return true;
 }
 
