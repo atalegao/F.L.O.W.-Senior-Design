@@ -48,11 +48,14 @@
 //try:
     //checking if all hex conversions below are correct
     //checking if the tx interrupt goes high after send (make sure to not clear it by removing last line of send)
-    //mode of the module should automatically change to stand-by mode when sengin is done
+        //does not
+    //mode of the module should automatically change to stand-by mode when sending is done
+        //Does not go to stand-by mode, still in send mode
     //check to make sure setup/init is correct (does everything)
     //check the writes all work (by reading the registers that were written to) (some registers can only be written to in certain modes)
     //check that sending multiple commands at once works in hterm
     //check that writing and reading multiple bytes at a time work
+    //setting mode to LoRa sleep makes FIFO buffer have random info (this is supposed to clear it so maybe it is fine)
 
 //write formula: 57, reg | 0x80, 01, value (2 hex)
 
@@ -64,13 +67,14 @@
 
 //to test if message was received:
 //52 13 01 //0B is default, value is number of payload bytes in last message
-//can also read 11
-//52 11 01
+//can also read 12 to see if an interrupt has been triggered by a write
+//52 12 01
 
 //need to first set settings for the modules (both)
 // 57 81 01 80
 // 57 8E 01 00
 // 57 8F 01 00
+// 57 81 01 01
 // 57 A0 01 00 
 // 57 A0 01 08
 // 57 86 01 D9
@@ -81,7 +85,7 @@
 // 57 9D 01 1A
 // 57 9E 01 C4
 //in one line:
-// 57 81 01 80 57 8E 01 00 57 8F 01 00 57 A0 01 00 57 A0 01 08 57 86 01 D9 57 86 01 00 57 86 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
+// 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A0 01 08 57 86 01 D9 57 86 01 00 57 86 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
 
 //receive a message (one module)
 //52 10 01 //read start addr of last packet received
@@ -97,8 +101,8 @@
 // 57 80 01 00 
 // 57 80 02 F0 0F 
 // 57 A2 01 06
-// 57 81 01 03 
-// 57 C0 01 40
+// 57 81 01 03 //goes to send mode
+// 57 C0 01 40 //still in send mode
 // 57 92 01 ff //this clears interrupt register, likely not necessary for testing
 //in one line:
 // 57 81 01 01 57 8d 01 00 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03 57 C0 01 40 57 92 01 ff
@@ -153,6 +157,9 @@ void lora_uart_init(){ //done, not tested
         //setup FIFO
         lora_write_single(RH_RF95_REG_0E_FIFO_TX_BASE_ADDR, 0); //57 8E 01 00
         lora_write_single(RH_RF95_REG_0F_FIFO_RX_BASE_ADDR, 0); //57 8F 01 00
+
+        //set mode to IDLE/////////////////////////////////////////////////////new on 11/21
+        lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY); // 57 81 01 01
 
         //setPreambleLength Default is 8 bytes
         // 57, reg | 80, 01, value (2 hex)
