@@ -70,6 +70,8 @@
     //this is only for non-LoRa mode, so not really relevant, it is in actually LoRa mode too
     //should trigger when fifoempty goes low (something in FIFO buffer)
     //start page of LoRa registers: can read other mode's registers in LoRa mode (try this to see if page 70 stuff is working)
+    //try setting rxdone interrupt before setting mode to tx (could be done with tx before flag enable is set), example code has tx before interrupt flag enable, so shouldn't be the problem
+    //could also try FSK mode instead of LoRa mode (harder to code (no example code, but can see what is happening better))
 
     //setting mode to LoRa sleep makes FIFO buffer have random info (this is supposed to clear it so maybe it is fine)
     //don't set RH_RF95_REG_26_MODEM_CONFIG3, but should be fine
@@ -106,10 +108,11 @@
 
 //receive a message (one module)
 // 57, 81, 01, 05 //set mode receive
-// 57 C0 01 00 //interrupt on receive (should set a bit in register 12)
+// 57 C0 01 00 //interrupt on receive (should set a bit in register 12) DO THIS BEFORE SETTING MODE TO RECEIVE
 //52 10 01 //read start addr of last packet received
 //57 8D 01 output of above //set FIFO pointer to addr of last packet received
 //52 00 01 //read one byte of the message
+//////////////////////////////////////////THIS WORKED
 
 //send a message (other module)
 // 57 81 01 01
@@ -121,11 +124,15 @@
 // 57 80 02 F0 0F 
 // 57 A2 01 06
 // 57 81 01 03 //goes to send mode
-// 57 C0 01 40 //still in send mode
+// 57 C0 01 40 //DO THIS LINE AFTER 57 8D 01 00, SENDING PROBABLY FINISHES BEFORE INTERRUPT CAN BE ENABLED, CAUSES AN INFINITE LOOP
 // 57 92 01 ff //this clears interrupt register, likely not necessary for testing
 //in one line:
 // 57 81 01 01 57 8d 01 00 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03 57 C0 01 40 57 92 01 ff
 // //data is F0 0F
+
+//below send works (CRC error though, last part of data was correcupted)
+//57 81 01 01 57 8d 01 00 57 C0 01 40 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03
+////////////////////////THIS WORKS
 
 
 
@@ -279,6 +286,8 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);// 57, 8d, 01, 00 (2 hex)
     //reg, value
 
+    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
+
     // The headers
     lora_write_single(RH_RF95_REG_00_FIFO, ADDRTO); // 57, 80, 01, 10
     lora_write_single(RH_RF95_REG_00_FIFO, ADDRFROM); // 57, 80, 01, 10
@@ -290,7 +299,6 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
 
     //change module to send mode
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
-    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
 
     //lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags, new 57 92 01 ff
     return true;
