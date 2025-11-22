@@ -34,6 +34,7 @@
 //single receive 35
 //getting data from FIFO 36, 70
 //CAD mode (might be better than single receive) 39
+// FIFO clearing conditions pg 62
 //pg 84 is register addresses
 //example code:
 // https://github.com/Seeed-Studio/Grove_LoRa_433MHz_and_915MHz_RF/blob/master/RH_RF95.cpp
@@ -47,15 +48,31 @@
 //Sending is not working
 //try:
     //checking if all hex conversions below are correct
+        //checked, 3 were wrong, but wouldn't have caused the issue
     //checking if the tx interrupt goes high after send (make sure to not clear it by removing last line of send)
         //does not
     //mode of the module should automatically change to stand-by mode when sending is done
         //Does not go to stand-by mode, still in send mode
     //check to make sure setup/init is correct (does everything)
+        //does everything in example code 
     //check the writes all work (by reading the registers that were written to) (some registers can only be written to in certain modes)
     //check that sending multiple commands at once works in hterm
     //check that writing and reading multiple bytes at a time work
+    //could try writing using default settings (just add FIFO and then send?)
+    //probably not the problem, but could look into the sent header flags
+    //could look into the last send line that is supposed to enable the Rxdone flag
+    //could try setting RH_RF95_REG_0E_FIFO_TX_BASE_ADDR to 0 in send as well as the FIFO pointer
+    //could also try writing more bytes to the FIFO (more than supposed to based on length) to see if that initiates a send
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //this is only for non-LoRa mode, so not really relevant, it is in actually LoRa mode too
+    //should trigger when fifoempty goes low (something in FIFO buffer)
+    //start page of LoRa registers: can read other mode's registers in LoRa mode (try this to see if page 70 stuff is working)
+
     //setting mode to LoRa sleep makes FIFO buffer have random info (this is supposed to clear it so maybe it is fine)
+    //don't set RH_RF95_REG_26_MODEM_CONFIG3, but should be fine
 
 //write formula: 57, reg | 0x80, 01, value (2 hex)
 
@@ -76,18 +93,20 @@
 // 57 8F 01 00
 // 57 81 01 01
 // 57 A0 01 00 
-// 57 A0 01 08
+// 57 A1 01 08
 // 57 86 01 D9
-// 57 86 01 00
-// 57 86 01 00
+// 57 87 01 00
+// 57 88 01 00
 // 57 CD 01 04
 // 57 89 01 88
 // 57 9D 01 1A
 // 57 9E 01 C4
 //in one line:
-// 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A0 01 08 57 86 01 D9 57 86 01 00 57 86 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
+// 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
 
 //receive a message (one module)
+// 57, 81, 01, 05 //set mode receive
+// 57 C0 01 00 //interrupt on receive (should set a bit in register 12)
 //52 10 01 //read start addr of last packet received
 //57 8D 01 output of above //set FIFO pointer to addr of last packet received
 //52 00 01 //read one byte of the message
@@ -151,6 +170,9 @@ void lora_uart_init(){ //done, not tested
         // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
         // (default is off)
 
+        //write formula: 57, reg | 0x80, 01, value (2 hex)
+        // //read formula: 52, reg & ~0x80, 01
+
         //set mode to LORA sleep
         lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE); // 57 81 01 80
 
@@ -158,19 +180,19 @@ void lora_uart_init(){ //done, not tested
         lora_write_single(RH_RF95_REG_0E_FIFO_TX_BASE_ADDR, 0); //57 8E 01 00
         lora_write_single(RH_RF95_REG_0F_FIFO_RX_BASE_ADDR, 0); //57 8F 01 00
 
-        //set mode to IDLE/////////////////////////////////////////////////////new on 11/21
+        //set mode to IDLE
         lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY); // 57 81 01 01
 
         //setPreambleLength Default is 8 bytes
         // 57, reg | 80, 01, value (2 hex)
         lora_write_single(RH_RF95_REG_20_PREAMBLE_MSB, PREAMBLE_LENGTH >> 8); // 57 A0 01 00 
-        lora_write_single(RH_RF95_REG_21_PREAMBLE_LSB, PREAMBLE_LENGTH & 0xff); // 57 A0 01 08
+        lora_write_single(RH_RF95_REG_21_PREAMBLE_LSB, PREAMBLE_LENGTH & 0xff); // 57 A1 01 08 /////////////////////////////changed now
 
         //setFrequency(868.0);
         uint32_t frf = (CENTER_FREQUENCY * 1000000.0) / RH_RF95_FSTEP; //14,221,312, D9_00_00
         lora_write_single(RH_RF95_REG_06_FRF_MSB, (frf >> 16) & 0xff); // 57 86 01 D9
-        lora_write_single(RH_RF95_REG_07_FRF_MID, (frf >> 8) & 0xff); // 57 86 01 00
-        lora_write_single(RH_RF95_REG_08_FRF_LSB, frf & 0xff); // 57 86 01 00
+        lora_write_single(RH_RF95_REG_07_FRF_MID, (frf >> 8) & 0xff); // 57 87 01 00 ///////////////////////////////changed now
+        lora_write_single(RH_RF95_REG_08_FRF_LSB, frf & 0xff); // 57 88 01 00 /////////////////////////changed now
 
         //setTxPower(13);
         int8_t power = TXPOWER;
@@ -270,11 +292,11 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
 
-    lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags, new 57 92 01 ff
+    //lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags, new 57 92 01 ff
     return true;
 }
 
-void set_mode_sleep(){/////////////////////////////////////maybe or values with RH_RF95_LONG_RANGE_MODE to put in LoRa mode
+void set_mode_sleep(){/////////////////////////////////////maybe or values | RH_RF95_LONG_RANGE_MODE to put in LoRa mode
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP);
 }
 
