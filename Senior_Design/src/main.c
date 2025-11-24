@@ -103,6 +103,42 @@ void lora_uart_init(){ //done, not tested
     // setbuf(stderr,0);
 }
 
+void uart_init_for_print(){ 
+    //setup UART for printing to terminal
+    //this uses usart5, tx = C12, rx = D2
+    RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN;
+
+    //configure PC12 to be USART5_TX (AF2)
+    GPIOC->MODER |= 0x02000000; // pin 12 to 10 (alternate) 
+    GPIOC->AFR[1] |= 0x2 << ((12-8)*4); //set alternate function to AF2 (USART5_TX) AFRH, shift 0x2 (meaning AF2) by (pin number -8) * 4
+    
+    //configure PD2 to be USART5_RX (AF2)
+    GPIOD->MODER |= 0x00000020; // pin 2 to 10 (alternate) 
+    GPIOD->AFR[0] |= 0x2 << (2 * 4); //set alternate function to AF2 (USART5_RX) 0x2 means AF2 for low, shift by pin number * 4
+
+    RCC->APB1ENR |= RCC_APB1ENR_USART5EN;
+    USART5->CR1 &= ~USART_CR1_UE; //turn of USART5 UE bit
+    USART5->CR1 &= ~USART_CR1_M0; //change word size to 8 bits (00)
+    USART5->CR1 &= ~USART_CR1_M1; //change word size to 8 bits (00)
+
+    USART5->CR2 &= ~USART_CR2_STOP_0; //one stop bit
+    USART5->CR2 &= ~USART_CR2_STOP_1; //one stop bit
+
+    USART5->CR1 &= ~USART_CR1_PCE; //no parity control
+    USART5->CR1 &= ~USART_CR1_OVER8; //16x oversampling
+    USART5->BRR = 0x341; //baud rate (table96) needs to be 57600 for LoRa (THIS WAS CHANGED)
+    USART5->CR1 |= USART_CR1_TE | USART_CR1_RE; //enable TE and RE 
+    USART5->CR1 |= USART_CR1_UE; //enable USART
+
+    //wait for TE and RE bits to be acknowledged
+    while(((USART5->ISR & USART_ISR_TEACK) != USART_ISR_TEACK) | ((USART5->ISR & USART_ISR_REACK) != USART_ISR_REACK)){
+        //nothing
+    }
+    // setbuf(stdin,0);
+    // setbuf(stdout,0);
+    // setbuf(stderr,0);
+}
+
     bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
@@ -320,15 +356,17 @@ void lora_read_fifo_all(uint8_t* data, uint8_t length){//done, not tested
  void setup_leds(void)
  {
      RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
-     GPIOC->MODER |= 0x00000015; //set pins 0-2 as output 01
+     GPIOC->MODER |= 0x00000015; //set pins 0-2 as output 01 //for 3 irq registers
+     GPIOC->MODER |= 0x00155540; //set pins 3-10 as output 01 //for 8 data bits
  }
 
 int main(void){
     internal_clock();
     lora_uart_init(); 
-    //setup_leds();
+    setup_leds();
     //tx = C12, rx = D2
-    //rxdone LED = C0, valid_header LED = C1, crc_error LED = C2
+    //rxdone LED = C0, valid_header LED = C1, crc_error LED = C2 USE RESISTORS: 150 ohm
+    //C3-10 are 8 bits for data
     uint8_t rxdone = 0;
     uint8_t valid_header = 0;
     uint8_t crc_error = 0;
@@ -340,10 +378,10 @@ int main(void){
         //every 1 second, check irq flags (and clear)
         check_irq_flags_receive(&rxdone,&valid_header, &crc_error, clear);
         //set LEDs based on flags
-        //GPIOC->ODR = rxdone | (valid_header << 1) | (crc_error << 2);
+        GPIOC->ODR = rxdone | (valid_header << 1) | (crc_error << 2);
         //could also use BRR and BSRR
-        printf("Rxdone = %d\n", rxdone);
-        printf("valid_header = %d\n", valid_header);
+        printf("Rxdone = %d\n", rxdone); //will need to setup another uart to get to work with USB to TTL, 
+        printf("valid_header = %d\n", valid_header); // might also be a pain to setup printf by itself
         printf("crc_error = %d\n", crc_error);
 
         lora_read_fifo_all(data, MESSAGE_LENGTH); //get message from FIFO
@@ -351,7 +389,8 @@ int main(void){
         for (int i = 0; i < MESSAGE_LENGTH; i ++) {
             printf("data[%d] = %d\n", i, data[i]);
         }
-        // set 7-seg based on number (if one)
+        // set data LEDs based on data
+        GPIOC->ODR |= (data[0] << 3);
         set_mode_sleep(); //this clears FIFO
         set_mode_continuous_receive(); //this goes back to receive mode
     }

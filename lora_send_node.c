@@ -324,11 +324,22 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     return true;
 }
 
+ void setup_leds(void)
+ {
+     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+     GPIOC->MODER |= 0x00000015; //set pins 0-2 as output 01 //for send notification
+     GPIOC->MODER |= 0x00155540; //set pins 3-10 as output 01 //for 8 data bits
+ }
+
 
 int main(void){
     //send a message every 5 seconds
+    //set up an LED to flash whenever a message is sent and also display the number of 8 other LEDs
     internal_clock();
     lora_uart_init(); 
+    setup_leds();
+    //set pins C0-2 for send notification
+    //set pins C3-10 for 8 data bits
     //tx = C12, rx = D2
     uint8_t data [MESSAGE_LENGTH];
     data[0] = 0x1;
@@ -336,9 +347,16 @@ int main(void){
     for(;;) {
         lora_send(data, MESSAGE_LENGTH);
         printf("Message sent data = %d_%d", data[1], data[0]);
-        nano_wait(5000000000); //wait 5 seconds
+        GPIOC->ODR = 1 | (1 << 1) | (1 << 2) | (data[0] << 3);
+        nano_wait(4500000000); //wait 4.5 seconds
+        GPIOC->ODR = 0;
+        nano_wait(500000000); //wait 0.5 seconds
         lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags (can try adding this in send module as well)
         //like reading register until get send done and then clear it
+        if(data[0] == 0xFF){
+            data[1] += 0x1;
+        }
+        data[0] += 0x1;
         set_mode_sleep(); //this clears FIFO
     }
 }
@@ -350,9 +368,14 @@ void initb() {
 
 // int main(void){
 //     //send a message every time a button is pressed
+//     //set up an LED to flash whenever a message is sent and also display the number of 8 other LEDs
 //     internal_clock();
 //     lora_uart_init(); 
 //     initb();
+//     //setting pin B0  to input (00) 
+//     setup_leds();
+//     //set pins C0-2 for send notification
+//     //set pins C3-10 for 8 data bits
 //     //tx = C12, rx = D2
 //     uint8_t data [MESSAGE_LENGTH];
 //     data[0] = 0x1;
@@ -363,7 +386,10 @@ void initb() {
 //         }
 //         lora_send(data, MESSAGE_LENGTH);
 //         printf("Message sent data = %d_%d", data[1], data[0]);
-//         nano_wait(2000000000); //wait 2 seconds
+//         GPIOC->ODR = 1 | (1 << 1) | (1 << 2) | (data[0] << 3);
+//         nano_wait(4500000000); //wait 4.5 seconds
+//         GPIOC->ODR = 0;
+//         nano_wait(500000000); //wait 0.5 seconds
 //         lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags (can try adding this in send module as well)
 //         //like reading register until get send done and then clear it
 //         if(data[0] == 0xFF){
