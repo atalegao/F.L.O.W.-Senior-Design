@@ -1,3 +1,8 @@
+//send a message with an incrementing number every 5 seconds
+//flash a light whenever the message is sent (turn off after a short wait)
+
+//also make a version where a message is sent only on a button press
+
 #include "stm32f0xx.h"
 
 #define RH_WRITE_MASK 0x80
@@ -26,113 +31,6 @@
 #define MODEM_CONFIG_CHOICE Bw125Cr45Sf128 //(info page 22 of datasheet) Bw = 31.25 kHz, Cr = 4/8, Sf = 512chips/symbol, CRC on
     //is preset combo for Bandwidth, coding rate, spreading factor, CRC on/off (not using this)
 #endif
-
-//lora chip (not module) datasheet:
-// https://files.seeedstudio.com/wiki/Grove_LoRa_Radio/res/RFM95_96_97_98_DataSheet.pdf
-//FIFO buffer pg 61, 30
-//operation modes 31
-//single receive 35
-//getting data from FIFO 36, 70
-//CAD mode (might be better than single receive) 39
-// FIFO clearing conditions pg 62
-//pg 84 is register addresses
-//example code:
-// https://github.com/Seeed-Studio/Grove_LoRa_433MHz_and_915MHz_RF/blob/master/RH_RF95.cpp
-
-//LoRa module datasheet (not useful)
-//https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/2527/113060006_Web.pdf
-//chip LoRa chip is based on datasheet:
-//https://semtech.my.salesforce.com/sfc/p/#E0000000JelG/a/2R0000001Rbr/6EfVZUorrpoKFfvaF_Fkpgp5kzjiNyiAbqcpqh9qSjE 
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//Sending is not working
-//try:
-    //checking if all hex conversions below are correct
-        //checked, 3 were wrong, but wouldn't have caused the issue
-    //checking if the tx interrupt goes high after send (make sure to not clear it by removing last line of send)
-        //does not
-    //mode of the module should automatically change to stand-by mode when sending is done
-        //Does not go to stand-by mode, still in send mode
-    //check to make sure setup/init is correct (does everything)
-        //does everything in example code 
-    //check the writes all work (by reading the registers that were written to) (some registers can only be written to in certain modes)
-    //check that sending multiple commands at once works in hterm
-    //check that writing and reading multiple bytes at a time work
-    //could try writing using default settings (just add FIFO and then send?)
-    //probably not the problem, but could look into the sent header flags
-    //could look into the last send line that is supposed to enable the Rxdone flag
-    //could try setting RH_RF95_REG_0E_FIFO_TX_BASE_ADDR to 0 in send as well as the FIFO pointer
-    //could also try writing more bytes to the FIFO (more than supposed to based on length) to see if that initiates a send
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70 PAGE 70
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //this is only for non-LoRa mode, so not really relevant, it is in actually LoRa mode too
-    //should trigger when fifoempty goes low (something in FIFO buffer)
-    //start page of LoRa registers: can read other mode's registers in LoRa mode (try this to see if page 70 stuff is working)
-    //try setting rxdone interrupt before setting mode to tx (could be done with tx before flag enable is set), example code has tx before interrupt flag enable, so shouldn't be the problem
-    //could also try FSK mode instead of LoRa mode (harder to code (no example code, but can see what is happening better))
-
-    //setting mode to LoRa sleep makes FIFO buffer have random info (this is supposed to clear it so maybe it is fine)
-    //don't set RH_RF95_REG_26_MODEM_CONFIG3, but should be fine
-
-//write formula: 57, reg | 0x80, 01, value (2 hex)
-
-//read formula: 52, reg & ~0x80, 01
-
-
-//to test if module is connected:
-//52 0F 01 (on hterm, set baud = 57600), should get a response
-
-//to test if message was received:
-//52 13 01 //0B is default, value is number of payload bytes in last message
-//can also read 12 to see if an interrupt has been triggered by a write
-//52 12 01
-
-//need to first set settings for the modules (both)
-// 57 81 01 80
-// 57 8E 01 00
-// 57 8F 01 00
-// 57 81 01 01
-// 57 A0 01 00 
-// 57 A1 01 08
-// 57 86 01 D9
-// 57 87 01 00
-// 57 88 01 00
-// 57 CD 01 04
-// 57 89 01 88
-// 57 9D 01 1A
-// 57 9E 01 C4
-//in one line:
-// 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
-
-//receive a message (one module)
-// 57, 81, 01, 05 //set mode receive
-// 57 C0 01 00 //interrupt on receive (should set a bit in register 12) DO NOT DO THIS BEFORE SETTING MODE TO RECEIVE
-//52 10 01 //read start addr of last packet received
-//57 8D 01 output of above //set FIFO pointer to addr of last packet received
-//52 00 01 //read one byte of the message
-//////////////////////////////////////////THIS WORKED
-
-//send a message (other module)
-// 57 81 01 01
-// 57 8d 01 00
-// 57 80 01 10 
-// 57 80 01 10 
-// 57 80 01 00 
-// 57 80 01 00 
-// 57 80 02 F0 0F 
-// 57 A2 01 06
-// 57 81 01 03 //goes to send mode
-// 57 C0 01 40 //DO THIS LINE AFTER 57 8D 01 00, SENDING PROBABLY FINISHES BEFORE INTERRUPT CAN BE ENABLED, CAUSES AN INFINITE LOOP
-// 57 92 01 ff //this clears interrupt register, likely not necessary for testing
-//in one line:
-// 57 81 01 01 57 8d 01 00 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03 57 C0 01 40 57 92 01 ff
-// //data is F0 0F
-
-//below send works (CRC error though, last part of data was corrupted)
-//57 81 01 01 57 8d 01 00 57 C0 01 40 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03
-////////////////////////THIS WORKS
 
 
 
@@ -236,36 +134,10 @@ void lora_uart_init(){ //done, not tested
         setModemRegisters(&cfg);
         return true;
         #endif
-
     }
 
-WHEN DOES LORA MODULE START SENDING MESSAGE?
-at very end right?, once complete, valid message, then start sending?
-I think you have to read addr0 several times in a row to read the data, it is automatically put in the FIFO buffer
-//Since messages are not automatically sent to module, (have to write to read them), don't use DMA, just use read
-//message receives are handled by lora_read_fifo_all
-//message sends are handled by lora_send
-//register reads are handled by lora_read_single and lora_read_multiple
-//register writes are handled by lora_write_single and lora_write_multiple
 
-unit8_t lora_read_fifo_single(){//done, not tested
-    //THIS IS FOR READING ONE BYTE OF A LORA MESSAGE, 
-    unit8_t val = 0;
-    uart_write('R'); //0x52
-    uart_write(0X00 & ~RH_WRITE_MASK); //0x00 & ~0x80, so 0x00
-    uart_write(1); //0x01
-    val = uart_read_single_only();
-    return val; 
-    // 52, 00, 01
-}
-
-void lora_read_fifo_all(unit8_t* data, unit8_t message_length){//done, not tested
-    //THIS IS FOR READING THE ENTIRE LORA MESSAGE, 
-     for (int i = 0; i < length; i ++) {
-        *(data + i) = lora_read_fifo_single()
-    }
-}
-
+    
 bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //THIS IS FOR SENDING A LORA MESSAGE, NOT WRTING TO REGISTERS IN THE LORA MICRO
     //this handles sending a lora message
@@ -304,18 +176,6 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     return true;
 }
 
-void set_mode_sleep(){/////////////////////////////////////maybe or values | RH_RF95_LONG_RANGE_MODE to put in LoRa mode
-    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP);
-}
-
-void set_mode_standby(){
-    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY);
-}
-
-void set_mode_continuous_receive(){
-    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_RXCONTINUOUS); // 57, 81, 01, 05
-    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x00); // 57 C0 01 00
-}
 
 void lora_write_multiple(unit8_t reg, unit8_t* value, unit8_t length){//done, not tested
     //THIS IS FOR WRTING TO REGISTERS IN THE LORA MICRO, NOT SENDING A LORA MESSAGE
@@ -413,42 +273,3 @@ void uart_write(unit8_t data){ //done, not tested
         USART5->TDR = data;
     }
 }
-
-
-
-// char serfifo[FIFOSIZE]; //array of data read from LoRa module
-// int seroffset = 0;
-
-// void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
-//     RCC->AHBENR |= RCC_AHBENR_DMA2EN;
-//     DMA2->CSELR |= DMA2_CSELR_CH2_USART5_RX;
-    
-//     NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
-//     USART5->CR3 |= USART_CR3_DMAR; //enable DMA for reception
-//     USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
-
-//     DMA2_Channel2->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
-    
-//     DMA2_Channel2->CMAR = (uint32_t)(&serfifo);//set CMAR
-//     DMA2_Channel2->CPAR = (uint32_t)&(USART5->RDR);//set CPAR
-//     DMA2_Channel2->CNDTR = FIFOSIZE;//set CNDTR
-//     DMA2_Channel2->CCR &= ~DMA_CCR_DIR;//set DIR to P->M
-//     DMA2_Channel2->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
-//     DMA2_Channel2->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
-//     DMA2_Channel2->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits
-//     DMA2_Channel2->CCR |= DMA_CCR_MINC;//MINC increments on CMAR
-//     DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
-//     DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
-//     DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
-//     DMA2_Channel2->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
-    
-//     DMA2_Channel2->CCR |= DMA_CCR_EN;
-// }
-
-// void USART3_8_IRQHandler(void) {  //UART interrupt handler
-//     unit8_t index = 0;
-//     while(DMA2_Channel2->CNDTR != index) {
-//         serfifo[seroffset] = uart_read();
-//         index += 1;
-//     }
-// }
