@@ -38,7 +38,7 @@ void nano_wait(unsigned int n) {
 #include <lora_receive_node_alternating.h>
 
 #define RH_WRITE_MASK 0x80
-#define PREAMBLE_LENGTH 8
+// #define PREAMBLE_LENGTH 8 set below based on number of writes used
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
 #define FIFOSIZE 16 //number of bytes in a message
@@ -46,6 +46,7 @@ void nano_wait(unsigned int n) {
 #define ADDRFROM 10 //address of this node (should be same as ADDRTO)
 #define HEADERID 0 //this is one of the lora headers, but don't know what it is
 #define HEADERFLAGS 0 //this is one of the lora headers, but don't know what it is
+
 
 #define MESSAGE_LENGTH 2 //length of the message without headers
 
@@ -66,6 +67,18 @@ void nano_wait(unsigned int n) {
 #ifdef USE_DEFAULT_SETTINGS
 #define MODEM_CONFIG_CHOICE Bw125Cr45Sf128 //(info page 22 of datasheet) Bw = 31.25 kHz, Cr = 4/8, Sf = 512chips/symbol, CRC on
     //is preset combo for Bandwidth, coding rate, spreading factor, CRC on/off (not using this)
+#endif
+
+//comment out one of the 2 below
+//#define TWO_WRITES
+#define ONE_WRITE
+
+#ifdef TWO_WRITES
+#define PREAMBLE_LENGTH 8
+#endif
+
+#ifdef ONE_WRITE
+#define PREAMBLE_LENGTH 30000
 #endif
 
 
@@ -397,9 +410,14 @@ void sleep_cycle(void){ //not done, not tested
     nano_wait(100000000 * SLEEP_CYCLE_TIME); //wait 1/10 second per SLEEP_CYCLE_TIME
 }
 
+#ifdef TWO_WRITES
 bool continous_receive_for_cycle(uint8_t *rxdone,uint8_t *valid_header, uint8_t *crc_error, uint8_t *data){
     //THIS HANDLES RECEIVING THE ACTUAL MESSAGE AFTER CAD DETECTED A MESSAGE
     //THIS IS SPECIFICALLY DESIGNED TO WORK WITH SEND_CYCLE (message with preambles then send actual message)
+    // COULD ALSO JUST SEND ONE MESSAGE WITH ALMOST MAX PREAMBLE LENGTH (WITH ACTUAL DATA)
+    // THIS WOULD BE EASIER (AND MAYBE HOW CAD IS SUPPOSED TO WORK), 
+    // BUT CONTINUOUS RECEIVE WOULD HAVE TO HAVE A LARGE PREMABLE LENGTH SET BY RegPreambleMsb
+
     set_mode_continuous_receive();
     nano_wait(1000000000); //wait 1 second
     uint16_t counter = 0;
@@ -427,6 +445,36 @@ bool continous_receive_for_cycle(uint8_t *rxdone,uint8_t *valid_header, uint8_t 
         }
     }
 }
+#endif
+
+#ifdef ONE_WRITE
+bool continous_receive_for_cycle(uint8_t *rxdone,uint8_t *valid_header, uint8_t *crc_error, uint8_t *data){
+    //THIS HANDLES RECEIVING THE ACTUAL MESSAGE AFTER CAD DETECTED A MESSAGE
+    //THIS IS SPECIFICALLY DESIGNED TO WORK WITH SEND_CYCLE (message with preambles then send actual message)
+    // COULD ALSO JUST SEND ONE MESSAGE WITH ALMOST MAX PREAMBLE LENGTH (WITH ACTUAL DATA)
+    // THIS WOULD BE EASIER (AND MAYBE HOW CAD IS SUPPOSED TO WORK), 
+    // BUT CONTINUOUS RECEIVE WOULD HAVE TO HAVE A LARGE PREMABLE LENGTH SET BY RegPreambleMsb
+
+    set_mode_continuous_receive();
+    nano_wait(1000000000); //wait 1 second
+    uint16_t counter = 0;
+    while(1){
+        //every 1 second, check irq flags (and clear)
+        check_irq_flags_receive(rxdone,valid_header, crc_error, 0x1);
+        if(*rxdone){//got a message
+            lora_read_fifo_all(data, MESSAGE_LENGTH); //get message from FIFO
+            //else, got actual message, so exit
+            return true;
+        }
+        else{//didn't get data
+            nano_wait(100000000); //wait 1/10 second
+            if(cunter >= 1000){
+                return false; //end after a certain amount of iterations 
+            }
+        }
+    }
+}
+#endif
 
 void receive_cycle(void){
     //THIS HANDLES THE ENTIRE RECEIVE CYCLE

@@ -38,7 +38,7 @@ void nano_wait(unsigned int n) {
 #include <lora_send_node_alternating.h>
 
 #define RH_WRITE_MASK 0x80
-#define PREAMBLE_LENGTH 8
+// #define PREAMBLE_LENGTH 8 //set below by number of writes
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
 #define FIFOSIZE 16 //number of bytes in a message
@@ -64,6 +64,18 @@ void nano_wait(unsigned int n) {
 #ifdef USE_DEFAULT_SETTINGS
 #define MODEM_CONFIG_CHOICE Bw125Cr45Sf128 //(info page 22 of datasheet) Bw = 31.25 kHz, Cr = 4/8, Sf = 512chips/symbol, CRC on
     //is preset combo for Bandwidth, coding rate, spreading factor, CRC on/off (not using this)
+#endif
+
+//comment out one of the 2 below
+//#define TWO_WRITES
+#define ONE_WRITE
+
+#ifdef TWO_WRITES
+#define PREAMBLE_LENGTH 8
+#endif
+
+#ifdef ONE_WRITE
+#define PREAMBLE_LENGTH 30000
 #endif
 
 
@@ -359,14 +371,30 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
 
 //FIRST SEND MESSAGE SHOULD BE THE SAME LENGTH AS THE NORMAL MESSAGE NEEDS TO BE, WITH ALL OF THE DATA BEING 0x55, 
 // BESIDES FOR THE LAST 4 BYTES, LAST 4 BYTES WILL BE 0F F0 0F 0F
-
+#ifdef TWO_WRITES
 void send_alternating(uint8_t *data){
     //THIS HANDLES SENDING DATA FOR RECEIVERS SET TO ALTERNATING BETWEEN SLEEP AND RECEIVING 
     lora_send(preamble_message_data_global, MESSAGE_LENGTH); //this sends preamble message
     lora_send(data, MESSAGE_LENGTH); //this sends actual message
+    // COULD ALSO JUST SEND ONE MESSAGE WITH ALMOST MAX PREAMBLE LENGTH (WITH ACTUAL DATA)
+    // THIS WOULD BE EASIER (AND MAYBE HOW CAD IS SUPPOSED TO WORK), 
+    // BUT CONTINUOUS RECEIVE WOULD HAVE TO HAVE A LARGE PREMABLE LENGTH SET BY RegPreambleMsb
 }
+#endif
 
+#ifdef ONE_WRITE
+void send_alternating(uint8_t *data){
+    //THIS HANDLES SENDING DATA FOR RECEIVERS SET TO ALTERNATING BETWEEN SLEEP AND RECEIVING 
+    //lora_send(preamble_message_data_global, MESSAGE_LENGTH); //this sends preamble message
+    lora_send(data, MESSAGE_LENGTH); //this sends actual message
+    // COULD ALSO JUST SEND ONE MESSAGE WITH ALMOST MAX PREAMBLE LENGTH (WITH ACTUAL DATA)
+    // THIS WOULD BE EASIER (AND MAYBE HOW CAD IS SUPPOSED TO WORK), 
+    // BUT CONTINUOUS RECEIVE WOULD HAVE TO HAVE A LARGE PREMABLE LENGTH SET BY RegPreambleMsb
+}
+#endif
+#ifdef TWO_WRITES
 uint8_t preamble_message_data_global [MESSAGE_LENGTH];
+#endif
 int main(void){
     //send a message every 5 seconds
     //set up an LED to flash whenever a message is sent and also display the number of 8 other LEDs
@@ -379,6 +407,7 @@ int main(void){
     uint8_t data [MESSAGE_LENGTH];
     data[0] = 0x1;
     data[1] = 0x0;
+    #ifdef TWO_WRITES
     int i;
     for (i = 0; i < MESSAGE_LENGTH; i ++){
         if(i == (MESSAGE_LENGTH - 1)){ //set end bytes
@@ -397,6 +426,7 @@ int main(void){
             preamble_message_data_global[i] = 0x55;
         }
     }
+    #endif
     for(;;) {
         send_alternating(data);
         printf("Message sent data = %d_%d", data[1], data[0]);
@@ -433,6 +463,7 @@ void initb() {
 //     uint8_t data [MESSAGE_LENGTH];
 //     data[0] = 0x1;
 //     data[1] = 0x0;
+//     #ifdef TWO_WRITES
 //     int i;
 //     for (i = 0; i < MESSAGE_LENGTH; i ++){
 //         if(i == (MESSAGE_LENGTH - 1)){ //set end bytes
@@ -451,6 +482,7 @@ void initb() {
 //             preamble_message_data_global[i] = 0x55;
 //         }
 //     }
+//     #endif
 //     for(;;) {
 //         while(GPIOB->IDR & 0x00000001 == 0){
 //             //do nothing while button is not pressed
