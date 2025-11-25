@@ -35,7 +35,7 @@ void nano_wait(unsigned int n) {
 #include <stdint.h>
 #include <stdbool.h>
 #include <RH_RF95.h>
-#include <lora_receive.h>
+#include <lora_receive_node.h>
 
 #define RH_WRITE_MASK 0x80
 #define PREAMBLE_LENGTH 8
@@ -212,7 +212,7 @@ void uart_init_for_print(){
     uart_write('R'); //0x52
     uart_write(0X00 & ~RH_WRITE_MASK); //0x00 & ~0x80, so 0x00
     uart_write(1); //0x01
-    val = uart_read_single_only();
+    val = uart_read();
     return val; 
     // 52, 00, 01
 }
@@ -251,7 +251,7 @@ void lora_read_multiple(uint8_t reg, uint8_t* result, uint8_t length){//done, no
     int i = 0;
     while (1) {
         //available means uart is not currently reading a message, figure out how to do this
-        *(result + i) = uart_read_single_only();
+        *(result + i) = uart_read();
         i ++;
         if (i >= length) {
             break;
@@ -278,7 +278,7 @@ uint8_t lora_read_single(uint8_t reg){//done, not tested
     uart_write('R'); //0x52
     uart_write(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
     uart_write(1); //0x01
-    val = uart_read_single_only();
+    val = uart_read();
     return val; //baud is 57600
     //worked with 52 0F 01
     // 52 00 01 read vale written by write
@@ -288,35 +288,30 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART 
     //for reading received lora messages
     //USE lora_receive instead
-    uint8_t c = 0;
+    uint16_t c = 0;
+    uint8_t counter = 0;
     //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
     while (!(USART5->ISR & USART_ISR_RXNE)) { 
+        // nano_wait(1000000); //wait 1/1000 second
+        // counter += 1;
+        // if(counter >= 10000){
+        //     return 0xFF;
+        // }
         c = USART5->RDR;
     }
     return c;
 }
-
-uint8_t uart_read_single_only(){ //not done (add timeout logic), not tested
-    //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART (reading register, not received message)
-    //USE lora_read_single or lora_read_multiple
-
-    //since DMA is setup for data the size of a lora message, don't use DMA
-    DMA2_Channel2->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
-    uint8_t c = 0;
-    //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
-    while (!(USART5->ISR & USART_ISR_RXNE)) { 
-        c = USART5->RDR;
-    }
-    DMA2_Channel2->CCR |= DMA_CCR_EN; //enable DMA
-    return c;
-}
-
 
 
 void uart_write(uint8_t data){ //done, not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
     //USE lora_write_single, lora_write_multiple, or lora_send instead
     while(!(USART5->ISR & USART_ISR_TXE)) { 
+        // nano_wait(1000000); //wait 1/1000 second
+        // counter += 1;
+        // if(counter >= 10000){
+        //     break;
+        // }
         USART5->TDR = data;
     }
 }

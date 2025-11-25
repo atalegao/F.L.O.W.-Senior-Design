@@ -35,7 +35,7 @@ void nano_wait(unsigned int n) {
 #include <stdint.h>
 #include <stdbool.h>
 #include <RH_RF95.h>
-#include <lora_send_node.h>
+#include <lora_receive_node.h>
 
 #define RH_WRITE_MASK 0x80
 #define PREAMBLE_LENGTH 8
@@ -69,6 +69,42 @@ void nano_wait(unsigned int n) {
 
 void lora_uart_init(){ //done, not tested
     //setup UART for lora
+    //this uses usart5, tx = C12, rx = D2
+    RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN;
+
+    //configure PC12 to be USART5_TX (AF2)
+    GPIOC->MODER |= 0x02000000; // pin 12 to 10 (alternate) 
+    GPIOC->AFR[1] |= 0x2 << ((12-8)*4); //set alternate function to AF2 (USART5_TX) AFRH, shift 0x2 (meaning AF2) by (pin number -8) * 4
+    
+    //configure PD2 to be USART5_RX (AF2)
+    GPIOD->MODER |= 0x00000020; // pin 2 to 10 (alternate) 
+    GPIOD->AFR[0] |= 0x2 << (2 * 4); //set alternate function to AF2 (USART5_RX) 0x2 means AF2 for low, shift by pin number * 4
+
+    RCC->APB1ENR |= RCC_APB1ENR_USART5EN;
+    USART5->CR1 &= ~USART_CR1_UE; //turn of USART5 UE bit
+    USART5->CR1 &= ~USART_CR1_M0; //change word size to 8 bits (00)
+    USART5->CR1 &= ~USART_CR1_M1; //change word size to 8 bits (00)
+
+    USART5->CR2 &= ~USART_CR2_STOP_0; //one stop bit
+    USART5->CR2 &= ~USART_CR2_STOP_1; //one stop bit
+
+    USART5->CR1 &= ~USART_CR1_PCE; //no parity control
+    USART5->CR1 &= ~USART_CR1_OVER8; //16x oversampling
+    USART5->BRR = 0x341; //baud rate (table96) needs to be 57600 for LoRa (THIS WAS CHANGED)
+    USART5->CR1 |= USART_CR1_TE | USART_CR1_RE; //enable TE and RE 
+    USART5->CR1 |= USART_CR1_UE; //enable USART
+
+    //wait for TE and RE bits to be acknowledged
+    while(((USART5->ISR & USART_ISR_TEACK) != USART_ISR_TEACK) | ((USART5->ISR & USART_ISR_REACK) != USART_ISR_REACK)){
+        //nothing
+    }
+    // setbuf(stdin,0);
+    // setbuf(stdout,0);
+    // setbuf(stderr,0);
+}
+
+void uart_init_for_print(){ 
+    //setup UART for printing to terminal
     //this uses usart5, tx = C12, rx = D2
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN;
 
@@ -279,141 +315,100 @@ void uart_write(uint8_t data){ //done, not tested
         USART5->TDR = data;
     }
 }
+//new functions//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear){ //done, not tested
+    //outputs rxdone, valid_header, and crc_error flags after reading them
+    //THIS ALSO CLEARS THE FLAG REGISTER if clear == 1
 
-
-bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
-    //THIS IS FOR SENDING A LORA MESSAGE, NOT WRTING TO REGISTERS IN THE LORA MICRO
-    //this handles sending a lora message
-    //length is the length of the message in bytes
-    //data is the payload data being sent
-
-    //this function will need to be updated
-    if (length > RH_RF95_MAX_MESSAGE_LEN) {
-        return false;
-    }
-
-    //this->waitPacketSent(); // Make sure we dont interrupt an outgoing message
-    //setModeIdle();
-    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY); //new 57, 81, 01, 01
-
-    // Position at the beginning of the FIFO
-    // 57, reg | 80, 01, value (2 hex)
-    lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);// 57, 8d, 01, 00 (2 hex)
-    //reg, value
-
-    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
-
-    // The headers
-    lora_write_single(RH_RF95_REG_00_FIFO, ADDRTO); // 57, 80, 01, 10
-    lora_write_single(RH_RF95_REG_00_FIFO, ADDRFROM); // 57, 80, 01, 10
-    lora_write_single(RH_RF95_REG_00_FIFO, HEADERID); // 57, 80, 01, 00
-    lora_write_single(RH_RF95_REG_00_FIFO, HEADERFLAGS); // 57, 80, 01, 00
-
-    lora_write_multiple(RH_RF95_REG_00_FIFO, data, length); //57, 80, 02, F0, 0F //sends F0 0F
-    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length + RH_RF95_HEADER_LEN); //57 , A2, 01, 06
-
-    //change module to send mode
-    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
-
-    //logic to clear irq flags
-    bool done = false;
-    uint8_t counter = 0;
+    //read irq flag reg (12)
     uint8_t value = 0;
-    while(done == false){
-        value = lora_read_single(0x12);//check irq register for done
-        if((value >> 3) & 0x1){
-            done = true;
-            lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
-            return true;
-        }
-        else{
-            nano_wait(500000000); //wait 0.5 seconds
-            counter += 1;
-            if(counter > 10){ //5 seconds
-                lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
-                return false;
-            }
-        }
+    value = lora_read_single(12);
+    //set
+    *(rxdone) = (value >> 6) & 0x1;
+    *(valid_header) = (value >> 4) & 0x1;
+    *(crc_error) = (value >> 5) & 0x1;
+    //clear 
+    if(clear){
+        lora_write_single(12, 0xFF);
     }
-    return true;
 }
 
+void lora_read_fifo_all(uint8_t* data, uint8_t length){//done, not tested
+    //THIS IS FOR READING THE ENTIRE LORA MESSAGE, NO HEADERS
+    //LENGTH IS WITHOUT HEADERS
+    uint8_t start_addr = 0;
+    start_addr = lora_read_single(10);//read start addr of last packet received
+    lora_write_single(0x0D, start_addr);//set FIFO pointer to addr of last packet received
+
+    for (int i = 0; i < 4; i ++) {
+        lora_read_fifo_single(); //read the headers, but don't store them
+    }
+
+    for (int i = 0; i < length; i ++) {
+        *(data + i) = lora_read_fifo_single(); //read one byte of the message
+    }
+}
  void setup_leds(void)
  {
      RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
-     GPIOC->MODER |= 0x00000015; //set pins 0-2 as output 01 //for send notification
+     GPIOC->MODER |= 0x00000015; //set pins 0-2 as output 01 //for 3 irq registers
      GPIOC->MODER |= 0x00155540; //set pins 3-10 as output 01 //for 8 data bits
  }
+//go to CAD mode (111) for a certain amount of time
+//wait until reg 12-2 is high (CAD is done)
+//if got something (reg 12-0 is high), go to continuous receive mode
+//else go to sleep mode
+//go back to CAD mode after some time
+
+//need to send an initial message of a bunch of preamble signals
+//then wait a small amount of time
+//then send actual message
+
+//don't think CAD time can be adjusted (besides doing it several times in a row) (is (2^SF + 32) / BW seconds), SF is 4096, BW is 125k
+//maybe 0.03 seconds
+//Preamble is 0x55 or 0xAA repeated
+//Rxcontinuous seems to ignore the preamble if it is too long (set by RegPreambleMsb and RegPreambleLsb)
+//means it shouldn't receive the initial lot of preammble message if it starts receiving at the beginning of the long preamble send
+//still need to have a specific sequence of bytes at the end of the preamble send to then check for in the continuous receive data result
+//if continuous receive gets that string of data, ignore it and go back into continuous receive 
+//figure out how to set DIO registers, one for both CAD registers
 
 
 int main(void){
-    //send a message every 5 seconds
-    //set up an LED to flash whenever a message is sent and also display the number of 8 other LEDs
     internal_clock();
     lora_uart_init(); 
     setup_leds();
-    //set pins C0-2 for send notification
-    //set pins C3-10 for 8 data bits
     //tx = C12, rx = D2
+    //rxdone LED = C0, valid_header LED = C1, crc_error LED = C2 USE RESISTORS: 150 ohm
+    //C3-10 are 8 bits for data
+    uint8_t rxdone = 0;
+    uint8_t valid_header = 0;
+    uint8_t crc_error = 0;
+    bool clear = true; //this clears irq registers (need to for this, else LEDs would never reset)
     uint8_t data [MESSAGE_LENGTH];
-    data[0] = 0x1;
-    data[1] = 0x0;
     for(;;) {
-        lora_send(data, MESSAGE_LENGTH);
-        printf("Message sent data = %d_%d", data[1], data[0]);
-        GPIOC->ODR = 1 | (1 << 1) | (1 << 2) | (data[0] << 3);
-        nano_wait(4500000000); //wait 4.5 seconds
-        GPIOC->ODR = 0;
-        nano_wait(500000000); //wait 0.5 seconds
-        lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags (can try adding this in send module as well)
-        //like reading register until get send done and then clear it
-        if(data[0] == 0xFF){
-            data[1] += 0x1;
+        set_mode_continuous_receive();
+        nano_wait(1000000000); //wait 1 second
+        //every 1 second, check irq flags (and clear)
+        check_irq_flags_receive(&rxdone,&valid_header, &crc_error, clear);
+        //set LEDs based on flags
+        GPIOC->ODR = rxdone | (valid_header << 1) | (crc_error << 2);
+        //could also use BRR and BSRR
+        printf("Rxdone = %d\n", rxdone); //will need to setup another uart to get to work with USB to TTL, 
+        printf("valid_header = %d\n", valid_header); // might also be a pain to setup printf by itself
+        printf("crc_error = %d\n", crc_error);
+
+        lora_read_fifo_all(data, MESSAGE_LENGTH); //get message from FIFO
+
+        for (int i = 0; i < MESSAGE_LENGTH; i ++) {
+            printf("data[%d] = %d\n", i, data[i]);
         }
-        data[0] += 0x1;
+        // set data LEDs based on data
+        GPIOC->ODR |= (data[0] << 3);
         set_mode_sleep(); //this clears FIFO
+        set_mode_continuous_receive(); //this goes back to receive mode
     }
 }
-
-void initb() {
-    RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
-    GPIOB->MODER &= 0xFFFFFFFC; //setting pin B0  to input (00) while not changing other pins
-}
-
-// int main(void){
-//     //send a message every time a button is pressed
-//     //set up an LED to flash whenever a message is sent and also display the number of 8 other LEDs
-//     internal_clock();
-//     lora_uart_init(); 
-//     initb();
-//     //setting pin B0  to input (00) 
-//     setup_leds();
-//     //set pins C0-2 for send notification
-//     //set pins C3-10 for 8 data bits
-//     //tx = C12, rx = D2
-//     uint8_t data [MESSAGE_LENGTH];
-//     data[0] = 0x1;
-//     data[1] = 0x0;
-//     for(;;) {
-//         while(GPIOB->IDR & 0x00000001 == 0){
-//             //do nothing while button is not pressed
-//         }
-//         lora_send(data, MESSAGE_LENGTH);
-//         printf("Message sent data = %d_%d", data[1], data[0]);
-//         GPIOC->ODR = 1 | (1 << 1) | (1 << 2) | (data[0] << 3);
-//         nano_wait(4500000000); //wait 4.5 seconds
-//         GPIOC->ODR = 0;
-//         nano_wait(500000000); //wait 0.5 seconds
-//         lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags (can try adding this in send module as well)
-//         //like reading register until get send done and then clear it
-//         if(data[0] == 0xFF){
-//             data[1] += 0x1;
-//         }
-//         data[0] += 0x1;
-//         set_mode_sleep(); //this clears FIFO
-//     }
-// }
-
 // int main(void)
 // {
 //     internal_clock();   // Never comment this out!
