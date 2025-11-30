@@ -149,23 +149,22 @@ void lora_uart_init(){ //done, not tested
         lora_write_single(RH_RF95_REG_09_PA_CONFIG, RH_RF95_PA_SELECT | (power - 5)); // 57 89 01 88
 
         #ifdef USE_CUSTOM_SETTINGS
-
-        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE); // 57 9D 01 1A
-        lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
-        //AGC is automatic gain control, all examples use this, so I included it
-        return true;
+            lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE); // 57 9D 01 1A
+            lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
+            //AGC is automatic gain control, all examples use this, so I included it
+            return true;
         #endif
         
         #ifdef USE_DEFAULT_SETTINGS
-        //setModemConfig(Bw125Cr48Sf4096); // slow and reliable?
-        if (MODEM_CONFIG_CHOICE > (signed int)(sizeof(MODEM_CONFIG_TABLE) / sizeof(ModemConfig))) {
-            return false;
-        }
+            //setModemConfig(Bw125Cr48Sf4096); // slow and reliable?
+            if (MODEM_CONFIG_CHOICE > (signed int)(sizeof(MODEM_CONFIG_TABLE) / sizeof(ModemConfig))) {
+                return false;
+            }
 
-        ModemConfig cfg;
-        memcpy_P(&cfg, &MODEM_CONFIG_TABLE[index], sizeof(ModemConfig));
-        setModemRegisters(&cfg);
-        return true;
+            ModemConfig cfg;
+            memcpy_P(&cfg, &MODEM_CONFIG_TABLE[index], sizeof(ModemConfig));
+            setModemRegisters(&cfg);
+            return true;
         #endif
     }
 
@@ -194,7 +193,7 @@ void lora_write_multiple(uint8_t reg, uint8_t* value, uint8_t length){//done, no
     //writes value to the address specified in reg 
     //reg is in the LoRa microcontroller 
     //length is the number of bytes written
-    uart_write('W');
+    uart_write(0x57);
     uart_write(reg | RH_WRITE_MASK);
     uart_write(length);
     for (int i = 0; i < length; i ++) {
@@ -208,7 +207,7 @@ void lora_read_multiple(uint8_t reg, uint8_t* result, uint8_t length){//done, no
     //reads value in the register reg and places it in result
     //reg is in the LoRa microcontroller
     //length is the number of bytes to read 
-    uart_write('R');
+    uart_write(0x52);
     uart_write(reg & ~RH_WRITE_MASK);
     uart_write(length);
 
@@ -227,7 +226,7 @@ void lora_write_single(uint8_t reg, uint8_t value){//done, not tested
     //THIS IS FOR WRTING TO REGISTERS IN THE LORA MICRO, NOT SENDING A LORA MESSAGE
     //writes value to the address specified in reg 
     //reg is in the LoRa microcontroller 
-    uart_write('W'); //0x57
+    uart_write(0x57); //0x57
     uart_write(reg | RH_WRITE_MASK); // try 00 | 80 = 80
     uart_write(1);
     uart_write(value);
@@ -239,8 +238,8 @@ uint8_t lora_read_single(uint8_t reg){//done, not tested
     //reads value in the register reg
     //reg is in the LoRa microcontroller
     uint8_t val = 0;
-    uart_write('R'); //0x52
-    uart_write(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
+    uart_write(0x52); //0x52
+    uart_write(reg & (~RH_WRITE_MASK)); //try 0x0F & ~0x80, so 0x0F
     uart_write(1); //0x01
     val = uart_read();
     return val; //baud is 57600
@@ -252,17 +251,18 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART 
     //for reading received lora messages
     //USE lora_receive instead
-    uint16_t c = 0;
-    uint8_t counter = 0;
+    uint8_t c = 1;
+    int counter = 0;
     //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
     while (!(USART5->ISR & USART_ISR_RXNE)) { 
-        // nano_wait(1000000); //wait 1/1000 second
-        // counter += 1;
-        // if(counter >= 10000){
-        //     return 0xFF;
-        // }
         c = USART5->RDR;
+        nano_wait(1000000); //wait 1/1000 second
+        counter += 1;
+        if(counter >= 10000){
+            return 0x0;
+        }
     }
+    c = USART5->RDR;
     return c;
 }
 
@@ -270,14 +270,15 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
 void uart_write(uint8_t data){ //done, not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
     //USE lora_write_single, lora_write_multiple, or lora_send instead
+    int counter = 0;
     while(!(USART5->ISR & USART_ISR_TXE)) { 
-        // nano_wait(1000000); //wait 1/1000 second
-        // counter += 1;
-        // if(counter >= 10000){
-        //     break;
-        // }
-        USART5->TDR = data;
+        nano_wait(1000000); //wait 1/1000 second
+        counter += 1;
+        if(counter >= 10000){
+            break;
+        }
     }
+    USART5->TDR = data;
 }
 
 
@@ -286,6 +287,9 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //this handles sending a lora message
     //length is the length of the message in bytes
     //data is the payload data being sent
+    bool done = false;
+    uint8_t counter = 0;
+    uint8_t value = 0;
 
     //this function will need to be updated
     if (length > RH_RF95_MAX_MESSAGE_LEN) {
@@ -301,7 +305,7 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);// 57, 8d, 01, 00 (2 hex)
     //reg, value
 
-    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
+    //lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
 
     // The headers
     lora_write_single(RH_RF95_REG_00_FIFO, ADDRTO); // 57, 80, 01, 10
@@ -313,15 +317,17 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length + RH_RF95_HEADER_LEN); //57 , A2, 01, 06
 
     //change module to send mode
-    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
+    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX | RH_RF95_LONG_RANGE_MODE);  // 57, 81, 01, 03
+    //changing mode to tx breaks reading (never get a response)
+    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
+    nano_wait(50000000000); //wait 0.5 seconds
+    value = lora_read_single(0x12);
+    nano_wait(5000000000); //wait 0.5 seconds
 
     //logic to clear irq flags
-    bool done = false;
-    uint8_t counter = 0;
-    uint8_t value = 0;
     while(done == false){
         value = lora_read_single(0x12);//check irq register for done
-        if((value >> 3) & 0x1){
+        if(value == 0x08){//(value >> 3) & 0x1
             done = true;
             lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
             return true;
@@ -329,7 +335,7 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
         else{
             nano_wait(500000000); //wait 0.5 seconds
             counter += 1;
-            if(counter > 10){ //5 seconds
+            if(counter > 50){ //5 seconds
                 lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
                 return false;
             }
@@ -345,26 +351,69 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
      GPIOC->MODER |= 0x00155540; //set pins 3-10 as output 01 //for 8 data bits
  }
 
+ bool connected_test(void){
+    //returns true if LoRa module is connected and false if not
+
+    uint8_t counter = 0;
+    uint8_t value = 0;
+    bool done = false;
+    while(done == false){
+        //set mode to LORA sleep
+        lora_write_single(RH_RF95_REG_01_OP_MODE, (RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE)); // 57 81 01 80
+
+        value = lora_read_single(0x01);//check irq register for done
+        if(value == 0x80){//==0x80
+            GPIOC->ODR = 0;//testing
+            return true;
+        }
+        else{
+            nano_wait(500000000); //wait 0.5 seconds
+            counter += 1;
+            GPIOC->ODR = 1;//testing
+            // if(counter > 10){ //5 seconds
+            //     return false;
+            // }
+        }
+    }
+ }
+
 
 int main(void){
     //send a message every 5 seconds
     //set up an LED to flash whenever a message is sent and also display the number of 8 other LEDs
     internal_clock();
-    lora_uart_init(); 
     setup_leds();
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+    GPIOA->MODER |= 0x00000001; //set pins 10 as output 01 //for 8power to LoRa module
+    GPIOA->ODR = 0;
+    GPIOC->ODR = 0;
+    nano_wait(5000000000); //wait 0.5 seconds
+    GPIOA->ODR = 1;
+    lora_uart_init();
+    connected_test(); 
+    lora_init();
     //set pins C0-2 for send notification
-    //set pins C3-10 for 8 data bits
+    //set pins C3-9 for 8 data bits
     //tx = C12, rx = D2
+    //A0 is power to LoRa module
+    //module needs to be unpowered to lose all settings, so set its power to a pin that only goes high after uart and clock setup
+    //this could be why it is getting stuck in connected_test, but not in uart_read (getting a value, just 0 since it is already setup)
     uint8_t data [MESSAGE_LENGTH];
     data[0] = 0x1;
     data[1] = 0x0;
+    bool good = false;
     for(;;) {
-        lora_send(data, MESSAGE_LENGTH);
+        good = lora_send(data, MESSAGE_LENGTH);
         printf("Message sent data = %d_%d", data[1], data[0]);
-        GPIOC->ODR = 1 | (1 << 1) | (1 << 2) | (data[0] << 3);
-        nano_wait(4500000000); //wait 4.5 seconds
+        if(good){
+            GPIOC->ODR = 1 | (1 << 1) | (0 << 2) | (data[0] << 3);
+        }
+        else{
+            GPIOC->ODR = 0 | (0 << 1) | (1 << 2) | (data[0] << 3);
+        }
+        nano_wait(45000000000); //wait 4.5 seconds
         GPIOC->ODR = 0;
-        nano_wait(500000000); //wait 0.5 seconds
+        nano_wait(5000000000); //wait 0.5 seconds
         lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags (can try adding this in send module as well)
         //like reading register until get send done and then clear it
         if(data[0] == 0xFF){
