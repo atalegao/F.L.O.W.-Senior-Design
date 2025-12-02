@@ -103,7 +103,7 @@ void lora_uart_init(){ //done, not tested
     // setbuf(stderr,0);
 }
 
-    bool lora_init(){//not done, not tested
+bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
         // (default is off)
@@ -133,7 +133,7 @@ void lora_uart_init(){ //done, not tested
         lora_write_single(RH_RF95_REG_08_FRF_LSB, frf & 0xff); // 57 88 01 00 /////////////////////////changed now
 
         //setTxPower(13);
-        uint8_t power = TXPOWER;
+        int8_t power = TXPOWER;
         if (power > 23) {
             power = 23;
         }
@@ -149,23 +149,32 @@ void lora_uart_init(){ //done, not tested
         lora_write_single(RH_RF95_REG_09_PA_CONFIG, RH_RF95_PA_SELECT | (power - 5)); // 57 89 01 88
 
         #ifdef USE_CUSTOM_SETTINGS
-            lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE); // 57 9D 01 1A
-            lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
-            //AGC is automatic gain control, all examples use this, so I included it
-            return true;
+
+        //lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE | RH_RF95_IMPLICIT_HEADER_MODE_ON); // 57 9D 01 1E updated for implicit header
+        //lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
+
+        //new config based on what should happen according to the manual
+        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, 0x70 | 0x08 | 0x01); // 57 9D 01 79 updated for implicit header
+        lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, 0xC0  | 0x04); //last 57 9E 01 C4
+        //end
+
+        //AGC is automatic gain control, all examples use this, so I included it
+        lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length); //57 A2 01 06      update regpayload length (for implicit header mode only)
+        return true;
         #endif
         
         #ifdef USE_DEFAULT_SETTINGS
-            //setModemConfig(Bw125Cr48Sf4096); // slow and reliable?
-            if (MODEM_CONFIG_CHOICE > (signed int)(sizeof(MODEM_CONFIG_TABLE) / sizeof(ModemConfig))) {
-                return false;
-            }
+        //setModemConfig(Bw125Cr48Sf4096); // slow and reliable?
+        if (MODEM_CONFIG_CHOICE > (signed int)(sizeof(MODEM_CONFIG_TABLE) / sizeof(ModemConfig))) {
+            return false;
+        }
 
-            ModemConfig cfg;
-            memcpy_P(&cfg, &MODEM_CONFIG_TABLE[index], sizeof(ModemConfig));
-            setModemRegisters(&cfg);
-            return true;
+        ModemConfig cfg;
+        memcpy_P(&cfg, &MODEM_CONFIG_TABLE[index], sizeof(ModemConfig));
+        setModemRegisters(&cfg);
+        return true;
         #endif
+
     }
 
 

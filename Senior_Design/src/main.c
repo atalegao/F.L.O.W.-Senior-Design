@@ -103,7 +103,7 @@ void lora_uart_init(){ //done, not tested
     // setbuf(stderr,0);
 }
 
-    bool lora_init(){//not done, not tested
+bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
         // (default is off)
@@ -133,7 +133,7 @@ void lora_uart_init(){ //done, not tested
         lora_write_single(RH_RF95_REG_08_FRF_LSB, frf & 0xff); // 57 88 01 00 /////////////////////////changed now
 
         //setTxPower(13);
-        uint8_t power = TXPOWER;
+        int8_t power = TXPOWER;
         if (power > 23) {
             power = 23;
         }
@@ -149,23 +149,30 @@ void lora_uart_init(){ //done, not tested
         lora_write_single(RH_RF95_REG_09_PA_CONFIG, RH_RF95_PA_SELECT | (power - 5)); // 57 89 01 88
 
         #ifdef USE_CUSTOM_SETTINGS
-            lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE); // 57 9D 01 1A
-            lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
-            //AGC is automatic gain control, all examples use this, so I included it
-            return true;
+
+        //lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE | RH_RF95_IMPLICIT_HEADER_MODE_ON); // 57 9D 01 1E updated for implicit header
+        //lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
+
+        //new config based on what should happen according to the manual
+        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, 0x70 | 0x08 | 0x01); // 57 9D 01 79 updated for implicit header
+        lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, 0xC0  | 0x04); //last 57 9E 01 C4
+        //end
+        lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, 6); //57 A2 01 06      update regpayload length (for implicit header mode only)
+        return true;
         #endif
         
         #ifdef USE_DEFAULT_SETTINGS
-            //setModemConfig(Bw125Cr48Sf4096); // slow and reliable?
-            if (MODEM_CONFIG_CHOICE > (signed int)(sizeof(MODEM_CONFIG_TABLE) / sizeof(ModemConfig))) {
-                return false;
-            }
+        //setModemConfig(Bw125Cr48Sf4096); // slow and reliable?
+        if (MODEM_CONFIG_CHOICE > (signed int)(sizeof(MODEM_CONFIG_TABLE) / sizeof(ModemConfig))) {
+            return false;
+        }
 
-            ModemConfig cfg;
-            memcpy_P(&cfg, &MODEM_CONFIG_TABLE[index], sizeof(ModemConfig));
-            setModemRegisters(&cfg);
-            return true;
+        ModemConfig cfg;
+        memcpy_P(&cfg, &MODEM_CONFIG_TABLE[index], sizeof(ModemConfig));
+        setModemRegisters(&cfg);
+        return true;
         #endif
+
     }
 
 
@@ -279,6 +286,9 @@ void uart_write(uint8_t data){ //done, not tested
         }
     }
     USART5->TDR = data;
+    //wait and then set back to 0
+    // nano_wait(1000000000); //wait 1/1000 second
+    // USART5->TDR = 0x0;
 }
 
 
@@ -305,7 +315,7 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);// 57, 8d, 01, 00 (2 hex)
     //reg, value
 
-    //lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
+    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
 
     // The headers
     lora_write_single(RH_RF95_REG_00_FIFO, ADDRTO); // 57, 80, 01, 10
@@ -314,26 +324,27 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     lora_write_single(RH_RF95_REG_00_FIFO, HEADERFLAGS); // 57, 80, 01, 00
 
     lora_write_multiple(RH_RF95_REG_00_FIFO, data, length); //57, 80, 02, F0, 0F //sends F0 0F
-    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length + RH_RF95_HEADER_LEN); //57 , A2, 01, 06
+    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, 6); //57 , A2, 01, 06
 
     //change module to send mode
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX | RH_RF95_LONG_RANGE_MODE);  // 57, 81, 01, 03
     //changing mode to tx breaks reading (never get a response)
-    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
-    nano_wait(50000000000); //wait 0.5 seconds
-    value = lora_read_single(0x12);
-    nano_wait(5000000000); //wait 0.5 seconds
+    //lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
+    //value = lora_read_single(0x01);
+    nano_wait(500000000000); //wait 0.5 seconds
 
     //logic to clear irq flags
     while(done == false){
-        value = lora_read_single(0x12);//check irq register for done
+        value = lora_read_single(RH_RF95_REG_12_IRQ_FLAGS);//check irq register for done (12)
         if(value == 0x08){//(value >> 3) & 0x1
+        // value = lora_read_single(0x01);//check mode register for idle
+        // if(value == 0x80){//
             done = true;
             lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
             return true;
         }
         else{
-            nano_wait(500000000); //wait 0.5 seconds
+            nano_wait(5000000000); //wait 0.5 seconds
             counter += 1;
             if(counter > 50){ //5 seconds
                 lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
@@ -403,7 +414,7 @@ int main(void){
     data[1] = 0x0;
     bool good = false;
     for(;;) {
-        good = lora_send(data, MESSAGE_LENGTH);
+        good = lora_send(data, 2);
         printf("Message sent data = %d_%d", data[1], data[0]);
         if(good){
             GPIOC->ODR = 1 | (1 << 1) | (0 << 2) | (data[0] << 3);
