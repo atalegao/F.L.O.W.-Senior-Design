@@ -89,6 +89,14 @@
 //can also read 12 to see if an interrupt has been triggered by a write
 //52 12 01
 
+//IMPLICIT WORKING
+//INIT
+//57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 79 57 9E 01 C4 57 A2 01 06
+//SEND
+//57 81 01 01 57 8d 01 00 57 C0 01 40 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03
+//RECEIVE
+// 57 81 01 05 57 C0 01 00
+
 //need to first set settings for the modules (both)
 // 57 81 01 80
 // 57 8E 01 00
@@ -106,6 +114,7 @@
 //in one line:
 // old 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
 //new with implicit 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 79 57 9E 01 C4 57 A2 01 06
+//NEW WITH IMPLICT WORKS
 
 //receive a message (one module)
 // 57, 81, 01, 05 //set mode receive
@@ -113,7 +122,7 @@
 //52 10 01 //read start addr of last packet received
 //57 8D 01 output of above //set FIFO pointer to addr of last packet received
 //52 00 01 //read one byte of the message
-//////////////////////////////////////////THIS WORKED
+//THIS WORKED IN IMPLICIT MODE
 
 //send a message (other module)
 // 57 81 01 01
@@ -131,9 +140,9 @@
 // 57 81 01 01 57 8d 01 00 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03 57 C0 01 40 57 92 01 ff
 // //data is F0 0F
 
-//below send works (CRC error though, last part of data was corrupted)
+//below send works (in implict mode)
 //57 81 01 01 57 8d 01 00 57 C0 01 40 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03
-////////////////////////THIS WORKS
+//THIS WORKED WITH IMPLICT
 
 //receive no longer works, never get interrupt that says a message has been received
 //send now sends 49(letter I) back after the send is complete for some reason 
