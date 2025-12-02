@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-
 //comment out one of the 2 below
 #define USE_CUSTOM_SETTINGS
 //#define USE_DEFAULT_SETTINGS
@@ -34,6 +33,6 @@ uint8_t lora_read_single(uint8_t reg);
 uint8_t uart_read();
 uint8_t uart_read_single_only();
 void uart_write(uint8_t data);
-void check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear);
+bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear);
 void setup_leds(void);
 int main(void);

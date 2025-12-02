@@ -42,8 +42,8 @@ void nano_wait(unsigned int n) {
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
 #define FIFOSIZE 16 //number of bytes in a message
-#define ADDRTO 10 //address of message that should receive any sent message
-#define ADDRFROM 10 //address of this node (should be same as ADDRTO)
+#define ADDRTO 0x10 //address of message that should receive any sent message
+#define ADDRFROM 0x10 //address of this node (should be same as ADDRTO)
 #define HEADERID 0 //this is one of the lora headers, but don't know what it is
 #define HEADERFLAGS 0 //this is one of the lora headers, but don't know what it is
 
@@ -113,6 +113,7 @@ bool lora_init(){//not done, not tested
 
         //set mode to LORA sleep
         lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE); // 57 81 01 80
+        lora_read_single(0x01);//testing
 
         //setup FIFO
         lora_write_single(RH_RF95_REG_0E_FIFO_TX_BASE_ADDR, 0); //57 8E 01 00
@@ -120,6 +121,7 @@ bool lora_init(){//not done, not tested
 
         //set mode to IDLE
         lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY); // 57 81 01 01
+        lora_read_single(0x01);//testing
 
         //setPreambleLength Default is 8 bytes
         // 57, reg | 80, 01, value (2 hex)
@@ -157,9 +159,7 @@ bool lora_init(){//not done, not tested
         lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, 0x70 | 0x08 | 0x01); // 57 9D 01 79 updated for implicit header
         lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, 0xC0  | 0x04); //last 57 9E 01 C4
         //end
-
-        //AGC is automatic gain control, all examples use this, so I included it
-        lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length); //57 A2 01 06      update regpayload length (for implicit header mode only)
+        lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, 6); //57 A2 01 06      update regpayload length (for implicit header mode only)
         return true;
         #endif
         
@@ -288,6 +288,9 @@ void uart_write(uint8_t data){ //done, not tested
         }
     }
     USART5->TDR = data;
+    //wait and then set back to 0
+    // nano_wait(1000000000); //wait 1/1000 second
+    // USART5->TDR = 0x0;
 }
 
 
@@ -308,13 +311,14 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //this->waitPacketSent(); // Make sure we dont interrupt an outgoing message
     //setModeIdle();
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY); //new 57, 81, 01, 01
+    value = lora_read_single(RH_RF95_REG_12_IRQ_FLAGS);
 
     // Position at the beginning of the FIFO
     // 57, reg | 80, 01, value (2 hex)
     lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);// 57, 8d, 01, 00 (2 hex)
     //reg, value
 
-    //lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
+    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
 
     // The headers
     lora_write_single(RH_RF95_REG_00_FIFO, ADDRTO); // 57, 80, 01, 10
@@ -323,26 +327,28 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     lora_write_single(RH_RF95_REG_00_FIFO, HEADERFLAGS); // 57, 80, 01, 00
 
     lora_write_multiple(RH_RF95_REG_00_FIFO, data, length); //57, 80, 02, F0, 0F //sends F0 0F
-    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length + RH_RF95_HEADER_LEN); //57 , A2, 01, 06
+    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, 6); //57 , A2, 01, 06
 
     //change module to send mode
-    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX | RH_RF95_LONG_RANGE_MODE);  // 57, 81, 01, 03
+    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
     //changing mode to tx breaks reading (never get a response)
-    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
-    nano_wait(50000000000); //wait 0.5 seconds
-    value = lora_read_single(0x12);
-    nano_wait(5000000000); //wait 0.5 seconds
+    //lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
+    // value = lora_read_single(RH_RF95_REG_01_OP_MODE);//for testing
+    //value = uart_read(); //testing 
+    nano_wait(50000000000000); //wait 0.5 seconds
 
     //logic to clear irq flags
     while(done == false){
-        value = lora_read_single(0x12);//check irq register for done
+        value = lora_read_single(RH_RF95_REG_12_IRQ_FLAGS);//check irq register for done (12)
         if(value == 0x08){//(value >> 3) & 0x1
+        // value = lora_read_single(0x01);//check mode register for idle
+        // if(value == 0x80){//
             done = true;
             lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
             return true;
         }
         else{
-            nano_wait(500000000); //wait 0.5 seconds
+            nano_wait(5000000000); //wait 0.5 seconds
             counter += 1;
             if(counter > 50){ //5 seconds
                 lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
@@ -386,7 +392,8 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     }
  }
 
-
+//send is exact same message in hex
+//init is exact same message in hex
 int main(void){
     //send a message every 5 seconds
     //set up an LED to flash whenever a message is sent and also display the number of 8 other LEDs
@@ -396,23 +403,24 @@ int main(void){
     GPIOA->MODER |= 0x00000001; //set pins 10 as output 01 //for 8power to LoRa module
     GPIOA->ODR = 0;
     GPIOC->ODR = 0;
-    nano_wait(5000000000); //wait 0.5 seconds
+    nano_wait(500000000000); //wait 0.5 seconds
     GPIOA->ODR = 1;
+    nano_wait(500000000000); //wait 0.5 seconds
     lora_uart_init();
     connected_test(); 
     lora_init();
     //set pins C0-2 for send notification
     //set pins C3-9 for 8 data bits
-    //tx = C12, rx = D2
+    //tx = D2 rx = C12, (connections on LoRa module)
     //A0 is power to LoRa module
     //module needs to be unpowered to lose all settings, so set its power to a pin that only goes high after uart and clock setup
     //this could be why it is getting stuck in connected_test, but not in uart_read (getting a value, just 0 since it is already setup)
     uint8_t data [MESSAGE_LENGTH];
-    data[0] = 0x1;
-    data[1] = 0x0;
+    data[0] = 0xF0;
+    data[1] = 0x0F;
     bool good = false;
     for(;;) {
-        good = lora_send(data, MESSAGE_LENGTH);
+        good = lora_send(data, 2);
         printf("Message sent data = %d_%d", data[1], data[0]);
         if(good){
             GPIOC->ODR = 1 | (1 << 1) | (0 << 2) | (data[0] << 3);
