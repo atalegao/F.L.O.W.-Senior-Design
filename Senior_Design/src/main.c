@@ -394,7 +394,7 @@ int main(void){
     lora_init();
     //set pins C0-2 for send notification
     //set pins C3-9 for 8 data bits
-    //tx = C12, rx = D2
+    //tx = D2 rx = C12, (connections on LoRa module)
     //A0 is power to LoRa module
     //module needs to be unpowered to lose all settings, so set its power to a pin that only goes high after uart and clock setup
     //this could be why it is getting stuck in connected_test, but not in uart_read (getting a value, just 0 since it is already setup)

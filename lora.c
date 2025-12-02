@@ -104,7 +104,8 @@
 // 57 9D 01 1A
 // 57 9E 01 C4
 //in one line:
-// 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
+// old 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
+//new with implicit 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1E 57 9E 01 C4 57 A2 01 06
 
 //receive a message (one module)
 // 57, 81, 01, 05 //set mode receive
@@ -134,6 +135,13 @@
 //57 81 01 01 57 8d 01 00 57 C0 01 40 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 02 F0 0F 57 A2 01 06 57 81 01 03
 ////////////////////////THIS WORKS
 
+//receive no longer works, never get interrupt that says a message has been received
+//send now sends 49(letter I) back after the send is complete for some reason 
+//both modules have an invalid 1D register, 1E also has strange value
+//check to make sure init and send/receive set the registers to the correct values (read them after writing to them)
+
+//try implicit header mode since all settings will be the same each time
+//write to reg 1D (RegModemConfig1)
 
 
 void lora_uart_init(){ //done, not tested
@@ -219,9 +227,10 @@ void lora_uart_init(){ //done, not tested
 
         #ifdef USE_CUSTOM_SETTINGS
 
-        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE); // 57 9D 01 1A
+        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE | RH_RF95_IMPLICIT_HEADER_MODE_ON); // 57 9D 01 1E updated for implicit header
         lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
         //AGC is automatic gain control, all examples use this, so I included it
+        lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length); //57 A2 01 06      update regpayload length (for implicit header mode only)
         return true;
         #endif
         
