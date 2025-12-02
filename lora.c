@@ -105,7 +105,7 @@
 // 57 9E 01 C4
 //in one line:
 // old 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1A 57 9E 01 C4
-//new with implicit 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 1E 57 9E 01 C4 57 A2 01 06
+//new with implicit 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 79 57 9E 01 C4 57 A2 01 06
 
 //receive a message (one module)
 // 57, 81, 01, 05 //set mode receive
@@ -229,6 +229,12 @@ void lora_uart_init(){ //done, not tested
 
         lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE | RH_RF95_IMPLICIT_HEADER_MODE_ON); // 57 9D 01 1E updated for implicit header
         lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
+
+        //new config based on what should happen according to the manual
+        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, 0x70 | 0x08 | 0x01); // 57 9D 01 79 updated for implicit header
+        lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, 0xC0  | 0x04); //last 57 9E 01 C4
+        //end
+
         //AGC is automatic gain control, all examples use this, so I included it
         lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, length); //57 A2 01 06      update regpayload length (for implicit header mode only)
         return true;
