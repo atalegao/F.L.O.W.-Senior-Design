@@ -356,15 +356,21 @@ void lora_read_fifo_all(uint8_t* data, uint8_t length){//done, not tested
     //THIS IS FOR READING THE ENTIRE LORA MESSAGE, NO HEADERS
     //LENGTH IS WITHOUT HEADERS
     uint8_t start_addr = 0;
-    start_addr = lora_read_single(10);//read start addr of last packet received
+    uint8_t datab = 0;
+    //start_addr = lora_read_single(0x10);//read start addr of last packet received
+    //for some reason 0x10 does not have the correct addr, receive correct values when this is commented out
     lora_write_single(0x0D, start_addr);//set FIFO pointer to addr of last packet received
+    datab = 0;
 
     for (int i = 0; i < 4; i ++) {
-        lora_read_fifo_single(); //read the headers, but don't store them
+        datab = lora_read_fifo_single(); //read the headers, but don't store them
+        start_addr = 0;//remove, for testing
     }
 
     for (int i = 0; i < length; i ++) {
-        *(data + i) = lora_read_fifo_single(); //read one byte of the message
+        datab = lora_read_fifo_single();
+        *(data + i) = datab; //read one byte of the message
+        start_addr = 0; //remove, for testing
     }
 }
  void setup_leds(void)
@@ -404,6 +410,7 @@ void lora_read_fifo_all(uint8_t* data, uint8_t length){//done, not tested
 //does go to continuous receive mode
 
 //THIS DETECTS MESSAGES, BUT INTERRUPT REG HAS VALUE 49: RxDONE (GOOD), TxDONE (BAD), CAD_DETECTED(BAD)
+//GETS CORRECT VALUES, BUT 0X10 DOES NOT HAVE THE CORRECT FIFO POINTER ADDR (NEED TO FIGURE OUT WHY)
 int main(void){
     internal_clock(); 
     setup_leds();
