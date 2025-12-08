@@ -41,7 +41,7 @@ void nano_wait(unsigned int n) {
 #define PREAMBLE_LENGTH 8
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
-#define FIFOSIZE 16 //number of bytes in a message
+#define FIFOSIZE_RX 1 //number of bytes in a received message
 #define ADDRTO 0x10 //address of message that should receive any sent message
 #define ADDRFROM 0x10 //address of this node (should be same as ADDRTO)
 #define HEADERID 0 //this is one of the lora headers, but don't know what it is
@@ -292,25 +292,6 @@ uint8_t lora_read_single(uint8_t reg){//done, not tested
     // 52 00 01 read vale written by write
 }
 
-uint8_t uart_read(){ //not done (add timeout logic), not tested
-    //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART 
-    //for reading received lora messages
-    //USE lora_receive instead
-    uint8_t c = 1;
-    int counter = 0;
-    //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
-    while (!(USART5->ISR & USART_ISR_RXNE)) { 
-        c = USART5->RDR;
-        nano_wait(1000000); //wait 1/1000 second
-        counter += 1;
-        if(counter >= 10000){
-            return 0x0;
-        }
-    }
-    c = USART5->RDR;
-    return c;
-}
-
 
 void uart_write(uint8_t data){ //done, not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
@@ -405,6 +386,106 @@ void lora_read_fifo_all(uint8_t* data, uint8_t length){//done, not tested
         }
     }
  }
+
+char receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+int receivefifo_offset = 0;
+
+uint8_t uart_read(){ //not done (add timeout logic), not tested
+    //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART 
+    //for reading received lora messages
+    //USE lora_receive instead
+    uint8_t c = 1;
+    // int counter = 0;
+    // //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
+    // while (!(USART5->ISR & USART_ISR_RXNE)) { 
+    //     c = USART5->RDR;
+    //     nano_wait(1000000); //wait 1/1000 second
+    //     counter += 1;
+    //     if(counter >= 10000){
+    //         return 0x0;
+    //     }
+    // }
+    // c = USART5->RDR;
+    //changes for DMA
+    c = receivefifo[receivefifo_offset];
+    return c;
+}
+
+
+void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
+    RCC->AHBENR |= RCC_AHBENR_DMA2EN;
+    DMA2->CSELR |= DMA2_CSELR_CH2_USART5_RX;
+    
+    NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
+    USART5->CR3 |= USART_CR3_DMAR; //enable DMA for reception
+    USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
+
+    DMA2_Channel2->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
+    
+    DMA2_Channel2->CMAR = (uint32_t)(&receivefifo);//set CMAR
+    DMA2_Channel2->CPAR = (uint32_t)&(USART5->RDR);//set CPAR
+    DMA2_Channel2->CNDTR = FIFOSIZE_RX;//set CNDTR
+    DMA2_Channel2->CCR &= ~DMA_CCR_DIR;//set DIR to P->M
+    DMA2_Channel2->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
+    DMA2_Channel2->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits
+    DMA2_Channel2->CCR |= DMA_CCR_MINC;//MINC increments on CMAR
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
+    DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
+    DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
+    DMA2_Channel2->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
+    
+    DMA2_Channel2->CCR |= DMA_CCR_EN;
+}
+
+void enable_tty_interrupt_send(void){ //DMA for sendin messages to LoRa module
+    //DMA 1 channel 7
+    //enable TE in CR1
+
+
+    RCC->AHBENR |= RCC_AHBENR_DMA1EN; //changed
+    DMA1->CSELR |= DMA1_CSELR_CH7_USART5_TX; //changed
+    
+    //NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5 commented out since receive DMA already does this
+    USART5->CR3 |= USART_CR3_DMAT; //enable DMA for sending changed
+        //USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
+    //enable TXEIE or TCIE
+
+    DMA1_Channel7->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
+    
+    DMA2_Channel2->CMAR = (uint32_t)(&receivefifo);//set CMAR
+    DMA2_Channel2->CPAR = (uint32_t)&(USART5->RDR);//set CPAR
+    DMA2_Channel2->CNDTR = FIFOSIZE_RX;//set CNDTR
+    DMA2_Channel2->CCR &= ~DMA_CCR_DIR;//set DIR to P->M
+    DMA2_Channel2->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
+    DMA2_Channel2->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits
+    DMA2_Channel2->CCR |= DMA_CCR_MINC;//MINC increments on CMAR
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
+    DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
+    DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
+    DMA2_Channel2->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
+    
+    DMA2_Channel2->CCR |= DMA_CCR_EN;
+}
+
+void USART3_8_IRQHandler(void) {  //UART interrupt handler
+    uint8_t index = 0;
+    while(DMA2_Channel2->CNDTR != index) {
+        receivefifo[receivefifo_offset] = uart_read();
+        index += 1;
+    }
+}
+
+// void USART3_8_IRQHandler(void) {
+//     while(DMA2_Channel2->CNDTR != sizeof serfifo - seroffset) {
+//         if (!fifo_full(&input_fifo))
+//             insert_echo_char(serfifo[seroffset]);
+//         seroffset = (seroffset + 1) % sizeof serfifo;
+//     }
+// }
+
+
 //init same hex as terminal
 //continuous receive also same hex as terminal
 //does go to continuous receive mode
@@ -422,6 +503,7 @@ int main(void){
     GPIOA->ODR = 1;
     nano_wait(500000000000); //wait 0.5 seconds
     lora_uart_init();
+    enable_tty_interrupt(); //for DMA
     connected_test();
     lora_init();
     //tx = C12, rx = D2
