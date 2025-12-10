@@ -278,20 +278,6 @@ void lora_write_single(uint8_t reg, uint8_t value){//done, not tested
     //57 80 01 FF //writes FF to addr 00 worked 
 }
 
-uint8_t lora_read_single(uint8_t reg){//done, not tested
-    //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
-    //reads value in the register reg
-    //reg is in the LoRa microcontroller
-    uint8_t val = 0;
-    uart_write('R'); //0x52
-    uart_write(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
-    uart_write(1); //0x01
-    val = uart_read();
-    return val; //baud is 57600
-    //worked with 52 0F 01
-    // 52 00 01 read vale written by write
-}
-
 
 void uart_write(uint8_t data){ //done, not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
@@ -394,20 +380,37 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
     //for reading received lora messages
     //USE lora_receive instead
     uint8_t c = 1;
-    int counter = 0;
-    //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
-    while (!(USART5->ISR & USART_ISR_RXNE)) { 
-        c = USART5->RDR;
-        nano_wait(1000000); //wait 1/1000 second
-        counter += 1;
-        if(counter >= 10000){
-            return 0x0;
-        }
-    }
-    c = USART5->RDR;
+    // int counter = 0;
+    // //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
+    // while (!(USART5->ISR & USART_ISR_RXNE)) { 
+    //     c = USART5->RDR;
+    //     nano_wait(1000000); //wait 1/1000 second
+    //     counter += 1;
+    //     if(counter >= 10000){
+    //         return 0x0;
+    //     }
+    // }
+    // c = USART5->RDR;
+
     //changes for DMA
-    //c = receivefifo[receivefifo_offset];
+    c = receivefifo[receivefifo_offset];
+    receivefifo[receivefifo_offset] = 0;
     return c;
+}
+
+uint8_t lora_read_single(uint8_t reg){//done, not tested
+    //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
+    //reads value in the register reg
+    //reg is in the LoRa microcontroller
+    uint8_t val = 0;
+    uart_write('R'); //0x52
+    uart_write(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
+    uart_write(1); //0x01
+    val = uart_read();
+    receivefifo[receivefifo_offset] = 0;
+    return val; //baud is 57600
+    //worked with 52 0F 01
+    // 52 00 01 read vale written by write
 }
 
 
@@ -470,10 +473,11 @@ void enable_tty_interrupt_send(void){ //DMA for sendin messages to LoRa module
 
 void USART3_8_IRQHandler(void) {  //UART interrupt handler
     uint8_t index = 0;
-    while(DMA2_Channel2->CNDTR != index) {
-        receivefifo[receivefifo_offset] = uart_read();
-        index += 1;
-    }
+    // while(DMA2_Channel2->CNDTR != index) {
+    //     receivefifo[receivefifo_offset] = uart_read();
+    //     index += 1;
+    // }
+    all DMA reads get value of last read instead of current one, fix here or in uart_read or lora_read_single
 }
 
 // void USART3_8_IRQHandler(void) {
@@ -502,7 +506,7 @@ int main(void){
     GPIOA->ODR = 1;
     nano_wait(500000000000); //wait 0.5 seconds
     lora_uart_init();
-    //enable_tty_interrupt(); //for DMA
+    enable_tty_interrupt(); //for DMA
     connected_test();
     lora_init();
     //tx = C12, rx = D2
