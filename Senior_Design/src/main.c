@@ -328,7 +328,7 @@ bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *cr
     }
     //clear 
     if(clear){
-            lora_write_single(12, 0xFF);
+            lora_write_single(0x12, 0xFF);
         }
     return true;
 }
@@ -345,13 +345,12 @@ void lora_read_fifo_all(uint8_t* data, uint8_t length){//done, not tested
 
     for (int i = 0; i < 4; i ++) {
         datab = lora_read_fifo_single(); //read the headers, but don't store them
-        start_addr = 0;//remove, for testing
     }
 
     for (int i = 0; i < length; i ++) {
         datab = lora_read_fifo_single();
         *(data + i) = datab; //read one byte of the message
-        start_addr = 0; //remove, for testing
+        //start_addr = 0; //for testing
     }
 }
  void setup_leds(void)
@@ -395,19 +394,19 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
     //for reading received lora messages
     //USE lora_receive instead
     uint8_t c = 1;
-    // int counter = 0;
-    // //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
-    // while (!(USART5->ISR & USART_ISR_RXNE)) { 
-    //     c = USART5->RDR;
-    //     nano_wait(1000000); //wait 1/1000 second
-    //     counter += 1;
-    //     if(counter >= 10000){
-    //         return 0x0;
-    //     }
-    // }
-    // c = USART5->RDR;
+    int counter = 0;
+    //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
+    while (!(USART5->ISR & USART_ISR_RXNE)) { 
+        c = USART5->RDR;
+        nano_wait(1000000); //wait 1/1000 second
+        counter += 1;
+        if(counter >= 10000){
+            return 0x0;
+        }
+    }
+    c = USART5->RDR;
     //changes for DMA
-    c = receivefifo[receivefifo_offset];
+    //c = receivefifo[receivefifo_offset];
     return c;
 }
 
@@ -503,7 +502,7 @@ int main(void){
     GPIOA->ODR = 1;
     nano_wait(500000000000); //wait 0.5 seconds
     lora_uart_init();
-    enable_tty_interrupt(); //for DMA
+    //enable_tty_interrupt(); //for DMA
     connected_test();
     lora_init();
     //tx = C12, rx = D2
@@ -528,7 +527,7 @@ int main(void){
             printf("valid_header = %d\n", valid_header); // might also be a pain to setup printf by itself
             printf("crc_error = %d\n", crc_error);
 
-            lora_read_fifo_all(data, MESSAGE_LENGTH); //get message from FIFO
+            lora_read_fifo_all(data, 2); //get message from FIFO
 
             for (int i = 0; i < MESSAGE_LENGTH; i ++) {
                 printf("data[%d] = %d\n", i, data[i]);
