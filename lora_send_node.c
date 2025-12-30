@@ -35,13 +35,14 @@ void nano_wait(unsigned int n) {
 #include <stdint.h>
 #include <stdbool.h>
 #include <RH_RF95.h>
-#include <lora_send_node.h>
+#include <lora_receive_node.h>
 
 #define RH_WRITE_MASK 0x80
 #define PREAMBLE_LENGTH 8
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
-#define FIFOSIZE 16 //number of bytes in a message
+#define FIFOSIZE_RX 1 //number of bytes in a received message (always 1)
+#define FIFOSIZE_TX 4 //max number of bytes in a sent message
 #define ADDRTO 0x10 //address of message that should receive any sent message
 #define ADDRFROM 0x10 //address of this node (should be same as ADDRTO)
 #define HEADERID 0 //this is one of the lora headers, but don't know what it is
@@ -66,6 +67,8 @@ void nano_wait(unsigned int n) {
     //is preset combo for Bandwidth, coding rate, spreading factor, CRC on/off (not using this)
 #endif
 
+char sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
+int sendfifo_offset = 0;
 
 void lora_uart_init(){ //done, not tested
     //setup UART for lora
@@ -103,7 +106,43 @@ void lora_uart_init(){ //done, not tested
     // setbuf(stderr,0);
 }
 
-bool lora_init(){//not done, not tested
+void uart_init_for_print(){ 
+    //setup UART for printing to terminal
+    //this uses usart5, tx = C12, rx = D2
+    RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN;
+
+    //configure PC12 to be USART5_TX (AF2)
+    GPIOC->MODER |= 0x02000000; // pin 12 to 10 (alternate) 
+    GPIOC->AFR[1] |= 0x2 << ((12-8)*4); //set alternate function to AF2 (USART5_TX) AFRH, shift 0x2 (meaning AF2) by (pin number -8) * 4
+    
+    //configure PD2 to be USART5_RX (AF2)
+    GPIOD->MODER |= 0x00000020; // pin 2 to 10 (alternate) 
+    GPIOD->AFR[0] |= 0x2 << (2 * 4); //set alternate function to AF2 (USART5_RX) 0x2 means AF2 for low, shift by pin number * 4
+
+    RCC->APB1ENR |= RCC_APB1ENR_USART5EN;
+    USART5->CR1 &= ~USART_CR1_UE; //turn of USART5 UE bit
+    USART5->CR1 &= ~USART_CR1_M0; //change word size to 8 bits (00)
+    USART5->CR1 &= ~USART_CR1_M1; //change word size to 8 bits (00)
+
+    USART5->CR2 &= ~USART_CR2_STOP_0; //one stop bit
+    USART5->CR2 &= ~USART_CR2_STOP_1; //one stop bit
+
+    USART5->CR1 &= ~USART_CR1_PCE; //no parity control
+    USART5->CR1 &= ~USART_CR1_OVER8; //16x oversampling
+    USART5->BRR = 0x341; //baud rate (table96) needs to be 57600 for LoRa (THIS WAS CHANGED)
+    USART5->CR1 |= USART_CR1_TE | USART_CR1_RE; //enable TE and RE 
+    USART5->CR1 |= USART_CR1_UE; //enable USART
+
+    //wait for TE and RE bits to be acknowledged
+    while(((USART5->ISR & USART_ISR_TEACK) != USART_ISR_TEACK) | ((USART5->ISR & USART_ISR_REACK) != USART_ISR_REACK)){
+        //nothing
+    }
+    // setbuf(stdin,0);
+    // setbuf(stdout,0);
+    // setbuf(stderr,0);
+}
+
+ bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
         // (default is off)
@@ -113,7 +152,7 @@ bool lora_init(){//not done, not tested
 
         //set mode to LORA sleep
         lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE); // 57 81 01 80
-        lora_read_single(0x01);//testing
+        //lora_read_single(0x01);//testing
 
         //setup FIFO
         lora_write_single(RH_RF95_REG_0E_FIFO_TX_BASE_ADDR, 0); //57 8E 01 00
@@ -121,7 +160,7 @@ bool lora_init(){//not done, not tested
 
         //set mode to IDLE
         lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY); // 57 81 01 01
-        lora_read_single(0x01);//testing
+        //lora_read_single(0x01);//testing
 
         //setPreambleLength Default is 8 bytes
         // 57, reg | 80, 01, value (2 hex)
@@ -184,9 +223,37 @@ bool lora_init(){//not done, not tested
     uart_write('R'); //0x52
     uart_write(0X00 & ~RH_WRITE_MASK); //0x00 & ~0x80, so 0x00
     uart_write(1); //0x01
+    lora_dma_write_send(3);
     val = uart_read();
     return val; 
     // 52, 00, 01
+}
+
+void lora_dma_write_send(int length){
+    //This enables the message send for the LoRa's DMA
+    //set EN bit to send writes
+    DMA1_Channel7->CCR &= ~DMA_CCR_EN; //turn off DMA sending
+    DMA1_Channel7->CNDTR = length;//set CNDTR
+    while(DMA1_Channel7->CNDTR != (length)){
+        //do nothing while data is sending over DMA
+    }
+    DMA1_Channel7->CCR |= DMA_CCR_EN;
+    while(DMA1_Channel7->CNDTR != 0){
+        //do nothing while data is sending over DMA
+    }
+    //wait for transfer complete flag
+    while(((USART5->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
+        //do nothing while data is sending
+    }
+    USART5->ICR |= (1 << 6);
+    //nano_wait(50000000000); //wait 0.5 seconds
+    //clear sendfifo and reset offset
+    for (int i = 0;  i < FIFOSIZE_TX; i++){
+        sendfifo[i] = 0;
+    }
+    sendfifo_offset = 0;
+    //DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
+    DMA1_Channel7->CCR &= ~DMA_CCR_EN; //turn off DMA sending
 }
 
 void set_mode_continuous_receive(){
@@ -202,12 +269,13 @@ void lora_write_multiple(uint8_t reg, uint8_t* value, uint8_t length){//done, no
     //writes value to the address specified in reg 
     //reg is in the LoRa microcontroller 
     //length is the number of bytes written
-    uart_write(0x57);
+    uart_write('W');
     uart_write(reg | RH_WRITE_MASK);
     uart_write(length);
     for (int i = 0; i < length; i ++) {
         uart_write(*(value + i));
     }
+    lora_dma_write_send((3 + length));
 }
 
 
@@ -216,9 +284,10 @@ void lora_read_multiple(uint8_t reg, uint8_t* result, uint8_t length){//done, no
     //reads value in the register reg and places it in result
     //reg is in the LoRa microcontroller
     //length is the number of bytes to read 
-    uart_write(0x52);
+    uart_write('R');
     uart_write(reg & ~RH_WRITE_MASK);
     uart_write(length);
+    lora_dma_write_send(0x3);
 
     int i = 0;
     while (1) {
@@ -235,51 +304,96 @@ void lora_write_single(uint8_t reg, uint8_t value){//done, not tested
     //THIS IS FOR WRTING TO REGISTERS IN THE LORA MICRO, NOT SENDING A LORA MESSAGE
     //writes value to the address specified in reg 
     //reg is in the LoRa microcontroller 
-    uart_write(0x57); //0x57
+    uart_write('W'); //0x57
     uart_write(reg | RH_WRITE_MASK); // try 00 | 80 = 80
     uart_write(1);
     uart_write(value);
     //57 80 01 FF //writes FF to addr 00 worked 
+    lora_dma_write_send(0x4);
 }
 
-uint8_t lora_read_single(uint8_t reg){//done, not tested
-    //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
-    //reads value in the register reg
-    //reg is in the LoRa microcontroller
-    uint8_t val = 0;
-    uart_write(0x52); //0x52
-    uart_write(reg & (~RH_WRITE_MASK)); //try 0x0F & ~0x80, so 0x0F
-    uart_write(1); //0x01
-    val = uart_read();
-    return val; //baud is 57600
-    //worked with 52 0F 01
-    // 52 00 01 read vale written by write
-}
+ void setup_leds(void)
+ {
+     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+     GPIOC->MODER |= 0x00000015; //set pins 0-2 as output 01 //for 3 irq registers
+     GPIOC->MODER |= 0x00155540; //set pins 3-10 as output 01 //for 8 data bits
+ }
+
+  bool connected_test(void){
+    //returns true if LoRa module is connected and false if not
+
+    uint8_t counter = 0;
+    uint8_t value = 0;
+    bool done = false;
+    while(done == false){
+        //set mode to LORA sleep
+        lora_write_single(RH_RF95_REG_01_OP_MODE, (RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE)); // 57 81 01 80
+
+        value = lora_read_single(0x01);//check irq register for done
+        if(value == 0x80){//==0x80
+            GPIOC->ODR = 0;//testing
+            return true;
+        }
+        else{
+            nano_wait(500000000); //wait 0.5 seconds
+            counter += 1;
+            GPIOC->ODR = 1;//testing
+            // if(counter > 10){ //5 seconds
+            //     return false;
+            // }
+        }
+    }
+ }
+
+char receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+int receivefifo_offset = 0;
+
 
 uint8_t uart_read(){ //not done (add timeout logic), not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART 
     //for reading received lora messages
     //USE lora_receive instead
     uint8_t c = 1;
-    int counter = 0;
-    //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
-    while (!(USART5->ISR & USART_ISR_RXNE)) { 
-        c = USART5->RDR;
-        nano_wait(1000000); //wait 1/1000 second
-        counter += 1;
-        if(counter >= 10000){
-            return 0x0;
-        }
-    }
-    c = USART5->RDR;
+    // int counter = 0;
+    // //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
+    // while (!(USART5->ISR & USART_ISR_RXNE)) { 
+    //     c = USART5->RDR;
+    //     nano_wait(1000000); //wait 1/1000 second
+    //     counter += 1;
+    //     if(counter >= 10000){
+    //         return 0x0;
+    //     }
+    // }
+    // c = USART5->RDR;
+
+    //changes for DMA
+    nano_wait(500000000000); //wait 0.5 seconds
+    c = receivefifo[receivefifo_offset];
+    receivefifo[receivefifo_offset] = 0;
     return c;
 }
-
 
 void uart_write(uint8_t data){ //done, not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
     //USE lora_write_single, lora_write_multiple, or lora_send instead
+
+    //non DMA
     int counter = 0;
+    // while(!(USART5->ISR & USART_ISR_TXE)) { 
+    //     nano_wait(1000000); //wait 1/1000 second
+    //     counter += 1;
+    //     if(counter >= 10000){
+    //         break;
+    //     }
+    // }
+    // USART5->TDR = data;
+    //wait and then set back to 0
+    // nano_wait(1000000000); //wait 1/1000 second
+    // USART5->TDR = 0x0;
+    //end of non-DMA
+
+    //changes for DMA
+    //nano_wait(500000000000); //wait 0.5 seconds
     while(!(USART5->ISR & USART_ISR_TXE)) { 
         nano_wait(1000000); //wait 1/1000 second
         counter += 1;
@@ -287,12 +401,96 @@ void uart_write(uint8_t data){ //done, not tested
             break;
         }
     }
-    USART5->TDR = data;
-    //wait and then set back to 0
-    // nano_wait(1000000000); //wait 1/1000 second
-    // USART5->TDR = 0x0;
+    sendfifo[sendfifo_offset] = data;
+    sendfifo_offset += 1;
+    if(sendfifo_offset > FIFOSIZE_TX){
+        sendfifo_offset = 0;
+    }
 }
 
+uint8_t lora_read_single(uint8_t reg){//done, not tested
+    //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
+    //reads value in the register reg
+    //reg is in the LoRa microcontroller
+    uint8_t val = 0;
+    uart_write('R'); //0x52
+    uart_write(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
+    uart_write(1); //0x01
+    lora_dma_write_send(0x3);
+    val = uart_read();
+    return val; //baud is 57600
+    //worked with 52 0F 01
+    // 52 00 01 read vale written by write
+}
+
+
+void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
+    RCC->AHBENR |= RCC_AHBENR_DMA2EN;
+    DMA2->CSELR |= DMA2_CSELR_CH2_USART5_RX;
+    
+    //NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
+    USART5->CR3 |= USART_CR3_DMAR; //enable DMA for reception
+    USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
+
+    DMA2_Channel2->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
+    
+    DMA2_Channel2->CMAR = (uint32_t)(&receivefifo);//set CMAR
+    DMA2_Channel2->CPAR = (uint32_t)&(USART5->RDR);//set CPAR
+    DMA2_Channel2->CNDTR = FIFOSIZE_RX;//set CNDTR
+    DMA2_Channel2->CCR &= ~DMA_CCR_DIR;//set DIR to P->M
+    DMA2_Channel2->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
+    DMA2_Channel2->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits
+    DMA2_Channel2->CCR |= DMA_CCR_MINC;//MINC increments on CMAR
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
+    DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
+    DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
+    DMA2_Channel2->CCR |= DMA_CCR_PL_1;//set to the highest channel priority
+    
+    DMA2_Channel2->CCR |= DMA_CCR_EN;
+}
+
+void enable_tty_interrupt_send(void){ //DMA for sending messages to LoRa module
+    //DMA 1 channel 7
+
+    RCC->AHBENR |= RCC_AHBENR_DMA1EN; //changed
+    DMA1->CSELR |= DMA1_CSELR_CH7_USART5_TX; //changed
+    
+    NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5 commented out since receive DMA already does this
+    USART5->CR3 |= USART_CR3_DMAT; //enable DMA for sending changed
+    //USART5->CR1 |= USART_CR1_TXEIE;//raise interrupt when send data register is not empty
+    //USART5->TDR = 0x0;
+
+    DMA1_Channel7->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
+    
+    DMA1_Channel7->CMAR = (uint32_t)(&sendfifo);//set CMAR
+    DMA1_Channel7->CPAR = (uint32_t)&(USART5->TDR);//set CPAR
+    DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
+    DMA1_Channel7->CCR |= DMA_CCR_DIR;//set DIR to M->P
+    DMA1_Channel7->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
+    DMA1_Channel7->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
+    DMA1_Channel7->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits //can be up to 32 bits
+    DMA1_Channel7->CCR |= DMA_CCR_MINC;//MINC does not increment
+    DMA1_Channel7->CCR &= ~(DMA_CCR_PINC);//PINC increments
+    DMA1_Channel7->CCR &= ~DMA_CCR_CIRC; //enable circular transfers
+    DMA1_Channel7->CCR &= ~DMA_CCR_MEM2MEM; //enable MEM2MEM transfers
+    DMA1_Channel7->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
+    
+    //DMA1_Channel7->CCR |= DMA_CCR_EN;
+    //wait 
+    //turn off again 
+    DMA1_Channel7->CCR &= ~DMA_CCR_EN;
+}
+
+void USART3_8_IRQHandler(void) {  //UART interrupt handler
+    uint8_t index = 0;
+    // while(DMA2_Channel2->CNDTR != index) {
+    //     receivefifo[receivefifo_offset] = uart_read();
+    //     index += 1;
+    // }
+    //all DMA reads get value of last read instead of current one, fix here or in uart_read or lora_read_single
+    //lab 4 has sending DMA
+}
 
 bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //THIS IS FOR SENDING A LORA MESSAGE, NOT WRTING TO REGISTERS IN THE LORA MICRO
