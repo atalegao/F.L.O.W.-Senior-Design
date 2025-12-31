@@ -507,10 +507,6 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     if (length > RH_RF95_MAX_MESSAGE_LEN) {
         return false;
     }
-    ///////////////////////////////////////////////////////new
-    USART5->CR1 &= ~USART_CR1_RXNEIE;
-    USART5->CR1 &= ~USART_CR1_RE;
-    //////////////////////////////////////////////////////new
 
     //this->waitPacketSent(); // Make sure we dont interrupt an outgoing message
     //setModeIdle();
@@ -563,6 +559,10 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     // }
 
     //change module to send mode
+    // while (((USART5->ISR >> 4) & 0x1) == 0){ //wait until usart is idle
+    //     nano_wait(500000000000000);
+    //     value = uart_read();
+    // }
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
     nano_wait(500000000000000); //wait 0.5 seconds
     // value = 0;
@@ -583,14 +583,11 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //     //ONLY CHANGE AFTER SETTING MODE TO TX (OR TRYING TO) IS MODE CHANGES TO SLEEP
     // }
 
-    ///////////////////////////////////////////////////////new
-    USART5->CR1 |= USART_CR1_RXNEIE;
-    USART5->CR1 |= USART_CR1_RE;
-    value = 0;
-    while (value == 0){
-        value = uart_read();
-    }
-    //////////////////////////////////////////////////////new
+    // value = 0;
+    // while (value == 0){
+    //     nano_wait(500000000000000);
+    //     value = uart_read();
+    // }
 
     //logic to clear irq flags
     while(done == false){
