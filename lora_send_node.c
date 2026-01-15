@@ -153,6 +153,8 @@ void uart_init_for_print(){
         //set mode to LORA sleep
         lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE); // 57 81 01 80
         //lora_read_single(0x01);//testing
+        // uint8_t value = 0;
+        // value = lora_read_single(RH_RF95_REG_01_OP_MODE);
 
         //setup FIFO
         lora_write_single(RH_RF95_REG_0E_FIFO_TX_BASE_ADDR, 0); //57 8E 01 00
@@ -246,7 +248,6 @@ void lora_dma_write_send(int length){
         //do nothing while data is sending
     }
     USART5->ICR |= (1 << 6);
-    //nano_wait(50000000000); //wait 0.5 seconds
     //clear sendfifo and reset offset
     for (int i = 0;  i < FIFOSIZE_TX; i++){
         sendfifo[i] = 0;
@@ -254,6 +255,7 @@ void lora_dma_write_send(int length){
     sendfifo_offset = 0;
     //DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
     DMA1_Channel7->CCR &= ~DMA_CCR_EN; //turn off DMA sending
+    nano_wait(5000000000); //wait 0.5 seconds
 }
 
 void set_mode_continuous_receive(){
@@ -327,10 +329,10 @@ void lora_write_single(uint8_t reg, uint8_t value){//done, not tested
     bool done = false;
     while(done == false){
         //set mode to LORA sleep
-        lora_write_single(RH_RF95_REG_01_OP_MODE, (RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE)); // 57 81 01 80
+        //lora_write_single(RH_RF95_REG_01_OP_MODE, (RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE)); // 57 81 01 80
 
-        value = lora_read_single(0x01);//check irq register for done
-        if(value == 0x80){//==0x80
+        value = lora_read_single(0x0F);//check irq register for done
+        if(value == 0x0A){//==0x80
             GPIOC->ODR = 0;//testing
             return true;
         }
@@ -509,14 +511,23 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //this->waitPacketSent(); // Make sure we dont interrupt an outgoing message
     //setModeIdle();
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY); //new 57, 81, 01, 01
-    value = lora_read_single(RH_RF95_REG_12_IRQ_FLAGS);
+    //value = lora_read_single(RH_RF95_REG_01_OP_MODE);
+    // while(value != 0x81){
+    //     value = lora_read_single(RH_RF95_REG_01_OP_MODE);
+    // }
 
     // Position at the beginning of the FIFO
     // 57, reg | 80, 01, value (2 hex)
     lora_write_single(RH_RF95_REG_0D_FIFO_ADDR_PTR, 0);// 57, 8d, 01, 00 (2 hex)
-    //reg, value
+    // while(value != 0){
+    //     value = lora_read_single(RH_RF95_REG_0D_FIFO_ADDR_PTR);
+    // }
+    // //reg, value
 
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
+    // while(value != 0x40){
+    //     value = lora_read_single(RH_RF95_REG_40_DIO_MAPPING1);
+    // }
 
     // The headers
     lora_write_single(RH_RF95_REG_00_FIFO, ADDRTO); // 57, 80, 01, 10
@@ -524,71 +535,82 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     lora_write_single(RH_RF95_REG_00_FIFO, HEADERID); // 57, 80, 01, 00
     lora_write_single(RH_RF95_REG_00_FIFO, HEADERFLAGS); // 57, 80, 01, 00
 
-    lora_write_multiple(RH_RF95_REG_00_FIFO, data, length); //57, 80, 02, F0, 0F //sends F0 0F
-    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, 6); //57 , A2, 01, 06
+    //lora_write_multiple(RH_RF95_REG_00_FIFO, data, length); //57, 80, 02, F0, 0F //sends F0 0F
+    for (int i = 0; i < length; i ++) {
+        lora_write_single(RH_RF95_REG_00_FIFO, data[i]);
+    }
+
+
+    // while(value != 99){
+    //     value = lora_read_single(0x0E);
+    // }
+
+
+    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, (length + 4)); //57 , A2, 01, 06
+    // while(value != (length + 4)){
+    //     value = lora_read_single(RH_RF95_REG_22_PAYLOAD_LENGTH);
+    // }
+
+    // for (int i = 0;  i < 0x27; i++){
+    //     value = lora_read_single(i);
+    //     value = 0;
+    //     //mode is standby
+    //     //6:D9, 0, 0, 9:88, 10:09, 2B, 20, 13:7, pointer = 0, 0, 0, 17:0, 0, 0
+    // }
 
     //change module to send mode
+    // while (((USART5->ISR >> 4) & 0x1) == 0){ //wait until usart is idle
+    //     nano_wait(500000000000000);
+    //     value = uart_read();
+    // }
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
-    //changing mode to tx breaks reading (never get a response)
-    //lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x40); // Interrupt on TxDone // 57, C0, 01, 40
-    // value = lora_read_single(RH_RF95_REG_01_OP_MODE);//for testing
-    //value = uart_read(); //testing 
-    nano_wait(50000000000000); //wait 0.5 seconds
+    nano_wait(500000000000000); //wait 0.5 seconds
+    // value = 0;
+    // while((value == 0) | (value == 0x80)){
+    //     value = lora_read_single(RH_RF95_REG_01_OP_MODE);//check irq register for done (12) //remove, checking if in tx state
+    //     lora_read_single(0x12);
+    //     nano_wait(500000000000000); //wait 0.5 seconds
+    //     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
+    //     nano_wait(500000000000000); //wait 0.5 seconds
+    // }
+    // value = uart_read();
+
+    // for (int i = 0;  i < 0x27; i++){
+    //     value = lora_read_single(i);
+    //     value = 0;
+    //     //mode is sleep
+    //     //6:D9, 0, 0, 9:88, 10:09, 2B, 20, 13:7, pointer = 0, 0, 0, 17:0, 0, 0
+    //     //ONLY CHANGE AFTER SETTING MODE TO TX (OR TRYING TO) IS MODE CHANGES TO SLEEP
+    // }
+
+    // value = 0;
+    // while (value == 0){
+    //     nano_wait(500000000000000);
+    //     value = uart_read();
+    // }
 
     //logic to clear irq flags
     while(done == false){
-        value = lora_read_single(RH_RF95_REG_12_IRQ_FLAGS);//check irq register for done (12)
-        if(value == 0x08){//(value >> 3) & 0x1
+        value = lora_read_single(0x12);//check irq register for done (12)
+        //value = lora_read_single(RH_RF95_REG_01_OP_MODE);//check irq register for done (12) //remove, checking if in tx state
+        if((value >> 3) & 0x1){//(value >> 3) & 0x1
         // value = lora_read_single(0x01);//check mode register for idle
         // if(value == 0x80){//
             done = true;
-            lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
+            lora_write_single(0x12, 0xff); // Clear all IRQ flags
             return true;
         }
         else{
             nano_wait(5000000000); //wait 0.5 seconds
             counter += 1;
             if(counter > 50){ //5 seconds
-                lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags
+                lora_write_single(0x12, 0xff); // Clear all IRQ flags
                 return false;
             }
         }
     }
     return true;
 }
-
- void setup_leds(void)
- {
-     RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
-     GPIOC->MODER |= 0x00000015; //set pins 0-2 as output 01 //for send notification
-     GPIOC->MODER |= 0x00155540; //set pins 3-10 as output 01 //for 8 data bits
- }
-
- bool connected_test(void){
-    //returns true if LoRa module is connected and false if not
-
-    uint8_t counter = 0;
-    uint8_t value = 0;
-    bool done = false;
-    while(done == false){
-        //set mode to LORA sleep
-        lora_write_single(RH_RF95_REG_01_OP_MODE, (RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE)); // 57 81 01 80
-
-        value = lora_read_single(0x01);//check irq register for done
-        if(value == 0x80){//==0x80
-            GPIOC->ODR = 0;//testing
-            return true;
-        }
-        else{
-            nano_wait(500000000); //wait 0.5 seconds
-            counter += 1;
-            GPIOC->ODR = 1;//testing
-            // if(counter > 10){ //5 seconds
-            //     return false;
-            // }
-        }
-    }
- }
 
 //send is exact same message in hex
 //init is exact same message in hex
@@ -605,6 +627,8 @@ int main(void){
     GPIOA->ODR = 1;
     nano_wait(500000000000); //wait 0.5 seconds
     lora_uart_init();
+    enable_tty_interrupt(); //for DMA
+    enable_tty_interrupt_send();//for DMA sending
     connected_test(); 
     lora_init();
     //set pins C0-2 for send notification
