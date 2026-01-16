@@ -100,6 +100,18 @@
 //SEND + INIT + TEST in one line
 // 52 0F 01 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 00 57 A1 01 08 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 79 57 9E 01 C4 57 A2 01 06 57 81 01 01 57 8D 01 00 57 C0 01 40 57 80 01 10 57 80 01 10 57 80 01 00 57 80 01 00 57 80 01 F0 57 80 01 0F 57 A2 01 06 57 81 01 03
 
+
+//CAD (after init)
+//57 81 01 87 (CAD mode)
+//57 C0 01 A0 (DIO to CAD)
+
+// 52 12 01 read reg 12 to see if CAD detected something 
+//to clear reg 12: 57 92 01 FF
+
+//INIT also needs to be changed on the other module to have the long preamble set (otherwise it will ignore any message with too long of a premable)
+//CAD INIT version 
+// 57 81 01 80 57 8E 01 00 57 8F 01 00 57 81 01 01 57 A0 01 FF 57 A1 01 FF 57 86 01 D9 57 87 01 00 57 88 01 00 57 CD 01 04 57 89 01 88 57 9D 01 79 57 9E 01 C4 57 A2 01 06
+
 //need to first set settings for the modules (both)
 // 57 81 01 80
 // 57 8E 01 00
