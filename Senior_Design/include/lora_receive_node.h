@@ -23,6 +23,9 @@
 
 
 void lora_uart_init();
+bool connected_test(void);
+void enable_tty_interrupt(void);
+void enable_tty_interrupt_send(void);
 bool lora_init();
 void lora_read_fifo_all(uint8_t* data, uint8_t length);
 void set_mode_continuous_receive();

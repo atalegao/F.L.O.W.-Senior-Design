@@ -38,19 +38,27 @@ void nano_wait(unsigned int n) {
 #include <lora_receive_node_alternating.h>
 
 #define RH_WRITE_MASK 0x80
-// #define PREAMBLE_LENGTH 8 set below based on number of writes used
+#define PREAMBLE_LENGTH 0xFFFF
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
-#define FIFOSIZE 16 //number of bytes in a message
-#define ADDRTO 10 //address of message that should receive any sent message
-#define ADDRFROM 10 //address of this node (should be same as ADDRTO)
+#define FIFOSIZE_RX 1 //number of bytes in a received message (always 1)
+#define FIFOSIZE_TX 4 //max number of bytes in a sent message
+#define ADDRTO 0x10 //address of message that should receive any sent message
+#define ADDRFROM 0x10 //address of this node (should be same as ADDRTO)
 #define HEADERID 0 //this is one of the lora headers, but don't know what it is
 #define HEADERFLAGS 0 //this is one of the lora headers, but don't know what it is
 
-
 #define MESSAGE_LENGTH 2 //length of the message without headers
 
-#define SLEEP_CYCLE_TIME 5 //length of time to stay in sleep mode during receive cycle (unit is 1/10 of a second), so 5 = 1/2 second
+#define SLEEP_CYCLE_TIME 1
+
+uint8_t rxdone_global;
+uint8_t valid_header_global;
+uint8_t crc_error_global; 
+uint8_t data_global [MESSAGE_LENGTH];
+
+char receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+int receivefifo_offset = 0;
 
 //comment out one of the 2 below
 #define USE_CUSTOM_SETTINGS
@@ -69,18 +77,8 @@ void nano_wait(unsigned int n) {
     //is preset combo for Bandwidth, coding rate, spreading factor, CRC on/off (not using this)
 #endif
 
-//comment out one of the 2 below
-//#define TWO_WRITES
-#define ONE_WRITE
-
-#ifdef TWO_WRITES
-#define PREAMBLE_LENGTH 8
-#endif
-
-#ifdef ONE_WRITE
-#define PREAMBLE_LENGTH 30000
-#endif
-
+char sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
+int sendfifo_offset = 0;
 
 void lora_uart_init(){ //done, not tested
     //setup UART for lora
@@ -154,7 +152,7 @@ void uart_init_for_print(){
     // setbuf(stderr,0);
 }
 
-    bool lora_init(){//not done, not tested
+ bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
         // (default is off)
@@ -164,6 +162,7 @@ void uart_init_for_print(){
 
         //set mode to LORA sleep
         lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE); // 57 81 01 80
+        //lora_read_single(0x01);//testing
 
         //setup FIFO
         lora_write_single(RH_RF95_REG_0E_FIFO_TX_BASE_ADDR, 0); //57 8E 01 00
@@ -171,6 +170,7 @@ void uart_init_for_print(){
 
         //set mode to IDLE
         lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY); // 57 81 01 01
+        //lora_read_single(0x01);//testing
 
         //setPreambleLength Default is 8 bytes
         // 57, reg | 80, 01, value (2 hex)
@@ -184,7 +184,7 @@ void uart_init_for_print(){
         lora_write_single(RH_RF95_REG_08_FRF_LSB, frf & 0xff); // 57 88 01 00 /////////////////////////changed now
 
         //setTxPower(13);
-        uint8_t power = TXPOWER;
+        int8_t power = TXPOWER;
         if (power > 23) {
             power = 23;
         }
@@ -201,9 +201,14 @@ void uart_init_for_print(){
 
         #ifdef USE_CUSTOM_SETTINGS
 
-        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE); // 57 9D 01 1A
-        lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
-        //AGC is automatic gain control, all examples use this, so I included it
+        //lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, BANDWIDTH | CRC_ON | CODING_RATE | RH_RF95_IMPLICIT_HEADER_MODE_ON); // 57 9D 01 1E updated for implicit header
+        //lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, SPREADING_FACTOR | RH_RF95_AGC_AUTO_ON); //last 57 9E 01 C4
+
+        //new config based on what should happen according to the manual
+        lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, 0x70 | 0x08 | 0x01); // 57 9D 01 79 updated for implicit header
+        lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, 0xC0  | 0x04); //last 57 9E 01 C4
+        //end
+        lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, 6); //57 A2 01 06      update regpayload length (for implicit header mode only)
         return true;
         #endif
         
@@ -218,6 +223,7 @@ void uart_init_for_print(){
         setModemRegisters(&cfg);
         return true;
         #endif
+
     }
 
 
@@ -227,9 +233,37 @@ void uart_init_for_print(){
     uart_write('R'); //0x52
     uart_write(0X00 & ~RH_WRITE_MASK); //0x00 & ~0x80, so 0x00
     uart_write(1); //0x01
+    lora_dma_write_send(3);
     val = uart_read();
     return val; 
     // 52, 00, 01
+}
+
+void lora_dma_write_send(int length){
+    //This enables the message send for the LoRa's DMA
+    //set EN bit to send writes
+    DMA1_Channel7->CCR &= ~DMA_CCR_EN; //turn off DMA sending
+    DMA1_Channel7->CNDTR = length;//set CNDTR
+    while(DMA1_Channel7->CNDTR != (length)){
+        //do nothing while data is sending over DMA
+    }
+    DMA1_Channel7->CCR |= DMA_CCR_EN;
+    while(DMA1_Channel7->CNDTR != 0){
+        //do nothing while data is sending over DMA
+    }
+    //wait for transfer complete flag
+    while(((USART5->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
+        //do nothing while data is sending
+    }
+    USART5->ICR |= (1 << 6);
+    //nano_wait(50000000000); //wait 0.5 seconds
+    //clear sendfifo and reset offset
+    for (int i = 0;  i < FIFOSIZE_TX; i++){
+        sendfifo[i] = 0;
+    }
+    sendfifo_offset = 0;
+    //DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
+    DMA1_Channel7->CCR &= ~DMA_CCR_EN; //turn off DMA sending
 }
 
 void set_mode_continuous_receive(){
@@ -251,6 +285,7 @@ void lora_write_multiple(uint8_t reg, uint8_t* value, uint8_t length){//done, no
     for (int i = 0; i < length; i ++) {
         uart_write(*(value + i));
     }
+    lora_dma_write_send((3 + length));
 }
 
 
@@ -262,6 +297,7 @@ void lora_read_multiple(uint8_t reg, uint8_t* result, uint8_t length){//done, no
     uart_write('R');
     uart_write(reg & ~RH_WRITE_MASK);
     uart_write(length);
+    lora_dma_write_send(0x3);
 
     int i = 0;
     while (1) {
@@ -283,84 +319,54 @@ void lora_write_single(uint8_t reg, uint8_t value){//done, not tested
     uart_write(1);
     uart_write(value);
     //57 80 01 FF //writes FF to addr 00 worked 
-}
-
-uint8_t lora_read_single(uint8_t reg){//done, not tested
-    //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
-    //reads value in the register reg
-    //reg is in the LoRa microcontroller
-    uint8_t val = 0;
-    uart_write('R'); //0x52
-    uart_write(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
-    uart_write(1); //0x01
-    val = uart_read();
-    return val; //baud is 57600
-    //worked with 52 0F 01
-    // 52 00 01 read vale written by write
-}
-
-uint8_t uart_read(){ //not done (add timeout logic), not tested
-    //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART 
-    //for reading received lora messages
-    //USE lora_receive instead
-    uint16_t c = 0;
-    uint8_t counter = 0;
-    //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
-    while (!(USART5->ISR & USART_ISR_RXNE)) { 
-        // nano_wait(1000000); //wait 1/1000 second
-        // counter += 1;
-        // if(counter >= 10000){
-        //     return 0xFF;
-        // }
-        c = USART5->RDR;
-    }
-    return c;
+    lora_dma_write_send(0x4);
 }
 
 
-void uart_write(uint8_t data){ //done, not tested
-    //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
-    //USE lora_write_single, lora_write_multiple, or lora_send instead
-    while(!(USART5->ISR & USART_ISR_TXE)) { 
-        // nano_wait(1000000); //wait 1/1000 second
-        // counter += 1;
-        // if(counter >= 10000){
-        //     break;
-        // }
-        USART5->TDR = data;
-    }
-}
+
 //new functions//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear){ //done, not tested
+bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear){ //done, not tested
     //outputs rxdone, valid_header, and crc_error flags after reading them
     //THIS ALSO CLEARS THE FLAG REGISTER if clear == 1
 
     //read irq flag reg (12)
     uint8_t value = 0;
-    value = lora_read_single(12);
-    //set
-    *(rxdone) = (value >> 6) & 0x1;
-    *(valid_header) = (value >> 4) & 0x1;
-    *(crc_error) = (value >> 5) & 0x1;
+    //value = lora_read_single(0x01);
+    //
+    while ((value == 0x0) | (value == 0x80)){
+        value = lora_read_single(0x12);
+        //set
+        *(rxdone) = (value >> 6) & 0x1;
+        *(valid_header) = (value >> 4) & 0x1;
+        *(crc_error) = (value >> 5) & 0x1;
+        nano_wait(1000000000); //wait 1 second
+    }
     //clear 
     if(clear){
-        lora_write_single(12, 0xFF);
-    }
+            lora_write_single(0x12, 0xFF);
+        }
+    return true;
 }
 
 void lora_read_fifo_all(uint8_t* data, uint8_t length){//done, not tested
     //THIS IS FOR READING THE ENTIRE LORA MESSAGE, NO HEADERS
     //LENGTH IS WITHOUT HEADERS
     uint8_t start_addr = 0;
-    start_addr = lora_read_single(10);//read start addr of last packet received
+    uint8_t datab = 0;
+    //start_addr = lora_read_single(0x10);//read start addr of last packet received
+    //for some reason 0x10 does not have the correct addr, receive correct values when this is commented out
     lora_write_single(0x0D, start_addr);//set FIFO pointer to addr of last packet received
+    datab = 0;
 
     for (int i = 0; i < 4; i ++) {
-        lora_read_fifo_single(); //read the headers, but don't store them
+        datab = lora_read_fifo_single(); //read the headers, but don't store them
+        //
     }
 
     for (int i = 0; i < length; i ++) {
-        *(data + i) = lora_read_fifo_single(); //read one byte of the message
+        datab = lora_read_fifo_single();
+        *(data + i) = datab; //read one byte of the message
+        //start_addr = 0; //for testing
     }
 }
  void setup_leds(void)
@@ -376,7 +382,7 @@ void set_mode_cad(void){
 
 
 
-bool cad_cyle(void){ //done, not tested
+bool cad_cycle(void){ //done, not tested
     //THIS IS THE CAD CYCLE OF RECEIVING
     //returning tru means go to continuous receive mode
     //returning false means go to sleep mode
@@ -385,16 +391,25 @@ bool cad_cyle(void){ //done, not tested
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0xA0); //set DIO (MIGHT HAVE TO DO BEFORE GOING INTO CAD MODE)
     //trying to set DIO1 to CadDetect and DIO0 to CadDone
     uint8_t done = 0;
+    // //
+    // lora_read_single(0x0C);
+    // lora_read_single(0x0C);
+    // //
     while(1){
-        done = lora_read_single(12); //wait until reg 12-2 is high (CAD is done)
+        done = lora_read_single(0x12); //wait until reg 12-2 is high (CAD is done)
         if(((done >> 2) & 0x1)){
             if((done & 0x1)){//if 12-0 is high, return true
-                lora_write_single(12, 0xFF); //clear irq flags
+                lora_write_single(0x12, 0xFF); //clear irq flags
+                // //
+                // lora_read_single(0x0C);
+                // lora_read_single(0x0C);
+                // //
                 return true;
             }
             else{
                 lora_write_single(12, 0xFF); //clear irq flags
                 return false; //else return 0
+                ////CHANGE THIS BACK TO false///////////////////////////////////////////////////////////////////////////////////
             }
         }
         else{
@@ -410,7 +425,44 @@ void sleep_cycle(void){ //not done, not tested
     nano_wait(100000000 * SLEEP_CYCLE_TIME); //wait 1/10 second per SLEEP_CYCLE_TIME
 }
 
-#ifdef TWO_WRITES
+// #ifdef TWO_WRITES
+// bool continous_receive_for_cycle(uint8_t *rxdone,uint8_t *valid_header, uint8_t *crc_error, uint8_t *data){
+//     //THIS HANDLES RECEIVING THE ACTUAL MESSAGE AFTER CAD DETECTED A MESSAGE
+//     //THIS IS SPECIFICALLY DESIGNED TO WORK WITH SEND_CYCLE (message with preambles then send actual message)
+//     // COULD ALSO JUST SEND ONE MESSAGE WITH ALMOST MAX PREAMBLE LENGTH (WITH ACTUAL DATA)
+//     // THIS WOULD BE EASIER (AND MAYBE HOW CAD IS SUPPOSED TO WORK), 
+//     // BUT CONTINUOUS RECEIVE WOULD HAVE TO HAVE A LARGE PREMABLE LENGTH SET BY RegPreambleMsb
+
+//     set_mode_continuous_receive();
+//     nano_wait(1000000000); //wait 1 second
+//     uint16_t counter = 0;
+//     while(1){
+//         //every 1 second, check irq flags (and clear)
+//         check_irq_flags_receive(rxdone,valid_header, crc_error, 0x1);
+//         if(*rxdone){//got a message
+//             lora_read_fifo_all(data, MESSAGE_LENGTH); //get message from FIFO
+//             if(data[MESSAGE_LENGTH - 1: MESSAGE_LENGTH - 4] == 0x0FF00F0F){
+//                 //check if data corresponds to end of preamble message (0F F0 0F 0F)
+//                 //could just give crc error if message was not correct length because it was the preamble one
+//                 //if it does, call this function again
+//                 bool done = continous_receive_for_cycle(rxdone, valid_header, crc_error, data);
+//                 return done;
+//                 break;
+//             }
+//             //else, got actual message, so exit
+//             return true;
+//         }
+//         else{//didn't get data
+//             nano_wait(100000000); //wait 1/10 second
+//             if(cunter >= 1000){
+//                 return false; //end after a certain amount of iterations 
+//             }
+//         }
+//     }
+// }
+// #endif
+
+//#ifdef ONE_WRITE
 bool continous_receive_for_cycle(uint8_t *rxdone,uint8_t *valid_header, uint8_t *crc_error, uint8_t *data){
     //THIS HANDLES RECEIVING THE ACTUAL MESSAGE AFTER CAD DETECTED A MESSAGE
     //THIS IS SPECIFICALLY DESIGNED TO WORK WITH SEND_CYCLE (message with preambles then send actual message)
@@ -418,63 +470,51 @@ bool continous_receive_for_cycle(uint8_t *rxdone,uint8_t *valid_header, uint8_t 
     // THIS WOULD BE EASIER (AND MAYBE HOW CAD IS SUPPOSED TO WORK), 
     // BUT CONTINUOUS RECEIVE WOULD HAVE TO HAVE A LARGE PREMABLE LENGTH SET BY RegPreambleMsb
 
-    set_mode_continuous_receive();
-    nano_wait(1000000000); //wait 1 second
-    uint16_t counter = 0;
-    while(1){
-        //every 1 second, check irq flags (and clear)
-        check_irq_flags_receive(rxdone,valid_header, crc_error, 0x1);
-        if(*rxdone){//got a message
-            lora_read_fifo_all(data, MESSAGE_LENGTH); //get message from FIFO
-            if(data[MESSAGE_LENGTH - 1: MESSAGE_LENGTH - 4] == 0x0FF00F0F){
-                //check if data corresponds to end of preamble message (0F F0 0F 0F)
-                //could just give crc error if message was not correct length because it was the preamble one
-                //if it does, call this function again
-                bool done = continous_receive_for_cycle(rxdone, valid_header, crc_error, data);
-                return done;
-                break;
-            }
-            //else, got actual message, so exit
-            return true;
-        }
-        else{//didn't get data
-            nano_wait(100000000); //wait 1/10 second
-            if(cunter >= 1000){
-                return false; //end after a certain amount of iterations 
-            }
-        }
-    }
-}
-#endif
+    set_mode_sleep();
+    // u_int8_t value;
+    // value = lora_read_single(RH_RF95_REG_01_OP_MODE);
 
-#ifdef ONE_WRITE
-bool continous_receive_for_cycle(uint8_t *rxdone,uint8_t *valid_header, uint8_t *crc_error, uint8_t *data){
-    //THIS HANDLES RECEIVING THE ACTUAL MESSAGE AFTER CAD DETECTED A MESSAGE
-    //THIS IS SPECIFICALLY DESIGNED TO WORK WITH SEND_CYCLE (message with preambles then send actual message)
-    // COULD ALSO JUST SEND ONE MESSAGE WITH ALMOST MAX PREAMBLE LENGTH (WITH ACTUAL DATA)
-    // THIS WOULD BE EASIER (AND MAYBE HOW CAD IS SUPPOSED TO WORK), 
-    // BUT CONTINUOUS RECEIVE WOULD HAVE TO HAVE A LARGE PREMABLE LENGTH SET BY RegPreambleMsb
+
+    // //dump registers
+    // int i = 0;
+    // while(i < 0x26){ //0x26 is highest register
+    //     lora_read_single(i);
+    //     i += 1;
+    // }
 
     set_mode_continuous_receive();
-    nano_wait(1000000000); //wait 1 second
-    uint16_t counter = 0;
+    //nano_wait(1000000000); //wait 1 second
+    //check mode register to make sure module is in continuous receive 
+    //value = lora_read_single(RH_RF95_REG_01_OP_MODE);
+
+    //dump registers
+    int i = 0;
+    // while(i < 0x26){ //0x26 is highest register
+    //     lora_read_single(i);
+    //     i += 1;
+    // }
+    // lora_read_single(0x0C);
+    // lora_read_single(0x0C);
+    //lora_read_single(0x41);
+
+
+
+    bool done = false;
     while(1){
         //every 1 second, check irq flags (and clear)
-        check_irq_flags_receive(rxdone,valid_header, crc_error, 0x1);
-        if(*rxdone){//got a message
+        done = check_irq_flags_receive(rxdone,valid_header, crc_error, 0x1);
+        if(done){//got a message
             lora_read_fifo_all(data, MESSAGE_LENGTH); //get message from FIFO
             //else, got actual message, so exit
             return true;
         }
         else{//didn't get data
             nano_wait(100000000); //wait 1/10 second
-            if(cunter >= 1000){
-                return false; //end after a certain amount of iterations 
-            }
+            return false; //end after a certain amount of iterations 
         }
     }
 }
-#endif
+//#endif
 
 void receive_cycle(void){
     //THIS HANDLES THE ENTIRE RECEIVE CYCLE
@@ -486,12 +526,156 @@ void receive_cycle(void){
             data_processing();
         }
         else{//go again
-            break;
+            return; //break;
         }
     }
     else{
         sleep_cycle(); //go to sleep mode
     }
+}
+
+
+uint8_t uart_read(){ //not done (add timeout logic), not tested
+    //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART 
+    //for reading received lora messages
+    //USE lora_receive instead
+    uint8_t c = 1;
+    // int counter = 0;
+    // //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
+    // while (!(USART5->ISR & USART_ISR_RXNE)) { 
+    //     c = USART5->RDR;
+    //     nano_wait(1000000); //wait 1/1000 second
+    //     counter += 1;
+    //     if(counter >= 10000){
+    //         return 0x0;
+    //     }
+    // }
+    // c = USART5->RDR;
+
+    //changes for DMA
+    nano_wait(500000000000); //wait 0.5 seconds
+    c = receivefifo[receivefifo_offset];
+    receivefifo[receivefifo_offset] = 0;
+    return c;
+}
+
+void uart_write(uint8_t data){ //done, not tested
+    //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
+    //USE lora_write_single, lora_write_multiple, or lora_send instead
+
+    //non DMA
+    int counter = 0;
+    // while(!(USART5->ISR & USART_ISR_TXE)) { 
+    //     nano_wait(1000000); //wait 1/1000 second
+    //     counter += 1;
+    //     if(counter >= 10000){
+    //         break;
+    //     }
+    // }
+    // USART5->TDR = data;
+    //wait and then set back to 0
+    // nano_wait(1000000000); //wait 1/1000 second
+    // USART5->TDR = 0x0;
+    //end of non-DMA
+
+    //changes for DMA
+    //nano_wait(500000000000); //wait 0.5 seconds
+    while(!(USART5->ISR & USART_ISR_TXE)) { 
+        nano_wait(1000000); //wait 1/1000 second
+        counter += 1;
+        if(counter >= 10000){
+            break;
+        }
+    }
+    sendfifo[sendfifo_offset] = data;
+    sendfifo_offset += 1;
+    if(sendfifo_offset > FIFOSIZE_TX){
+        sendfifo_offset = 0;
+    }
+}
+
+uint8_t lora_read_single(uint8_t reg){//done, not tested
+    //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
+    //reads value in the register reg
+    //reg is in the LoRa microcontroller
+    uint8_t val = 0;
+    uart_write('R'); //0x52
+    uart_write(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
+    uart_write(1); //0x01
+    lora_dma_write_send(0x3);
+    val = uart_read();
+    return val; //baud is 57600
+    //worked with 52 0F 01
+    // 52 00 01 read vale written by write
+}
+
+
+void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
+    RCC->AHBENR |= RCC_AHBENR_DMA2EN;
+    DMA2->CSELR |= DMA2_CSELR_CH2_USART5_RX;
+    
+    //NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
+    USART5->CR3 |= USART_CR3_DMAR; //enable DMA for reception
+    USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
+
+    DMA2_Channel2->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
+    
+    DMA2_Channel2->CMAR = (uint32_t)(&receivefifo);//set CMAR
+    DMA2_Channel2->CPAR = (uint32_t)&(USART5->RDR);//set CPAR
+    DMA2_Channel2->CNDTR = FIFOSIZE_RX;//set CNDTR
+    DMA2_Channel2->CCR &= ~DMA_CCR_DIR;//set DIR to P->M
+    DMA2_Channel2->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
+    DMA2_Channel2->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits
+    DMA2_Channel2->CCR |= DMA_CCR_MINC;//MINC increments on CMAR
+    DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
+    DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
+    DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
+    DMA2_Channel2->CCR |= DMA_CCR_PL_1;//set to the highest channel priority
+    
+    DMA2_Channel2->CCR |= DMA_CCR_EN;
+}
+
+void enable_tty_interrupt_send(void){ //DMA for sending messages to LoRa module
+    //DMA 1 channel 7
+
+    RCC->AHBENR |= RCC_AHBENR_DMA1EN; //changed
+    DMA1->CSELR |= DMA1_CSELR_CH7_USART5_TX; //changed
+    
+    NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5 commented out since receive DMA already does this
+    USART5->CR3 |= USART_CR3_DMAT; //enable DMA for sending changed
+    //USART5->CR1 |= USART_CR1_TXEIE;//raise interrupt when send data register is not empty
+    //USART5->TDR = 0x0;
+
+    DMA1_Channel7->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
+    
+    DMA1_Channel7->CMAR = (uint32_t)(&sendfifo);//set CMAR
+    DMA1_Channel7->CPAR = (uint32_t)&(USART5->TDR);//set CPAR
+    DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
+    DMA1_Channel7->CCR |= DMA_CCR_DIR;//set DIR to M->P
+    DMA1_Channel7->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
+    DMA1_Channel7->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
+    DMA1_Channel7->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits //can be up to 32 bits
+    DMA1_Channel7->CCR |= DMA_CCR_MINC;//MINC does not increment
+    DMA1_Channel7->CCR &= ~(DMA_CCR_PINC);//PINC increments
+    DMA1_Channel7->CCR &= ~DMA_CCR_CIRC; //enable circular transfers
+    DMA1_Channel7->CCR &= ~DMA_CCR_MEM2MEM; //enable MEM2MEM transfers
+    DMA1_Channel7->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
+    
+    //DMA1_Channel7->CCR |= DMA_CCR_EN;
+    //wait 
+    //turn off again 
+    DMA1_Channel7->CCR &= ~DMA_CCR_EN;
+}
+
+void USART3_8_IRQHandler(void) {  //UART interrupt handler
+    uint8_t index = 0;
+    // while(DMA2_Channel2->CNDTR != index) {
+    //     receivefifo[receivefifo_offset] = uart_read();
+    //     index += 1;
+    // }
+    //all DMA reads get value of last read instead of current one, fix here or in uart_read or lora_read_single
+    //lab 4 has sending DMA
 }
 
 void data_processing(void){
@@ -511,14 +695,48 @@ void data_processing(void){
     GPIOC->ODR |= (data_global[0] << 3);
 }
 
-uint8_t rxdone_global;
-uint8_t valid_header_global;
-uint8_t crc_error_global; 
-uint8_t data_global [MESSAGE_LENGTH];
+
+  bool connected_test(void){
+    //returns true if LoRa module is connected and false if not
+
+    uint8_t counter = 0;
+    uint8_t value = 0;
+    bool done = false;
+    while(done == false){
+        //set mode to LORA sleep
+        //lora_write_single(RH_RF95_REG_01_OP_MODE, (RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE)); // 57 81 01 80
+
+        value = lora_read_single(0x0F);//check irq register for done
+        if(value == 0x0A){//==0x80
+            GPIOC->ODR = 0;//testing
+            return true;
+        }
+        else{
+            nano_wait(500000000); //wait 0.5 seconds
+            counter += 1;
+            GPIOC->ODR = 1;//testing
+            // if(counter > 10){ //5 seconds
+            //     return false;
+            // }
+        }
+    }
+ }
+
 int main(void){
     internal_clock();
-    lora_uart_init(); 
     setup_leds();
+    RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+    GPIOA->MODER |= 0x00000001; //set pins 10 as output 01 //for 8power to LoRa module
+    GPIOA->ODR = 0;
+    GPIOC->ODR = 0;
+    nano_wait(500000000000); //wait 0.5 seconds
+    GPIOA->ODR = 1;
+    nano_wait(500000000000); //wait 0.5 seconds
+    lora_uart_init();
+    enable_tty_interrupt(); //for DMA
+    enable_tty_interrupt_send();//for DMA sending
+    connected_test(); 
+    lora_init();
     //tx = C12, rx = D2
     //rxdone LED = C0, valid_header LED = C1, crc_error LED = C2 USE RESISTORS: 150 ohm
     //C3-10 are 8 bits for data

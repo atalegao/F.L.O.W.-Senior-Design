@@ -38,7 +38,7 @@ void nano_wait(unsigned int n) {
 #include <lora_receive_node.h>
 
 #define RH_WRITE_MASK 0x80
-#define PREAMBLE_LENGTH 8
+#define PREAMBLE_LENGTH 0xFFFF
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
 #define FIFOSIZE_RX 1 //number of bytes in a received message (always 1)
