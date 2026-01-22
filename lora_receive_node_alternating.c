@@ -391,10 +391,14 @@ bool cad_cycle(void){ //done, not tested
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0xA0); //set DIO (MIGHT HAVE TO DO BEFORE GOING INTO CAD MODE)
     //trying to set DIO1 to CadDetect and DIO0 to CadDone
     uint8_t done = 0;
-    // //
-    // lora_read_single(0x0C);
-    // lora_read_single(0x0C);
-    // //
+
+    //dump registers
+    // int i = 0;
+    // while(i < 0x26){ //0x26 is highest register
+    //     lora_read_single(i);
+    //     i += 1;
+    // }
+    
     while(1){
         done = lora_read_single(0x12); //wait until reg 12-2 is high (CAD is done)
         if(((done >> 2) & 0x1)){
@@ -407,8 +411,8 @@ bool cad_cycle(void){ //done, not tested
                 return true;
             }
             else{
-                lora_write_single(12, 0xFF); //clear irq flags
-                return false; //else return 0
+                lora_write_single(0x12, 0xFF); //clear irq flags
+                return true; //else return 0
                 ////CHANGE THIS BACK TO false///////////////////////////////////////////////////////////////////////////////////
             }
         }
@@ -489,14 +493,12 @@ bool continous_receive_for_cycle(uint8_t *rxdone,uint8_t *valid_header, uint8_t 
 
     //dump registers
     int i = 0;
-    // while(i < 0x26){ //0x26 is highest register
-    //     lora_read_single(i);
-    //     i += 1;
-    // }
-    // lora_read_single(0x0C);
-    // lora_read_single(0x0C);
-    //lora_read_single(0x41);
-
+    while(i < 0x26){ //0x26 is highest register
+        lora_read_single(i);
+        i += 1;
+    }
+    lora_read_single(0x40);
+    lora_read_single(0x41);
 
 
     bool done = false;

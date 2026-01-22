@@ -70,7 +70,7 @@ void nano_wait(unsigned int n) {
 char sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
 int sendfifo_offset = 0;
 
-void lora_uart_init(){ //done, not tested
+void lora_uart_init(){ 
     //setup UART for lora
     //this uses usart5, tx = C12, rx = D2
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN;
@@ -84,7 +84,7 @@ void lora_uart_init(){ //done, not tested
     GPIOD->AFR[0] |= 0x2 << (2 * 4); //set alternate function to AF2 (USART5_RX) 0x2 means AF2 for low, shift by pin number * 4
 
     RCC->APB1ENR |= RCC_APB1ENR_USART5EN;
-    USART5->CR1 &= ~USART_CR1_UE; //turn of USART5 UE bit
+    USART5->CR1 &= ~USART_CR1_UE; //turn off USART5 UE bit
     USART5->CR1 &= ~USART_CR1_M0; //change word size to 8 bits (00)
     USART5->CR1 &= ~USART_CR1_M1; //change word size to 8 bits (00)
 
@@ -93,7 +93,7 @@ void lora_uart_init(){ //done, not tested
 
     USART5->CR1 &= ~USART_CR1_PCE; //no parity control
     USART5->CR1 &= ~USART_CR1_OVER8; //16x oversampling
-    USART5->BRR = 0x341; //baud rate (table96) needs to be 57600 for LoRa (THIS WAS CHANGED)
+    USART5->BRR = 0x341; //baud rate (table96) needs to be 57600 for LoRa
     USART5->CR1 |= USART_CR1_TE | USART_CR1_RE; //enable TE and RE 
     USART5->CR1 |= USART_CR1_UE; //enable USART
 
@@ -106,7 +106,7 @@ void lora_uart_init(){ //done, not tested
     // setbuf(stderr,0);
 }
 
-void uart_init_for_print(){ 
+void uart_init_for_print(){ //NOT USED 
     //setup UART for printing to terminal
     //this uses usart5, tx = C12, rx = D2
     RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN;
@@ -476,7 +476,6 @@ void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
     RCC->AHBENR |= RCC_AHBENR_DMA2EN;
     DMA2->CSELR |= DMA2_CSELR_CH2_USART5_RX;
     
-    //NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
     USART5->CR3 |= USART_CR3_DMAR; //enable DMA for reception
     USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
 
@@ -493,7 +492,7 @@ void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
     DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
     DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
     DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
-    DMA2_Channel2->CCR |= DMA_CCR_PL_1;//set to the highest channel priority
+    DMA2_Channel2->CCR |= DMA_CCR_PL_1;//set to the 2nd highest channel priority
     
     DMA2_Channel2->CCR |= DMA_CCR_EN;
 }
@@ -501,13 +500,11 @@ void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
 void enable_tty_interrupt_send(void){ //DMA for sending messages to LoRa module
     //DMA 1 channel 7
 
-    RCC->AHBENR |= RCC_AHBENR_DMA1EN; //changed
-    DMA1->CSELR |= DMA1_CSELR_CH7_USART5_TX; //changed
+    RCC->AHBENR |= RCC_AHBENR_DMA1EN; //enable DMA
+    DMA1->CSELR |= DMA1_CSELR_CH7_USART5_TX; //Select USART channel
     
-    NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5 commented out since receive DMA already does this
-    USART5->CR3 |= USART_CR3_DMAT; //enable DMA for sending changed
-    //USART5->CR1 |= USART_CR1_TXEIE;//raise interrupt when send data register is not empty
-    //USART5->TDR = 0x0;
+    NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
+    USART5->CR3 |= USART_CR3_DMAT; //enable DMA for sending
 
     DMA1_Channel7->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
     
@@ -518,10 +515,10 @@ void enable_tty_interrupt_send(void){ //DMA for sending messages to LoRa module
     DMA1_Channel7->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
     DMA1_Channel7->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
     DMA1_Channel7->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits //can be up to 32 bits
-    DMA1_Channel7->CCR |= DMA_CCR_MINC;//MINC does not increment
-    DMA1_Channel7->CCR &= ~(DMA_CCR_PINC);//PINC increments
-    DMA1_Channel7->CCR &= ~DMA_CCR_CIRC; //enable circular transfers
-    DMA1_Channel7->CCR &= ~DMA_CCR_MEM2MEM; //enable MEM2MEM transfers
+    DMA1_Channel7->CCR |= DMA_CCR_MINC;//MINC increments
+    DMA1_Channel7->CCR &= ~(DMA_CCR_PINC);//PINC does not increment
+    DMA1_Channel7->CCR &= ~DMA_CCR_CIRC; //disable circular transfers
+    DMA1_Channel7->CCR &= ~DMA_CCR_MEM2MEM; //disable MEM2MEM transfers
     DMA1_Channel7->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
     
     //DMA1_Channel7->CCR |= DMA_CCR_EN;
@@ -539,15 +536,6 @@ void USART3_8_IRQHandler(void) {  //UART interrupt handler
     //all DMA reads get value of last read instead of current one, fix here or in uart_read or lora_read_single
     //lab 4 has sending DMA
 }
-
-// void USART3_8_IRQHandler(void) {
-//     while(DMA2_Channel2->CNDTR != sizeof serfifo - seroffset) {
-//         if (!fifo_full(&input_fifo))
-//             insert_echo_char(serfifo[seroffset]);
-//         seroffset = (seroffset + 1) % sizeof serfifo;
-//     }
-// }
-
 
 //init same hex as terminal
 //continuous receive also same hex as terminal
