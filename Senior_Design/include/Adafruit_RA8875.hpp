@@ -19,18 +19,18 @@
 */
 /**************************************************************************/
 
-#if ARDUINO >= 100
-#include "Arduino.h"
-#include "Print.h"
-#else
-#include "WProgram.h"
-#endif
+//#if ARDUINO >= 100
+// #include "Arduino.h"
+// #include "Print.h"
+// #else
+// #include "WProgram.h"
+// #endif
 
-#ifdef __AVR
-#include <avr/pgmspace.h>
-#elif defined(ESP8266)
-#include <pgmspace.h>
-#endif
+// #ifdef __AVR
+// #include <avr/pgmspace.h>
+// #elif defined(ESP8266)
+// #include <pgmspace.h>
+// #endif
 
 /// @cond DISABLE
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega1280__) ||              \
@@ -42,7 +42,7 @@
 #endif
 /// @endcond
 
-#include <Adafruit_GFX.h>
+#include <Adafruit_GFX.hpp>
 
 #ifndef _ADAFRUIT_RA8875_H
 #define _ADAFRUIT_RA8875_H ///< File has been included
@@ -140,10 +140,10 @@ class Adafruit_RA8875 : public Adafruit_GFX {
 public:
   Adafruit_RA8875(uint8_t cs, uint8_t rst);
 
-  boolean begin(enum RA8875sizes s);
+  bool begin(enum RA8875sizes s);
   void softReset(void);
-  void displayOn(boolean on);
-  void sleep(boolean sleep);
+  void displayOn(bool on);
+  void sleep(bool sleep);
 
   /* Text functions */
   void textMode(void);
@@ -197,16 +197,16 @@ public:
   void scrollY(int16_t dist);
 
   /* Backlight */
-  void GPIOX(boolean on);
-  void PWM1config(boolean on, uint8_t clock);
-  void PWM2config(boolean on, uint8_t clock);
+  void GPIOX(bool on);
+  void PWM1config(bool on, uint8_t clock);
+  void PWM2config(bool on, uint8_t clock);
   void PWM1out(uint8_t p);
   void PWM2out(uint8_t p);
 
   /* Touch screen */
-  void touchEnable(boolean on);
-  boolean touched(void);
-  boolean touchRead(uint16_t *x, uint16_t *y);
+  void touchEnable(bool on);
+  bool touched(void);
+  bool touchRead(uint16_t *x, uint16_t *y);
 
 /// @cond DISABLE
 #if defined(EEPROM_SUPPORTED)
@@ -227,7 +227,7 @@ public:
   uint8_t readData(void);
   void writeCommand(uint8_t d);
   uint8_t readStatus(void);
-  boolean waitPoll(uint8_t r, uint8_t f);
+  bool waitPoll(uint8_t r, uint8_t f);
   uint16_t width(void);
   uint16_t height(void);
   void setRotation(int8_t rotation);
