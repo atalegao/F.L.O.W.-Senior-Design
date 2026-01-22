@@ -276,7 +276,7 @@ void setup()
   Serial.println("Hello, RA8875!");
 
   /* Initialize the display using 'RA8875_480x272' or 'RA8875_800x480' */
-    if (!tft.begin(RA8875_480x272))
+    if (!tft.begin(RA8875_800x480))
   {
     Serial.println("RA8875 not found ... check your wires!");
     while (1);
