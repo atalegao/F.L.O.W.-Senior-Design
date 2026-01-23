@@ -17,6 +17,11 @@
 //#include <SPI.h>
 #include "Adafruit_GFX.hpp"
 #include "Adafruit_RA8875.hpp"
+#include "Adafruit_RA8875.cpp"
+#include "Adafruit_GFX.cpp"
+//#include "gfxfont.cpp"
+#include "glcdfont.cpp"
+#include "string.h"
 
 
 // Library only supports hardware SPI at this time
@@ -32,16 +37,16 @@ uint16_t tx, ty;
 
 void setup()
 {
-  Serial.begin(9600);
-  Serial.println("RA8875 start");
+  //Serial.begin(9600);
+  //Serial.println("RA8875 start");
 
   /* Initialize the display using 'RA8875_480x80', 'RA8875_480x128', 'RA8875_480x272' or 'RA8875_800x480' */
-  if (!tft.begin(RRA8875_800x480)) {
-    Serial.println("RA8875 Not Found!");
+  if (!tft.begin(RA8875_800x480)) {
+    //Serial.println("RA8875 Not Found!");
     while (1);
   }
 
-  Serial.println("Found RA8875");
+  //Serial.println("Found RA8875");
 
   tft.displayOn(true);
   tft.GPIOX(true);      // Enable TFT - display enable tied to GPIOX
@@ -55,25 +60,25 @@ void setup()
   for (uint8_t i=255; i!=0; i-=5 )
   {
     tft.PWM1out(i);
-    delay(10);
+    //delay(10);
   }
   for (uint8_t i=0; i!=255; i+=5 )
   {
     tft.PWM1out(i);
-    delay(10);
+    //delay(10);
   }
   tft.PWM1out(255);
 
   tft.fillScreen(RA8875_RED);
-  delay(500);
+  //delay(500);
   tft.fillScreen(RA8875_YELLOW);
-  delay(500);
+  //delay(500);
   tft.fillScreen(RA8875_GREEN);
-  delay(500);
+  //delay(500);
   tft.fillScreen(RA8875_CYAN);
-  delay(500);
+  //delay(500);
   tft.fillScreen(RA8875_MAGENTA);
-  delay(500);
+  //delay(500);
   tft.fillScreen(RA8875_BLACK);
 
   // Try some GFX acceleration!
@@ -94,13 +99,14 @@ void setup()
   tft.drawCurve(50, 100, 80, 40, 2, RA8875_BLACK);
   tft.fillCurve(50, 100, 78, 38, 2, RA8875_WHITE);
 
-  pinMode(RA8875_INT, INPUT);
-  digitalWrite(RA8875_INT, HIGH);
+  //pinMode(RA8875_INT, INPUT);
+  //digitalWrite(RA8875_INT, HIGH);
+  //I think this is just for changing what is on the screen aftrer a button press
 
   tft.touchEnable(true);
 
-  Serial.print("Status: "); Serial.println(tft.readStatus(), HEX);
-  Serial.println("Waiting for touch events ...");
+  //Serial.print("Status: "); Serial.println(tft.readStatus(), HEX);
+  //Serial.println("Waiting for touch events ...");
 }
 
 void loop()
@@ -109,15 +115,24 @@ void loop()
   float yScale = 1024.0F/tft.height();
 
   /* Wait around for touch events */
-  if (! digitalRead(RA8875_INT))
+  // if (! digitalRead(RA8875_INT))
+  if (! 0x0) //this is if the button is not pressed (or maybe if it is pressed?)
   {
     if (tft.touched())
     {
-      Serial.print("Touch: ");
+      //Serial.print("Touch: ");
       tft.touchRead(&tx, &ty);
-      Serial.print(tx); Serial.print(", "); Serial.println(ty);
+      //Serial.print(tx); Serial.print(", "); Serial.println(ty);
       /* Draw a circle */
       tft.fillCircle((uint16_t)(tx/xScale), (uint16_t)(ty/yScale), 4, RA8875_WHITE);
     }
+  }
+}
+
+int main (void)
+{
+  setup();
+  for(;;){
+    loop();
   }
 }

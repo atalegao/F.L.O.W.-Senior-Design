@@ -32,29 +32,30 @@
  *
  */
 
-#include "Adafruit_RA8875.h"
+#include "Adafruit_RA8875.hpp"
+#include "string.h"
 
-/// @cond DISABLE
-#if defined(EEPROM_SUPPORTED)
-/// @endcond
-#include <EEPROM.h>
-/// @cond DISABLE
-#endif
-/// @endcond
+// /// @cond DISABLE
+// #if defined(EEPROM_SUPPORTED)
+// /// @endcond
+// #include <EEPROM.h>
+// /// @cond DISABLE
+// #endif
+// /// @endcond
 
-#include <SPI.h>
+//#include <SPI.h>
 
-/// @cond DISABLE
-#if defined(ARDUINO_ARCH_ARC32)
-/// @endcond
-uint32_t spi_speed = 12000000; /*!< 12MHz */
-/// @cond DISABLE
-#else
-/// @endcond
-uint32_t spi_speed = 4000000; /*!< 4MHz */
-                              /// @cond DISABLE
-#endif
-/// @endcond
+// /// @cond DISABLE
+// #if defined(ARDUINO_ARCH_ARC32)
+// /// @endcond
+// uint32_t spi_speed = 12000000; /*!< 12MHz */
+// /// @cond DISABLE
+// #else
+// /// @endcond
+// uint32_t spi_speed = 4000000; /*!< 4MHz */
+//                               /// @cond DISABLE
+// #endif
+// /// @endcond
 
 // If the SPI library has transaction support, these functions
 // establish settings and protect from interference from other
@@ -99,7 +100,7 @@ Adafruit_RA8875::Adafruit_RA8875(uint8_t CS, uint8_t RST)
       @return True if we reached the end
 */
 /**************************************************************************/
-boolean Adafruit_RA8875::begin(enum RA8875sizes s) {
+bool Adafruit_RA8875::begin(enum RA8875sizes s) {
   _size = s;
 
   if (_size == RA8875_480x80) {
@@ -118,16 +119,16 @@ boolean Adafruit_RA8875::begin(enum RA8875sizes s) {
     return false;
   }
   _rotation = 0;
-  pinMode(_cs, OUTPUT);
-  digitalWrite(_cs, HIGH);
-  pinMode(_rst, OUTPUT);
+  //pinMode(_cs, OUTPUT);
+  //digitalWrite(_cs, HIGH);
+  //pinMode(_rst, OUTPUT);
 
-  digitalWrite(_rst, LOW);
-  delay(100);
-  digitalWrite(_rst, HIGH);
-  delay(100);
+  //digitalWrite(_rst, LOW);
+  //delay(100);
+  //digitalWrite(_rst, HIGH);
+  //delay(100);
 
-  SPI.begin();
+  //SPI.begin();
 
 #ifdef SPI_HAS_TRANSACTION
 /// @cond DISABLE
@@ -151,7 +152,7 @@ boolean Adafruit_RA8875::begin(enum RA8875sizes s) {
   uint8_t x = readReg(0);
   //    Serial.print("x = 0x"); Serial.println(x,HEX);
   if (x != 0x75) {
-    Serial.println(x);
+    //Serial.println(x);
     return false;
   }
 
@@ -185,7 +186,7 @@ void Adafruit_RA8875::softReset(void) {
   writeCommand(RA8875_PWRR);
   writeData(RA8875_PWRR_SOFTRESET);
   writeData(RA8875_PWRR_NORMAL);
-  delay(1);
+  ////delay(1);
 }
 
 /**************************************************************************/
@@ -197,14 +198,14 @@ void Adafruit_RA8875::PLLinit(void) {
   if (_size == RA8875_480x80 || _size == RA8875_480x128 ||
       _size == RA8875_480x272) {
     writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 10);
-    delay(1);
+    //delay(1);
     writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-    delay(1);
+    //delay(1);
   } else /* (_size == RA8875_800x480) */ {
     writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 11);
-    delay(1);
+    //delay(1);
     writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-    delay(1);
+    //delay(1);
   }
 }
 
@@ -262,7 +263,7 @@ void Adafruit_RA8875::initialize(void) {
   }
 
   writeReg(RA8875_PCSR, pixclk);
-  delay(1);
+  //delay(1);
 
   /* Horizontal settings registers */
   writeReg(RA8875_HDWR, (_width / 8) - 1); // H width: (HDWR + 1) * 8 = 480
@@ -301,7 +302,7 @@ void Adafruit_RA8875::initialize(void) {
 
   /* Clear the entire window */
   writeReg(RA8875_MCLR, RA8875_MCLR_START | RA8875_MCLR_FULL);
-  delay(500);
+  //delay(500);
 }
 
 /**************************************************************************/
@@ -517,27 +518,29 @@ void Adafruit_RA8875::cursorBlink(uint8_t rate) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::textWrite(const char *buffer, uint16_t len) {
-  if (len == 0)
+  if (len == 0){
     len = strlen(buffer);
+  }
   writeCommand(RA8875_MRWC);
   for (uint16_t i = 0; i < len; i++) {
     writeData(buffer[i]);
-/// @cond DISABLE
-#if defined(__arm__)
-    /// @endcond
-    // This delay is needed with textEnlarge(1) because
-    // Teensy 3.X is much faster than Arduino Uno
-    if (_textScale > 0)
-      delay(1);
-/// @cond DISABLE
-#else
-    /// @endcond
-    // For others, delay starting with textEnlarge(2)
-    if (_textScale > 1)
-      delay(1);
-/// @cond DISABLE
-#endif
-    /// @endcond
+    //maybe delay a small amount after this?, I think that is what the below was supposed to do
+// /// @cond DISABLE
+// #if defined(__arm__)
+//     /// @endcond
+//     // This delay is needed with textEnlarge(1) because
+//     // Teensy 3.X is much faster than Arduino Uno
+//     if (_textScale > 0)
+//       //delay(1);
+// /// @cond DISABLE
+// #else
+//     /// @endcond
+//     // For others, delay starting with textEnlarge(2)
+//     if (_textScale > 1)
+//       //delay(1);
+// /// @cond DISABLE
+// #endif
+//     /// @endcond
   }
 }
 
@@ -565,7 +568,7 @@ void Adafruit_RA8875::graphicsMode(void) {
       @return True if the expected status has been reached
 */
 /**************************************************************************/
-boolean Adafruit_RA8875::waitPoll(uint8_t regname, uint8_t waitflag) {
+bool Adafruit_RA8875::waitPoll(uint8_t regname, uint8_t waitflag) {
   /* Wait for the command to finish */
   while (1) {
     uint8_t temp = readReg(regname);
@@ -599,13 +602,13 @@ void Adafruit_RA8875::setXY(uint16_t x, uint16_t y) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::pushPixels(uint32_t num, uint16_t p) {
-  digitalWrite(_cs, LOW);
-  SPI.transfer(RA8875_DATAWRITE);
+  //digitalWrite(_cs, LOW);
+  //SPI.transfer(RA8875_DATAWRITE);
   while (num--) {
-    SPI.transfer(p >> 8);
-    SPI.transfer(p);
+    //SPI.transfer(p >> 8);
+    //SPI.transfer(p);
   }
-  digitalWrite(_cs, HIGH);
+  //digitalWrite(_cs, HIGH);
 }
 
 /**************************************************************************/
@@ -672,11 +675,11 @@ void Adafruit_RA8875::drawPixel(int16_t x, int16_t y, uint16_t color) {
   writeReg(RA8875_CURV0, y);
   writeReg(RA8875_CURV1, y >> 8);
   writeCommand(RA8875_MRWC);
-  digitalWrite(_cs, LOW);
-  SPI.transfer(RA8875_DATAWRITE);
-  SPI.transfer(color >> 8);
-  SPI.transfer(color);
-  digitalWrite(_cs, HIGH);
+  //digitalWrite(_cs, LOW);
+  //SPI.transfer(RA8875_DATAWRITE);
+  //SPI.transfer(color >> 8);
+  //SPI.transfer(color);
+  //digitalWrite(_cs, HIGH);
 }
 
 /**************************************************************************/
@@ -706,12 +709,12 @@ void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x,
   writeReg(RA8875_MWCR0, (readReg(RA8875_MWCR0) & ~RA8875_MWCR0_DIRMASK) | dir);
 
   writeCommand(RA8875_MRWC);
-  digitalWrite(_cs, LOW);
-  SPI.transfer(RA8875_DATAWRITE);
+  //digitalWrite(_cs, LOW);
+  //SPI.transfer(RA8875_DATAWRITE);
   while (num--) {
-    SPI.transfer16(*p++);
+    //SPI.transfer16(*p++);
   }
-  digitalWrite(_cs, HIGH);
+  //digitalWrite(_cs, HIGH);
 }
 
 /**************************************************************************/
@@ -1449,7 +1452,7 @@ void Adafruit_RA8875::scrollY(int16_t dist) {
 
  */
 /**************************************************************************/
-void Adafruit_RA8875::GPIOX(boolean on) {
+void Adafruit_RA8875::GPIOX(bool on) {
   if (on)
     writeReg(RA8875_GPIOX, 1);
   else
@@ -1482,7 +1485,7 @@ void Adafruit_RA8875::PWM2out(uint8_t p) { writeReg(RA8875_P2DCR, p); }
     @param clock The Clock Divider
 */
 /**************************************************************************/
-void Adafruit_RA8875::PWM1config(boolean on, uint8_t clock) {
+void Adafruit_RA8875::PWM1config(bool on, uint8_t clock) {
   if (on) {
     writeReg(RA8875_P1CR, RA8875_P1CR_ENABLE | (clock & 0xF));
   } else {
@@ -1498,7 +1501,7 @@ void Adafruit_RA8875::PWM1config(boolean on, uint8_t clock) {
      @param clock The Clock Divider
 */
 /**************************************************************************/
-void Adafruit_RA8875::PWM2config(boolean on, uint8_t clock) {
+void Adafruit_RA8875::PWM2config(bool on, uint8_t clock) {
   if (on) {
     writeReg(RA8875_P2CR, RA8875_P2CR_ENABLE | (clock & 0xF));
   } else {
@@ -1513,7 +1516,7 @@ void Adafruit_RA8875::PWM2config(boolean on, uint8_t clock) {
       @param on Whether to turn touch sensing on or not
 */
 /**************************************************************************/
-void Adafruit_RA8875::touchEnable(boolean on) {
+void Adafruit_RA8875::touchEnable(bool on) {
   uint8_t adcClk = (uint8_t)RA8875_TPCR0_ADCCLK_DIV4;
 
   if (_size == RA8875_800x480) // match up touch size with LCD size
@@ -1545,7 +1548,7 @@ void Adafruit_RA8875::touchEnable(boolean on) {
                touchRead() will clear the interrupt in memory)
 */
 /**************************************************************************/
-boolean Adafruit_RA8875::touched(void) {
+bool Adafruit_RA8875::touched(void) {
   if (readReg(RA8875_INTC2) & RA8875_INTC2_TP)
     return true;
   return false;
@@ -1564,7 +1567,7 @@ boolean Adafruit_RA8875::touched(void) {
             the RA8875, resetting the flag used by the 'touched' function
 */
 /**************************************************************************/
-boolean Adafruit_RA8875::touchRead(uint16_t *x, uint16_t *y) {
+bool Adafruit_RA8875::touchRead(uint16_t *x, uint16_t *y) {
   uint16_t tx, ty;
   uint8_t temp;
 
@@ -1592,7 +1595,7 @@ boolean Adafruit_RA8875::touchRead(uint16_t *x, uint16_t *y) {
       @param on Whether to turn the display on or not
 */
 /**************************************************************************/
-void Adafruit_RA8875::displayOn(boolean on) {
+void Adafruit_RA8875::displayOn(bool on) {
   if (on)
     writeReg(RA8875_PWRR, RA8875_PWRR_NORMAL | RA8875_PWRR_DISPON);
   else
@@ -1606,7 +1609,7 @@ void Adafruit_RA8875::displayOn(boolean on) {
     @param sleep Whether to sleep or not
 */
 /**************************************************************************/
-void Adafruit_RA8875::sleep(boolean sleep) {
+void Adafruit_RA8875::sleep(bool sleep) {
   if (sleep)
     writeReg(RA8875_PWRR, RA8875_PWRR_DISPOFF | RA8875_PWRR_SLEEP);
   else
@@ -1650,12 +1653,12 @@ uint8_t Adafruit_RA8875::readReg(uint8_t reg) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::writeData(uint8_t d) {
-  digitalWrite(_cs, LOW);
+  //digitalWrite(_cs, LOW);
   spi_begin();
-  SPI.transfer(RA8875_DATAWRITE);
-  SPI.transfer(d);
+  //SPI.transfer(RA8875_DATAWRITE);
+  //SPI.transfer(d);
   spi_end();
-  digitalWrite(_cs, HIGH);
+  //digitalWrite(_cs, HIGH);
 }
 
 /**************************************************************************/
@@ -1666,14 +1669,14 @@ void Adafruit_RA8875::writeData(uint8_t d) {
 */
 /**************************************************************************/
 uint8_t Adafruit_RA8875::readData(void) {
-  digitalWrite(_cs, LOW);
+  //digitalWrite(_cs, LOW);
   spi_begin();
 
-  SPI.transfer(RA8875_DATAREAD);
-  uint8_t x = SPI.transfer(0x0);
+  //SPI.transfer(RA8875_DATAREAD);
+  uint8_t x = 0;//SPI.transfer(0x0);
   spi_end();
 
-  digitalWrite(_cs, HIGH);
+  //digitalWrite(_cs, HIGH);
   return x;
 }
 
@@ -1685,14 +1688,14 @@ uint8_t Adafruit_RA8875::readData(void) {
  */
 /**************************************************************************/
 void Adafruit_RA8875::writeCommand(uint8_t d) {
-  digitalWrite(_cs, LOW);
+  //digitalWrite(_cs, LOW);
   spi_begin();
 
-  SPI.transfer(RA8875_CMDWRITE);
-  SPI.transfer(d);
+  //SPI.transfer(RA8875_CMDWRITE);
+  //SPI.transfer(d);
   spi_end();
 
-  digitalWrite(_cs, HIGH);
+  //digitalWrite(_cs, HIGH);
 }
 
 /**************************************************************************/
@@ -1703,13 +1706,13 @@ void Adafruit_RA8875::writeCommand(uint8_t d) {
  */
 /**************************************************************************/
 uint8_t Adafruit_RA8875::readStatus(void) {
-  digitalWrite(_cs, LOW);
+  //digitalWrite(_cs, LOW);
   spi_begin();
-  SPI.transfer(RA8875_CMDREAD);
-  uint8_t x = SPI.transfer(0x0);
+  //SPI.transfer(RA8875_CMDREAD);
+  uint8_t x = 0;//SPI.transfer(0x0);
   spi_end();
 
-  digitalWrite(_cs, HIGH);
+  //digitalWrite(_cs, HIGH);
   return x;
 }
 
