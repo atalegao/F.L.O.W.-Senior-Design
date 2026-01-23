@@ -15,13 +15,16 @@
  ******************************************************************/
 
 //#include <SPI.h>
+#include "string.h"
+#include "stddef.h"
+#include "stdint.h"
+#include "stdio.h"
 #include "Adafruit_GFX.hpp"
 #include "Adafruit_RA8875.hpp"
 #include "Adafruit_RA8875.cpp"
 #include "Adafruit_GFX.cpp"
 //#include "gfxfont.cpp"
 #include "glcdfont.cpp"
-#include "string.h"
 
 
 // Library only supports hardware SPI at this time
