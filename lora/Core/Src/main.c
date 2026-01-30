@@ -96,42 +96,6 @@ static void MX_USART1_UART_Init(void);
 char sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
 int sendfifo_offset = 0;
 
-//void lora_uart_init(){
-//    //setup UART for lora
-//    //this uses usart5, tx = C12, rx = D2
-//    RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN;
-//
-//    //configure PC12 to be USART5_TX (AF2)
-//    GPIOC->MODER |= 0x02000000; // pin 12 to 10 (alternate)
-//    GPIOC->AFR[1] |= 0x2 << ((12-8)*4); //set alternate function to AF2 (USART5_TX) AFRH, shift 0x2 (meaning AF2) by (pin number -8) * 4
-//
-//    //configure PD2 to be USART5_RX (AF2)
-//    GPIOD->MODER |= 0x00000020; // pin 2 to 10 (alternate)
-//    GPIOD->AFR[0] |= 0x2 << (2 * 4); //set alternate function to AF2 (USART5_RX) 0x2 means AF2 for low, shift by pin number * 4
-//
-//    RCC->APB1ENR |= RCC_APB1ENR_USART5EN;
-//    USART5->CR1 &= ~USART_CR1_UE; //turn off USART5 UE bit
-//    USART5->CR1 &= ~USART_CR1_M0; //change word size to 8 bits (00)
-//    USART5->CR1 &= ~USART_CR1_M1; //change word size to 8 bits (00)
-//
-//    USART5->CR2 &= ~USART_CR2_STOP_0; //one stop bit
-//    USART5->CR2 &= ~USART_CR2_STOP_1; //one stop bit
-//
-//    USART5->CR1 &= ~USART_CR1_PCE; //no parity control
-//    USART5->CR1 &= ~USART_CR1_OVER8; //16x oversampling
-//    USART5->BRR = 0x341; //baud rate (table96) needs to be 57600 for LoRa
-//    USART5->CR1 |= USART_CR1_TE | USART_CR1_RE; //enable TE and RE
-//    USART5->CR1 |= USART_CR1_UE; //enable USART
-//
-//    //wait for TE and RE bits to be acknowledged
-//    while(((USART5->ISR & USART_ISR_TEACK) != USART_ISR_TEACK) | ((USART5->ISR & USART_ISR_REACK) != USART_ISR_REACK)){
-//        //nothing
-//    }
-//    // setbuf(stdin,0);
-//    // setbuf(stdout,0);
-//    // setbuf(stderr,0);
-//}
-
  bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
@@ -222,27 +186,27 @@ uint8_t lora_read_fifo_single(){//done, not tested
 void lora_dma_write_send(int length){
     //This enables the message send for the LoRa's DMA
     //set EN bit to send writes
-    DMA1_Channel7->CCR &= ~DMA_CCR_EN; //turn off DMA sending
-    DMA1_Channel7->CNDTR = length;//set CNDTR
-    while(DMA1_Channel7->CNDTR != (length)){
+    DMA1_Channel2->CCR &= ~DMA_CCR_EN; //turn off DMA sending
+    DMA1_Channel2->CNDTR = length;//set CNDTR
+    while(DMA1_Channel2->CNDTR != (length)){
         //do nothing while data is sending over DMA
     }
-    DMA1_Channel7->CCR |= DMA_CCR_EN;
-    while(DMA1_Channel7->CNDTR != 0){
+    DMA1_Channel2->CCR |= DMA_CCR_EN;
+    while(DMA1_Channel2->CNDTR != 0){
         //do nothing while data is sending over DMA
     }
     //wait for transfer complete flag
     while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
         //do nothing while data is sending
     }
-    USART1->ICR |= (1 << 6);
+    USART1->ICR |= (1 << 6); //clear TC
     //clear sendfifo and reset offset
     for (int i = 0;  i < FIFOSIZE_TX; i++){
         sendfifo[i] = 0;
     }
     sendfifo_offset = 0;
     //DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
-    DMA1_Channel7->CCR &= ~DMA_CCR_EN; //turn off DMA sending
+    DMA1_Channel2->CCR &= ~DMA_CCR_EN; //turn off DMA sending
 }
 
 void set_mode_continuous_receive(){
@@ -301,9 +265,6 @@ void lora_write_single(uint8_t reg, uint8_t value){//done, not tested
     lora_dma_write_send(0x4);
 }
 
-
-
-//new functions//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear){ //done, not tested
     //outputs rxdone, valid_header, and crc_error flags after reading them
     //THIS ALSO CLEARS THE FLAG REGISTER if clear == 1
@@ -360,13 +321,13 @@ bool connected_test(void){
 
         value = lora_read_single(0x01);//check irq register for done
         if(value == 0x80){//==0x80
-            GPIOC->ODR = 0;//testing
+            //GPIOC->ODR = 0;//testing
             return true;
         }
         else{
         	HAL_Delay(1000);
             counter += 1;
-            GPIOC->ODR = 1;//testing
+            //GPIOC->ODR = 1;//testing
             // if(counter > 10){ //5 seconds
             //     return false;
             // }
@@ -374,8 +335,6 @@ bool connected_test(void){
     }
     return false;
  }
- //does not send messages correctly, only sends 57 81 each time instead of entire send and read messages
- //char correct data size?
 
 char receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
 int receivefifo_offset = 0;
@@ -457,71 +416,6 @@ uint8_t lora_read_single(uint8_t reg){//done, not tested
     // 52 00 01 read vale written by write
 }
 
-
-//void enable_tty_interrupt(void) { //DMA for receiving messages from LoRa module
-//    RCC->AHBENR |= RCC_AHBENR_DMA2EN;
-//    DMA2->CSELR |= DMA2_CSELR_CH2_USART5_RX;
-//
-//    USART5->CR3 |= USART_CR3_DMAR; //enable DMA for reception
-//    USART5->CR1 |= USART_CR1_RXNEIE;//raise interrupt when recieve data register is not empty
-//
-//    DMA2_Channel2->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
-//
-//    DMA2_Channel2->CMAR = (uint32_t)(&receivefifo);//set CMAR
-//    DMA2_Channel2->CPAR = (uint32_t)&(USART5->RDR);//set CPAR
-//    DMA2_Channel2->CNDTR = FIFOSIZE_RX;//set CNDTR
-//    DMA2_Channel2->CCR &= ~DMA_CCR_DIR;//set DIR to P->M
-//    DMA2_Channel2->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
-//    DMA2_Channel2->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
-//    DMA2_Channel2->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits
-//    DMA2_Channel2->CCR |= DMA_CCR_MINC;//MINC increments on CMAR
-//    DMA2_Channel2->CCR &= ~(DMA_CCR_PINC);//PINC is not set
-//    DMA2_Channel2->CCR |= DMA_CCR_CIRC; //enable circular transfers
-//    DMA2_Channel2->CCR &= ~DMA_CCR_MEM2MEM; //do not enable MEM2MEM transfers
-//    DMA2_Channel2->CCR |= DMA_CCR_PL_1;//set to the 2nd highest channel priority
-//
-//    DMA2_Channel2->CCR |= DMA_CCR_EN;
-//}
-
-//void enable_tty_interrupt_send(void){ //DMA for sending messages to LoRa module
-//    //DMA 1 channel 7
-//
-//    RCC->AHBENR |= RCC_AHBENR_DMA1EN; //enable DMA
-//    DMA1->CSELR |= DMA1_CSELR_CH7_USART5_TX; //Select USART channel
-//
-//    NVIC_EnableIRQ(USART3_6_IRQn); //enable interrupt for USART5
-//    USART5->CR3 |= USART_CR3_DMAT; //enable DMA for sending
-//
-//    DMA1_Channel7->CCR &= ~DMA_CCR_EN;  // First make sure DMA is turned off
-//
-//    DMA1_Channel7->CMAR = (uint32_t)(&sendfifo);//set CMAR
-//    DMA1_Channel7->CPAR = (uint32_t)&(USART5->TDR);//set CPAR
-//    DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
-//    DMA1_Channel7->CCR |= DMA_CCR_DIR;//set DIR to M->P
-//    DMA1_Channel7->CCR &= ~(DMA_CCR_HTIE | DMA_CCR_TCIE); //total-completion and half-transfer inturrupts are disabled
-//    DMA1_Channel7->CCR &= ~(DMA_CCR_MSIZE_0 | DMA_CCR_MSIZE_1);//MSIZE to 8 bits
-//    DMA1_Channel7->CCR &= ~(DMA_CCR_PSIZE_0 | DMA_CCR_PSIZE_1); //PSIZE to 8 bits //can be up to 32 bits
-//    DMA1_Channel7->CCR |= DMA_CCR_MINC;//MINC increments
-//    DMA1_Channel7->CCR &= ~(DMA_CCR_PINC);//PINC does not increment
-//    DMA1_Channel7->CCR &= ~DMA_CCR_CIRC; //disable circular transfers
-//    DMA1_Channel7->CCR &= ~DMA_CCR_MEM2MEM; //disable MEM2MEM transfers
-//    DMA1_Channel7->CCR |= DMA_CCR_PL_0 | DMA_CCR_PL_1;//set to the highest channel priority
-//
-//    //DMA1_Channel7->CCR |= DMA_CCR_EN;
-//    //wait
-//    //turn off again
-//    DMA1_Channel7->CCR &= ~DMA_CCR_EN;
-//}
-
-//void USART3_8_IRQHandler(void) {  //UART interrupt handler
-//    uint8_t index = 0;
-//    // while(DMA2_Channel2->CNDTR != index) {
-//    //     receivefifo[receivefifo_offset] = uart_read();
-//    //     index += 1;
-//    // }
-//    //all DMA reads get value of last read instead of current one, fix here or in uart_read or lora_read_single
-//    //lab 4 has sending DMA
-//}
 /* USER CODE END 0 */
 
 /**
