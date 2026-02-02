@@ -93,7 +93,7 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-char sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
+uint8_t sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
 int sendfifo_offset = 0;
 
  bool lora_init(){//not done, not tested
@@ -186,27 +186,39 @@ uint8_t lora_read_fifo_single(){//done, not tested
 void lora_dma_write_send(int length){
     //This enables the message send for the LoRa's DMA
     //set EN bit to send writes
-    DMA1_Channel2->CCR &= ~DMA_CCR_EN; //turn off DMA sending
-    DMA1_Channel2->CNDTR = length;//set CNDTR
-    while(DMA1_Channel2->CNDTR != (length)){
-        //do nothing while data is sending over DMA
-    }
-    DMA1_Channel2->CCR |= DMA_CCR_EN;
-    while(DMA1_Channel2->CNDTR != 0){
-        //do nothing while data is sending over DMA
-    }
-    //wait for transfer complete flag
-    while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
-        //do nothing while data is sending
-    }
-    USART1->ICR |= (1 << 6); //clear TC
-    //clear sendfifo and reset offset
+	//old
+//    DMA1_Channel2->CCR &= ~DMA_CCR_EN; //turn off DMA sending
+//    DMA1_Channel2->CNDTR = length;//set CNDTR
+//    while(DMA1_Channel2->CNDTR != (length)){
+//        //do nothing while data is sending over DMA
+//    }
+//    DMA1_Channel2->CCR |= DMA_CCR_EN;
+//    while(DMA1_Channel2->CNDTR != 0){
+//        //do nothing while data is sending over DMA
+//    }
+//    //wait for transfer complete flag
+//    while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
+//        //do nothing while data is sending
+//    }
+//    USART1->ICR |= (1 << 6); //clear TC
+//    //clear sendfifo and reset offset
+	//end old
+	HAL_StatusTypeDef status;
+	HAL_DMA_StateTypeDef dma_status;
+	uint32_t dma_estatus;
+	dma_status = HAL_DMA_GetState(&hdma_usart1_tx);
+	status = HAL_UART_Transmit_DMA(&huart1, sendfifo, length);
+	dma_status = HAL_DMA_GetState(&hdma_usart1_tx);
+	while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
+	        //do nothing while data is sending
+	    }
+	dma_estatus = HAL_DMA_GetError(&hdma_usart1_tx);
     for (int i = 0;  i < FIFOSIZE_TX; i++){
         sendfifo[i] = 0;
     }
     sendfifo_offset = 0;
     //DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
-    DMA1_Channel2->CCR &= ~DMA_CCR_EN; //turn off DMA sending
+    //DMA1_Channel2->CCR &= ~DMA_CCR_EN; //turn off DMA sending
 }
 
 void set_mode_continuous_receive(){
@@ -325,7 +337,7 @@ bool connected_test(void){
             return true;
         }
         else{
-        	HAL_Delay(1000);
+        	HAL_Delay(10);
             counter += 1;
             //GPIOC->ODR = 1;//testing
             // if(counter > 10){ //5 seconds
@@ -336,7 +348,7 @@ bool connected_test(void){
     return false;
  }
 
-char receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
 int receivefifo_offset = 0;
 
 
@@ -358,10 +370,14 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
     // c = USART5->RDR;
 
     //changes for DMA
-    HAL_Delay(1000);
-    //nano_wait(500000000000); //wait 0.5 seconds
-    c = receivefifo[receivefifo_offset];
-    receivefifo[receivefifo_offset] = 0;
+//    HAL_Delay(1000);
+//    //nano_wait(500000000000); //wait 0.5 seconds
+//    c = receivefifo[receivefifo_offset];
+//    receivefifo[receivefifo_offset] = 0;
+
+    //changes for HAL
+    HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
+    c = receivefifo[0];
     return c;
 }
 
@@ -625,6 +641,9 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
+	//add data to buffer, change uart_rec to just get the top byte of data
+}
 
 /* USER CODE END 4 */
 
