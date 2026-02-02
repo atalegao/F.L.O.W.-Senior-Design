@@ -472,6 +472,7 @@ int main(void)
   HAL_Delay(1000);
   HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_SET);
   HAL_Delay(1000);
+  HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
   connected_test();
   lora_init();
   //tx = C12, rx = D2
