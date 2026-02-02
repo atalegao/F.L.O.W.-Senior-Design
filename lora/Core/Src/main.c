@@ -95,6 +95,7 @@ static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN 0 */
 uint8_t sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
 int sendfifo_offset = 0;
+bool sendfifo_ready = true;
 
  bool lora_init(){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
@@ -205,18 +206,20 @@ void lora_dma_write_send(int length){
 	//end old
 	HAL_StatusTypeDef status;
 	HAL_DMA_StateTypeDef dma_status;
-	uint32_t dma_estatus;
-	dma_status = HAL_DMA_GetState(&hdma_usart1_tx);
+	//uint32_t dma_estatus;
+	//dma_status = HAL_DMA_GetState(&hdma_usart1_tx);
 	status = HAL_UART_Transmit_DMA(&huart1, sendfifo, length);
+	sendfifo_ready = false;
 	dma_status = HAL_DMA_GetState(&hdma_usart1_tx);
-	while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
-	        //do nothing while data is sending
-	    }
-	dma_estatus = HAL_DMA_GetError(&hdma_usart1_tx);
-    for (int i = 0;  i < FIFOSIZE_TX; i++){
-        sendfifo[i] = 0;
-    }
-    sendfifo_offset = 0;
+//	while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
+//	        //do nothing while data is sending
+//	    }
+	//dma_estatus = HAL_DMA_GetError(&hdma_usart1_tx);
+
+//    for (int i = 0;  i < FIFOSIZE_TX; i++){
+//        sendfifo[i] = 0;
+//    }
+//    sendfifo_offset = 0;
     //DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
     //DMA1_Channel2->CCR &= ~DMA_CCR_EN; //turn off DMA sending
 }
@@ -349,7 +352,6 @@ bool connected_test(void){
  }
 
 uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
-int receivefifo_offset = 0;
 
 
 uint8_t uart_read(){ //not done (add timeout logic), not tested
@@ -376,8 +378,8 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
 //    receivefifo[receivefifo_offset] = 0;
 
     //changes for HAL
-    HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
     c = receivefifo[0];
+    receivefifo[0] = 0;
     return c;
 }
 
@@ -402,7 +404,7 @@ void uart_write(uint8_t data){ //done, not tested
 
     //changes for DMA
     //nano_wait(500000000000); //wait 0.5 seconds
-    while(!(USART1->ISR & USART_ISR_TXE)) {
+    while(sendfifo_ready == false) {
         //nano_wait(1000000); //wait 1/1000 second
     	HAL_Delay(1000);
         counter += 1;
@@ -642,7 +644,19 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
-	//add data to buffer, change uart_rec to just get the top byte of data
+	//normal code
+	//receivefifo[0] = 0;
+	//then call receive again
+	HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	for (int i = 0;  i < FIFOSIZE_TX; i++){
+	        sendfifo[i] = 0;
+	    }
+	    sendfifo_offset = 0;
+	    sendfifo_ready = true;
 }
 
 /* USER CODE END 4 */
