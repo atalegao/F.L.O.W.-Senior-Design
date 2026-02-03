@@ -47,8 +47,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef hlpuart1;
-DMA_HandleTypeDef hdma_lpuart1_rx;
-DMA_HandleTypeDef hdma_lpuart1_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -57,7 +55,6 @@ DMA_HandleTypeDef hdma_lpuart1_tx;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_DMA_Init(void);
 static void MX_LPUART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -85,6 +82,31 @@ void decimal_to_ascii(uint8_t*int_array, char* ascii_array, uint8_t length)
 		ascii_array[i] = character;
 		i += 1;
 	}
+}
+
+void reset_wifi(void){
+	HAL_GPIO_WritePin (GPIOC, 7, GPIO_PIN_RESET);
+	HAL_Delay(1000);
+	HAL_GPIO_WritePin (GPIOC, 7, GPIO_PIN_SET);
+	HAL_Delay(1000);
+}
+
+void wifi_connect_to_network(void){
+	//this connects to the desired network (hardcoded)
+	uint8_t wifi_send_data [8];
+	const char * wifi_send_data_char = "AT+CWJAP_CUR="Drew","12211221"";
+	need to figure out how to actually use "", also need to add the /r /n
+
+	ascii_to_decimal(wifi_send_data_char, wifi_send_data, 8);
+	HAL_UART_Transmit(&hlpuart1, wifi_send_data, 8);
+	HAL_Delay(10);
+
+	uint8_t wifi_rec_data_int [100];//change to correct length
+	char wifi_rec_data [100]; //change to correct length
+	HAL_UART_Receive(&hlpuart1, wifi_rec_data_int, 8);
+	decimal_to_ascii(wifi_rec_data_int, wifi_rec_data, 8);
+	//wifi_rec_data is output (in ascii)
+	if(wifi_rec_data)
 }
 
 /* USER CODE END 0 */
@@ -118,22 +140,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  uint8_t wifi_send_data [8]; //change to correct length
-  const char * wifi_send_data_char = "AT+CWLAP"; //make one for each command
-
-  ascii_to_decimal(wifi_send_data_char, wifi_send_data, 8);
-  HAL_UART_Transmit_DMA(&hlpuart1, wifi_send_data, 8);
-
-  uint8_t wifi_rec_data_int [100];//change to correct length
-  char wifi_rec_data [100]; //change to correct length
-
-  HAL_UART_Receive_DMA(&hlpuart1, wifi_rec_data_int, 8);
-
-  decimal_to_ascii(wifi_rec_data_int, wifi_rec_data, 8);
-  //wifi_rec_data is output (in ascii)
+  reset_wifi();
 
   /* USER CODE END 2 */
 
@@ -234,34 +243,29 @@ static void MX_LPUART1_UART_Init(void)
 }
 
 /**
-  * Enable DMA controller clock
-  */
-static void MX_DMA_Init(void)
-{
-
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
-
-  /* DMA interrupt init */
-  /* DMA1_Channel2_3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PC7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
