@@ -352,13 +352,14 @@ bool connected_test(void){
  }
 
 uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+bool rx_ready = false;
 
 
 uint8_t uart_read(){ //not done (add timeout logic), not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR READING DATA SENT FROM THE LORA MICRO USING UART
     //for reading received lora messages
     //USE lora_receive instead
-    uint8_t c = 1;
+    uint8_t c = 0;
     // int counter = 0;
     // //UART_READ has to have timeout logic like in uartRx in RHUartDriver.cpp
     // while (!(USART5->ISR & USART_ISR_RXNE)) {
@@ -378,8 +379,25 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
 //    receivefifo[receivefifo_offset] = 0;
 
     //changes for HAL
+//    HAL_Delay(100);
+//    if(rx_ready == true){
+//    	c = receivefifo[0];
+//    	receivefifo[0] = 0;
+//    }
+//    else{
+//    	rx_ready = false;
+//    	//
+//    }
+//    rx_ready = false;
+
+    //HAL_Delay(100);
+    while(rx_ready == false){
+    	//
+    }
+    HAL_Delay(1);
     c = receivefifo[0];
     receivefifo[0] = 0;
+    rx_ready = false;
     return c;
 }
 
@@ -647,6 +665,7 @@ static void MX_GPIO_Init(void)
 void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 	//normal code
 	//receivefifo[0] = 0;
+	rx_ready = true;
 	//then call receive again
 	HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
 }
