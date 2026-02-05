@@ -714,6 +714,45 @@ void drawPixels(uint16_t *p, uint32_t num, int16_t x, int16_t y) {
 
 	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_DISABLE);
 }
+/**************************************************************************/
+/*!
+      Waits for screen to finish by polling the status!
+
+      @param regname The register name to check
+      @param waitflag The value to wait for the status register to match
+
+      @return True if the expected status has been reached
+*/
+/**************************************************************************/
+bool waitPoll(uint8_t regname, uint8_t waitflag) {
+  /* Wait for the command to finish */
+
+	printf("Entering............ waitPoll regname 0x%x waitflag 0x%x\r\n", regname, waitflag);
+
+	int cntr = 0;
+
+  while (1) {
+	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
+		delay(1);
+	}
+    uint8_t temp = readReg(regname);
+    printf("waitPoll regname 0x%x waitflag 0x%x temp = 0x%x\r\n", regname, waitflag, temp);
+
+    if (!(temp & waitflag)) {
+    	printf("Exiting.......... waitPoll regname 0x%x waitflag 0x%x temp = 0x%x\r\n", regname, waitflag, temp);
+      return true;
+    } else {
+  	  delay(5);
+  	  cntr ++;
+
+  	  if (cntr > 9) {
+  		printf("Exiting.......... waitPoll abnormally!\r\n");
+  		  return true;
+  	  }
+    }
+  }
+  return false; // MEMEFIX: yeah i know, unreached! - add timeout?
+}
 
 /**************************************************************************/
 /*!
@@ -806,6 +845,62 @@ void drawFastHLine(int16_t x, int16_t y, int16_t w,
 
 /**************************************************************************/
 /*!
+      Helper function for higher level rectangle drawing code
+*/
+/**************************************************************************/
+void rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
+                                 uint16_t color, bool filled) {
+  x = applyRotationX(x);
+  y = applyRotationY(y);
+  w = applyRotationX(w);
+  h = applyRotationY(h);
+
+  /* Set X */
+  writeCommand(0x91);
+  writeData(x);
+  writeCommand(0x92);
+  writeData(x >> 8);
+
+  /* Set Y */
+  writeCommand(0x93);
+  writeData(y);
+  writeCommand(0x94);
+  writeData(y >> 8);
+
+  /* Set X1 */
+  writeCommand(0x95);
+  writeData(w);
+  writeCommand(0x96);
+  writeData((w) >> 8);
+
+  /* Set Y1 */
+  writeCommand(0x97);
+  writeData(h);
+  writeCommand(0x98);
+  writeData((h) >> 8);
+
+  /* Set Color */
+  writeCommand(0x63);
+  writeData((color & 0xf800) >> 11);
+  writeCommand(0x64);
+  writeData((color & 0x07e0) >> 5);
+  writeCommand(0x65);
+  writeData((color & 0x001f));
+
+  /* Draw! */
+  writeCommand(RA8875_DCR);
+  if (filled) {
+    writeData(0xB0);
+  } else {
+    writeData(0x90);
+  }
+
+  /* Wait for the command to finish */
+  waitPoll(RA8875_DCR, RA8875_DCR_LINESQUTRI_STATUS);
+}
+
+/**************************************************************************/
+/*!
       Draws a HW accelerated rectangle on the display
 
       @param x     The 0-based x location of the top-right corner
@@ -859,6 +954,52 @@ void fillScreen(uint16_t color) {
   rectHelper(0, 0, _width - 1, _height - 1, color, true);
 }
 
+
+/**************************************************************************/
+/*!
+      Helper function for higher level circle drawing code
+*/
+/**************************************************************************/
+void circleHelper(int16_t x, int16_t y, int16_t r, uint16_t color, bool filled) {
+  x = applyRotationX(x);
+  y = applyRotationY(y);
+
+  /* Set X */
+  writeCommand(0x99);
+  writeData(x);
+  writeCommand(0x9a);
+  writeData(x >> 8);
+
+  /* Set Y */
+  writeCommand(0x9b);
+  writeData(y);
+  writeCommand(0x9c);
+  writeData(y >> 8);
+
+  /* Set Radius */
+  writeCommand(0x9d);
+  writeData(r);
+
+  /* Set Color */
+  writeCommand(0x63);
+  writeData((color & 0xf800) >> 11);
+  writeCommand(0x64);
+  writeData((color & 0x07e0) >> 5);
+  writeCommand(0x65);
+  writeData((color & 0x001f));
+
+  /* Draw! */
+  writeCommand(RA8875_DCR);
+  if (filled) {
+    writeData(RA8875_DCR_CIRCLE_START | RA8875_DCR_FILL);
+  } else {
+    writeData(RA8875_DCR_CIRCLE_START | RA8875_DCR_NOFILL);
+  }
+
+  /* Wait for the command to finish */
+  waitPoll(RA8875_DCR, RA8875_DCR_CIRCLE_STATUS);
+}
+
 /**************************************************************************/
 /*!
       Draws a HW accelerated circle on the display
@@ -885,62 +1026,6 @@ void drawCircle(int16_t x, int16_t y, int16_t r, uint16_t color) {
 /**************************************************************************/
 void fillCircle(int16_t x, int16_t y, int16_t r, uint16_t color) {
   circleHelper(x, y, r, color, true);
-}
-
-/**************************************************************************/
-/*!
-      Helper function for higher level rectangle drawing code
-*/
-/**************************************************************************/
-void rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
-                                 uint16_t color, bool filled) {
-  x = applyRotationX(x);
-  y = applyRotationY(y);
-  w = applyRotationX(w);
-  h = applyRotationY(h);
-
-  /* Set X */
-  writeCommand(0x91);
-  writeData(x);
-  writeCommand(0x92);
-  writeData(x >> 8);
-
-  /* Set Y */
-  writeCommand(0x93);
-  writeData(y);
-  writeCommand(0x94);
-  writeData(y >> 8);
-
-  /* Set X1 */
-  writeCommand(0x95);
-  writeData(w);
-  writeCommand(0x96);
-  writeData((w) >> 8);
-
-  /* Set Y1 */
-  writeCommand(0x97);
-  writeData(h);
-  writeCommand(0x98);
-  writeData((h) >> 8);
-
-  /* Set Color */
-  writeCommand(0x63);
-  writeData((color & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((color & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((color & 0x001f));
-
-  /* Draw! */
-  writeCommand(RA8875_DCR);
-  if (filled) {
-    writeData(0xB0);
-  } else {
-    writeData(0x90);
-  }
-
-  /* Wait for the command to finish */
-  waitPoll(RA8875_DCR, RA8875_DCR_LINESQUTRI_STATUS);
 }
 
 /**************************************************************************/
@@ -1403,90 +1488,6 @@ void fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16
 }
 
 
-/**************************************************************************/
-/*!
-      Helper function for higher level circle drawing code
-*/
-/**************************************************************************/
-void circleHelper(int16_t x, int16_t y, int16_t r, uint16_t color, bool filled) {
-  x = applyRotationX(x);
-  y = applyRotationY(y);
-
-  /* Set X */
-  writeCommand(0x99);
-  writeData(x);
-  writeCommand(0x9a);
-  writeData(x >> 8);
-
-  /* Set Y */
-  writeCommand(0x9b);
-  writeData(y);
-  writeCommand(0x9c);
-  writeData(y >> 8);
-
-  /* Set Radius */
-  writeCommand(0x9d);
-  writeData(r);
-
-  /* Set Color */
-  writeCommand(0x63);
-  writeData((color & 0xf800) >> 11);
-  writeCommand(0x64);
-  writeData((color & 0x07e0) >> 5);
-  writeCommand(0x65);
-  writeData((color & 0x001f));
-
-  /* Draw! */
-  writeCommand(RA8875_DCR);
-  if (filled) {
-    writeData(RA8875_DCR_CIRCLE_START | RA8875_DCR_FILL);
-  } else {
-    writeData(RA8875_DCR_CIRCLE_START | RA8875_DCR_NOFILL);
-  }
-
-  /* Wait for the command to finish */
-  waitPoll(RA8875_DCR, RA8875_DCR_CIRCLE_STATUS);
-}
-
-/**************************************************************************/
-/*!
-      Waits for screen to finish by polling the status!
-
-      @param regname The register name to check
-      @param waitflag The value to wait for the status register to match
-
-      @return True if the expected status has been reached
-*/
-/**************************************************************************/
-bool waitPoll(uint8_t regname, uint8_t waitflag) {
-  /* Wait for the command to finish */
-
-	printf("Entering............ waitPoll regname 0x%x waitflag 0x%x\r\n", regname, waitflag);
-
-	int cntr = 0;
-
-  while (1) {
-	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
-	}
-    uint8_t temp = readReg(regname);
-    printf("waitPoll regname 0x%x waitflag 0x%x temp = 0x%x\r\n", regname, waitflag, temp);
-
-    if (!(temp & waitflag)) {
-    	printf("Exiting.......... waitPoll regname 0x%x waitflag 0x%x temp = 0x%x\r\n", regname, waitflag, temp);
-      return true;
-    } else {
-  	  delay(5);
-  	  cntr ++;
-
-  	  if (cntr > 9) {
-  		printf("Exiting.......... waitPoll abnormally!\r\n");
-  		  return true;
-  	  }
-    }
-  }
-  return false; // MEMEFIX: yeah i know, unreached! - add timeout?
-}
 
 /************************* Initialization *********************************/
 
