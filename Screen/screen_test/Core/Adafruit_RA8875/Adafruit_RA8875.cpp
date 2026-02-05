@@ -67,7 +67,7 @@ bool begin(enum RA8875sizes s) {
 		return false;
 	}
 
-	Adafruit_RA8875::initialize();///
+	Adafruit_RA8875::initialize();
 
 	return true;
 }
