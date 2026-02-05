@@ -4,9 +4,9 @@
  *  Created on: Jan 19, 2025
  *      Author: johng
  */
+#include <Adafruit_GFX.h>
 #include "main.h"
 
-#include <Adafruit_GFX.h>
 #include "stdio.h"
 #include "string.h"
 #include "stdbool.h"
@@ -120,29 +120,29 @@ public:
   Adafruit_RA8875(SPI_HandleTypeDef *halSPI);
   Adafruit_RA8875(uint8_t cs, uint8_t rst);
 
-  static bool begin(enum RA8875sizes s);
-  static void softReset(void);
-  static void displayOn(bool on);
-  static void sleep(bool sleep);
+  bool begin(enum RA8875sizes s);
+  void softReset(void);
+  void displayOn(bool on);
+  void sleep(bool sleep);
 
   /* Text functions */
-  static void textMode(void);
-  static void textSetCursor(uint16_t x, uint16_t y);
-  static void textColor(uint16_t foreColor, uint16_t bgColor);
-  static void textTransparent(uint16_t foreColor);
-  static void textEnlarge(uint8_t scale);
-  static void textWrite(const char *buffer, uint16_t len = 0);
-  static void cursorBlink(uint8_t rate);
+  void textMode(void);
+  void textSetCursor(uint16_t x, uint16_t y);
+  void textColor(uint16_t foreColor, uint16_t bgColor);
+  void textTransparent(uint16_t foreColor);
+  void textEnlarge(uint8_t scale);
+  void textWrite(const char *buffer, uint16_t len = 0);
+  void cursorBlink(uint8_t rate);
 
   /* Graphics functions */
-  static void graphicsMode(void);
-  static void setXY(uint16_t x, uint16_t y);
-  static void pushPixels(uint32_t num, uint16_t p);
-  static void fillRect(void);
+  void graphicsMode(void);
+  void setXY(uint16_t x, uint16_t y);
+  void pushPixels(uint32_t num, uint16_t p);
+  void fillRect(void);
 
   /* Adafruit_GFX functions */
   void drawPixel(int16_t x, int16_t y, uint16_t color);
-  static void drawPixels(uint16_t *p, uint32_t count, int16_t x, int16_t y);
+  void drawPixels(uint16_t *p, uint32_t count, int16_t x, int16_t y);
   void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
   void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
 
@@ -151,42 +151,42 @@ public:
   void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
   void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
   void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
-  static void drawCircle(int16_t x, int16_t y, int16_t r, uint16_t color);
-  static void fillCircle(int16_t x, int16_t y, int16_t r, uint16_t color);
-  static void drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2,
+  void drawCircle(int16_t x, int16_t y, int16_t r, uint16_t color);
+  void fillCircle(int16_t x, int16_t y, int16_t r, uint16_t color);
+  void drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2,
                     int16_t y2, uint16_t color);
-  static void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2,
+  void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2,
                     int16_t y2, uint16_t color);
-  static void drawEllipse(int16_t xCenter, int16_t yCenter, int16_t longAxis,
+  void drawEllipse(int16_t xCenter, int16_t yCenter, int16_t longAxis,
                    int16_t shortAxis, uint16_t color);
-  static void fillEllipse(int16_t xCenter, int16_t yCenter, int16_t longAxis,
+  void fillEllipse(int16_t xCenter, int16_t yCenter, int16_t longAxis,
                    int16_t shortAxis, uint16_t color);
-  static void drawCurve(int16_t xCenter, int16_t yCenter, int16_t longAxis,
+  void drawCurve(int16_t xCenter, int16_t yCenter, int16_t longAxis,
                  int16_t shortAxis, uint8_t curvePart, uint16_t color);
-  static void fillCurve(int16_t xCenter, int16_t yCenter, int16_t longAxis,
+  void fillCurve(int16_t xCenter, int16_t yCenter, int16_t longAxis,
                  int16_t shortAxis, uint8_t curvePart, uint16_t color);
-  static void drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r,
+  void drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r,
                      uint16_t color);
-  static void fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r,
+  void fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r,
                      uint16_t color);
 
   /* Scroll */
-  static void setScrollWindow(int16_t x, int16_t y, int16_t w, int16_t h,
+  void setScrollWindow(int16_t x, int16_t y, int16_t w, int16_t h,
                        uint8_t mode);
-  static void scrollX(int16_t dist);
-  static void scrollY(int16_t dist);
+  void scrollX(int16_t dist);
+  void scrollY(int16_t dist);
 
   /* Backlight */
-  static void GPIOX(bool on);
-  static void PWM1config(bool on, uint8_t clock);
-  static void PWM2config(bool on, uint8_t clock);
-  static void PWM1out(uint8_t p);
-  static void PWM2out(uint8_t p);
+  void GPIOX(bool on);
+  void PWM1config(bool on, uint8_t clock);
+  void PWM2config(bool on, uint8_t clock);
+  void PWM1out(uint8_t p);
+  void PWM2out(uint8_t p);
 
   /* Touch screen */
-  static void touchEnable(bool on);
-  static bool touched(void);
-  static bool touchRead(uint16_t *x, uint16_t *y);
+  void touchEnable(bool on);
+  bool touched(void);
+  bool touchRead(uint16_t *x, uint16_t *y);
 
 /// @cond DISABLE
 #if defined(EEPROM_SUPPORTED)
@@ -201,17 +201,17 @@ public:
   /// @endcond
 
   /* Low level access */
-  static void writeReg(uint8_t reg, uint8_t val);
-  static uint8_t readReg(uint8_t reg);
-  static void writeData(uint8_t d);
-  static uint8_t readData(void);
-  static void writeCommand(uint8_t d);
-  static uint8_t readStatus(void);
-  static bool waitPoll(uint8_t r, uint8_t f);
-  static uint16_t width(void);
-  static uint16_t height(void);
-  static void setRotation(int8_t rotation);
-  static int8_t getRotation(void);
+  void writeReg(uint8_t reg, uint8_t val);
+  uint8_t readReg(uint8_t reg);
+  void writeData(uint8_t d);
+  uint8_t readData(void);
+  void writeCommand(uint8_t d);
+  uint8_t readStatus(void);
+  bool waitPoll(uint8_t r, uint8_t f);
+  uint16_t width(void);
+  uint16_t height(void);
+  void setRotation(int8_t rotation);
+  int8_t getRotation(void);
 
 #ifndef USE_ADAFRUIT_GFX_FONTS
   /**************************************************************************/

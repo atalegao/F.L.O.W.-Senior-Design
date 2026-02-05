@@ -5,10 +5,10 @@
  *      Author: johng
  */
 
-#include <Adafruit_RA8875.hpp>
-#include <stdio.h>
-#include <string.h>
-#include <stdbool.h>
+#include <Adafruit_RA8875.h>
+#include "stdio.h"
+#include "string.h"
+#include "stdbool.h"
 
 SPI_HandleTypeDef *spiHandle;
 
@@ -19,6 +19,281 @@ uint8_t _rotation;
 uint8_t _voffset;
 enum RA8875sizes _size;
 
+
+/**************************************************************************/
+/*!
+    Write a command to the current register
+
+    @param d The data to write as a command
+ */
+/**************************************************************************/
+void writeCommand(uint8_t d) {
+	HAL_StatusTypeDef halStatus = HAL_OK;
+
+	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
+		delay(1);
+	}
+
+	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);
+
+	uint8_t pData;
+
+	pData = RA8875_CMDWRITE;
+
+	halStatus = HAL_SPI_Transmit(spiHandle, &pData, sizeof(pData), 100);
+
+	if (halStatus != HAL_OK) {
+		Error_Handler();
+	}
+
+	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
+		delay(1);
+	}
+
+	pData = d;
+	halStatus = HAL_SPI_Receive(spiHandle, &pData, sizeof(uint8_t), 100);
+
+	if (halStatus != HAL_OK) {
+		Error_Handler();
+	}
+
+	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_DISABLE);
+}
+
+/**************************************************************************/
+/*!
+    Read the data from the current register
+
+    @return The Value
+*/
+/**************************************************************************/
+uint8_t readData(void) {
+	HAL_StatusTypeDef halStatus = HAL_OK;
+
+	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
+		delay(1);
+	}
+
+	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);
+
+	uint8_t pData[1];
+	pData[0] = RA8875_DATAREAD;
+	halStatus = HAL_SPI_Transmit(spiHandle, &pData[0], sizeof(pData), 100);
+
+	if (halStatus != HAL_OK) {
+		Error_Handler();
+	}
+
+	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
+		delay(1);
+	}
+
+	uint8_t retVal = 0x00;
+	halStatus = HAL_SPI_Receive(spiHandle, &retVal, sizeof(uint8_t), 100);
+
+	if (halStatus != HAL_OK) {
+		Error_Handler();
+	}
+
+	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_DISABLE);
+
+	return retVal;
+}
+
+
+/**************************************************************************/
+/*!
+    Set the register to read from
+
+    @param reg Register to read
+
+    @return The value
+*/
+/**************************************************************************/
+uint8_t readReg(uint8_t reg) {
+	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
+		delay(1);
+	}
+
+	writeCommand(reg);
+
+	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
+		delay(1);
+	}
+
+	uint8_t retVal = readData();
+
+	return retVal;
+}
+
+
+/**************************************************************************/
+/*!
+    Write data to the current register
+
+    @param d Data to write
+*/
+/**************************************************************************/
+void writeData(uint8_t d) {
+	HAL_StatusTypeDef halStatus = HAL_OK;
+
+	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
+		delay(1);
+	}
+
+	uint8_t pData = RA8875_DATAWRITE;
+	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);
+
+	halStatus = HAL_SPI_Transmit(spiHandle, &pData, sizeof(uint8_t), 100);
+
+	if (halStatus != HAL_OK) {
+		Error_Handler();
+	}
+
+	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
+		delay(1);
+	}
+
+	pData = d;
+	halStatus = HAL_SPI_Transmit(spiHandle, &pData, sizeof(uint8_t), 100);
+
+	if (halStatus != HAL_OK) {
+		Error_Handler();
+	}
+
+	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_DISABLE);
+}
+
+/**************************************************************************/
+/*!
+    Write data to the specified register
+
+    @param reg Register to write to
+    @param val Value to write
+*/
+/**************************************************************************/
+void writeReg(uint8_t reg, uint8_t val) {
+	writeCommand(reg);
+	writeData(val);
+}
+/**************************************************************************/
+/*!
+      Initialise the PLL
+*/
+/**************************************************************************/
+void PLLinit(void) {
+	if (_size == RA8875_480x80 || _size == RA8875_480x128 ||
+			_size == RA8875_480x272) {
+		writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 10);
+		delay(1);
+		writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
+		delay(1);
+	} else /* (_size == RA8875_800x480) */ {
+		writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 11);
+		delay(1);
+		writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
+		delay(1);
+	}
+}
+
+
+/**************************************************************************/
+/*!
+      Initialises the driver IC (clock setup, etc.)
+*/
+/**************************************************************************/
+void initialize(void) {
+	PLLinit();
+	writeReg(RA8875_SYSR, RA8875_SYSR_16BPP | RA8875_SYSR_MCU8);
+
+	/* Timing values */
+	uint8_t pixclk;
+	uint8_t hsync_start;
+	uint8_t hsync_pw;
+	uint8_t hsync_finetune;
+	uint8_t hsync_nondisp;
+	uint8_t vsync_pw;
+	uint16_t vsync_nondisp;
+	uint16_t vsync_start;
+
+	/* Set the correct values for the display being used */
+	if (_size == RA8875_480x80) {
+		pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_4CLK;
+		hsync_nondisp = 10;
+		hsync_start = 8;
+		hsync_pw = 48;
+		hsync_finetune = 0;
+		vsync_nondisp = 3;
+		vsync_start = 8;
+		vsync_pw = 10;
+		_voffset = 192; // This uses the bottom 80 pixels of a 272 pixel controller
+	} else if (_size == RA8875_480x128 || _size == RA8875_480x272) {
+		pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_4CLK;
+		hsync_nondisp = 10;
+		hsync_start = 8;
+		hsync_pw = 48;
+		hsync_finetune = 0;
+		vsync_nondisp = 3;
+		vsync_start = 8;
+		vsync_pw = 10;
+		_voffset = 0;
+	} else // (_size == RA8875_800x480)
+	{
+		pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_2CLK;
+		hsync_nondisp = 26;
+		hsync_start = 32;
+		hsync_pw = 96;
+		hsync_finetune = 0;
+		vsync_nondisp = 32;
+		vsync_start = 23;
+		vsync_pw = 2;
+		_voffset = 0;
+	}
+
+	writeReg(RA8875_PCSR, pixclk);
+//	writeCommand(RA8875_PLLC1);
+//	writeData(0x0C);
+	delay(1);
+
+	/* Horizontal settings registers */
+	writeReg(RA8875_HDWR, (_width / 8) - 1); // H width: (HDWR + 1) * 8 = 480
+	writeReg(RA8875_HNDFTR, RA8875_HNDFTR_DE_HIGH + hsync_finetune);
+	writeReg(RA8875_HNDR, (hsync_nondisp - hsync_finetune - 2) /
+							8); // H non-display: HNDR * 8 + HNDFTR + 2 = 10
+	writeReg(RA8875_HSTR, hsync_start / 8 - 1); // Hsync start: (HSTR + 1)*8
+	writeReg(RA8875_HPWR,
+		   RA8875_HPWR_LOW +
+			   (hsync_pw / 8 - 1)); // HSync pulse width = (HPWR+1) * 8
+
+	/* Vertical settings registers */
+	writeReg(RA8875_VDHR0, (uint16_t)(_height - 1 + _voffset) & 0xFF);
+	writeReg(RA8875_VDHR1, (uint16_t)(_height - 1 + _voffset) >> 8);
+	writeReg(RA8875_VNDR0, vsync_nondisp - 1); // V non-display period = VNDR + 1
+	writeReg(RA8875_VNDR1, vsync_nondisp >> 8);
+	writeReg(RA8875_VSTR0, vsync_start - 1); // Vsync start position = VSTR + 1
+	writeReg(RA8875_VSTR1, vsync_start >> 8);
+	writeReg(RA8875_VPWR,
+		   RA8875_VPWR_LOW + vsync_pw - 1); // Vsync pulse width = VPWR + 1
+
+	/* Set active window X */
+	writeReg(RA8875_HSAW0, 0); // horizontal start point
+	writeReg(RA8875_HSAW1, 0);
+	writeReg(RA8875_HEAW0, (uint16_t)(_width - 1) & 0xFF); // horizontal end point
+	writeReg(RA8875_HEAW1, (uint16_t)(_width - 1) >> 8);
+
+	/* Set active window Y */
+	writeReg(RA8875_VSAW0, 0 + _voffset); // vertical start point
+	writeReg(RA8875_VSAW1, 0 + _voffset);
+	writeReg(RA8875_VEAW0,
+		   (uint16_t)(_height - 1 + _voffset) & 0xFF); // vertical end point
+	writeReg(RA8875_VEAW1, (uint16_t)(_height - 1 + _voffset) >> 8);
+
+	/* ToDo: Setup touch panel? */
+
+	/* Clear the entire window */
+	writeReg(RA8875_MCLR, RA8875_MCLR_START | RA8875_MCLR_FULL);
+	delay(500);
+}
 
 void swap(int16_t x, int16_t y) {
   int16_t temp = x;
@@ -60,14 +335,14 @@ bool begin(enum RA8875sizes s) {
 	delay(100);
 	HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_SET);
 
-	uint8_t x = Adafruit_RA8875::readReg(0);
+	uint8_t x = readReg(0);
 	//    Serial.print("x = 0x"); Serial.println(x,HEX);
 	if (x != 0x75) {
 		printf("x=0x%2x\r\n", x);
 		return false;
 	}
 
-	Adafruit_RA8875::initialize();
+	initialize();
 
 	return true;
 }
@@ -82,7 +357,7 @@ bool begin(enum RA8875sizes s) {
 /**************************************************************************/
 void textMode(void) {
   /* Set text mode */
-  Adafruit_RA8875::writeCommand(RA8875_MWCR0);
+  writeCommand(RA8875_MWCR0);
   uint8_t temp = readData();
   temp |= RA8875_MWCR0_TXTMODE; // Set bit 7
   writeData(temp);
@@ -92,6 +367,40 @@ void textMode(void) {
   temp = readData();
   temp &= ~((1 << 7) | (1 << 5)); // Clear bits 7 and 5
   writeData(temp);
+}
+
+/**************************************************************************/
+/*!
+    Apply current rotation in the X direction
+
+    @return the X value with current rotation applied
+ */
+/**************************************************************************/
+int16_t applyRotationX(int16_t x) {
+  switch (_rotation) {
+  case 2:
+    x = _width - 1 - x;
+    break;
+  }
+
+  return x;
+}
+
+/**************************************************************************/
+/*!
+    Apply current rotation in the Y direction
+
+    @return the Y value with current rotation applied
+ */
+/**************************************************************************/
+int16_t applyRotationY(int16_t y) {
+  switch (_rotation) {
+  case 2:
+    y = _height - 1 - y;
+    break;
+  }
+
+  return y + _voffset;
 }
 
 /**************************************************************************/
@@ -240,18 +549,6 @@ void cursorBlink(uint8_t rate) {
       @param len       The size of the buffer in bytes
 */
 /**************************************************************************/
-void textWrite(const char *buffer) {
-	textWrite2(buffer, strlen(buffer));
-}
-
-/**************************************************************************/
-/*!
-      Renders some text on the screen when in text mode
-
-      @param buffer    The buffer containing the characters to render
-      @param len       The size of the buffer in bytes
-*/
-/**************************************************************************/
 void textWrite2(const char *buffer, uint16_t len) {
   if (len == 0)
     len = strlen(buffer);
@@ -276,6 +573,17 @@ void textWrite2(const char *buffer, uint16_t len) {
 #endif
     /// @endcond
   }
+}
+/**************************************************************************/
+/*!
+      Renders some text on the screen when in text mode
+
+      @param buffer    The buffer containing the characters to render
+      @param len       The size of the buffer in bytes
+*/
+/**************************************************************************/
+void textWrite(const char *buffer) {
+	textWrite2(buffer, strlen(buffer));
 }
 
 /************************* Graphics ***********************************/
@@ -1180,41 +1488,6 @@ bool waitPoll(uint8_t regname, uint8_t waitflag) {
   return false; // MEMEFIX: yeah i know, unreached! - add timeout?
 }
 
-
-/**************************************************************************/
-/*!
-    Apply current rotation in the X direction
-
-    @return the X value with current rotation applied
- */
-/**************************************************************************/
-int16_t applyRotationX(int16_t x) {
-  switch (_rotation) {
-  case 2:
-    x = _width - 1 - x;
-    break;
-  }
-
-  return x;
-}
-
-/**************************************************************************/
-/*!
-    Apply current rotation in the Y direction
-
-    @return the Y value with current rotation applied
- */
-/**************************************************************************/
-int16_t applyRotationY(int16_t y) {
-  switch (_rotation) {
-  case 2:
-    y = _height - 1 - y;
-    break;
-  }
-
-  return y + _voffset;
-}
-
 /************************* Initialization *********************************/
 
 /**************************************************************************/
@@ -1227,123 +1500,6 @@ void softReset(void) {
 	writeData(RA8875_PWRR_SOFTRESET);
 	writeData(RA8875_PWRR_NORMAL);
 	delay(1);
-}
-/**************************************************************************/
-/*!
-      Initialise the PLL
-*/
-/**************************************************************************/
-void PLLinit(void) {
-	if (_size == RA8875_480x80 || _size == RA8875_480x128 ||
-			_size == RA8875_480x272) {
-		writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 10);
-		delay(1);
-		writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-		delay(1);
-	} else /* (_size == RA8875_800x480) */ {
-		writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 11);
-		delay(1);
-		writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-		delay(1);
-	}
-}
-
-/**************************************************************************/
-/*!
-      Initialises the driver IC (clock setup, etc.)
-*/
-/**************************************************************************/
-void initialize(void) {
-	PLLinit();
-	writeReg(RA8875_SYSR, RA8875_SYSR_16BPP | RA8875_SYSR_MCU8);
-
-	/* Timing values */
-	uint8_t pixclk;
-	uint8_t hsync_start;
-	uint8_t hsync_pw;
-	uint8_t hsync_finetune;
-	uint8_t hsync_nondisp;
-	uint8_t vsync_pw;
-	uint16_t vsync_nondisp;
-	uint16_t vsync_start;
-
-	/* Set the correct values for the display being used */
-	if (_size == RA8875_480x80) {
-		pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_4CLK;
-		hsync_nondisp = 10;
-		hsync_start = 8;
-		hsync_pw = 48;
-		hsync_finetune = 0;
-		vsync_nondisp = 3;
-		vsync_start = 8;
-		vsync_pw = 10;
-		_voffset = 192; // This uses the bottom 80 pixels of a 272 pixel controller
-	} else if (_size == RA8875_480x128 || _size == RA8875_480x272) {
-		pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_4CLK;
-		hsync_nondisp = 10;
-		hsync_start = 8;
-		hsync_pw = 48;
-		hsync_finetune = 0;
-		vsync_nondisp = 3;
-		vsync_start = 8;
-		vsync_pw = 10;
-		_voffset = 0;
-	} else // (_size == RA8875_800x480)
-	{
-		pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_2CLK;
-		hsync_nondisp = 26;
-		hsync_start = 32;
-		hsync_pw = 96;
-		hsync_finetune = 0;
-		vsync_nondisp = 32;
-		vsync_start = 23;
-		vsync_pw = 2;
-		_voffset = 0;
-	}
-
-	writeReg(RA8875_PCSR, pixclk);
-//	writeCommand(RA8875_PLLC1);
-//	writeData(0x0C);
-	delay(1);
-
-	/* Horizontal settings registers */
-	writeReg(RA8875_HDWR, (_width / 8) - 1); // H width: (HDWR + 1) * 8 = 480
-	writeReg(RA8875_HNDFTR, RA8875_HNDFTR_DE_HIGH + hsync_finetune);
-	writeReg(RA8875_HNDR, (hsync_nondisp - hsync_finetune - 2) /
-							8); // H non-display: HNDR * 8 + HNDFTR + 2 = 10
-	writeReg(RA8875_HSTR, hsync_start / 8 - 1); // Hsync start: (HSTR + 1)*8
-	writeReg(RA8875_HPWR,
-		   RA8875_HPWR_LOW +
-			   (hsync_pw / 8 - 1)); // HSync pulse width = (HPWR+1) * 8
-
-	/* Vertical settings registers */
-	writeReg(RA8875_VDHR0, (uint16_t)(_height - 1 + _voffset) & 0xFF);
-	writeReg(RA8875_VDHR1, (uint16_t)(_height - 1 + _voffset) >> 8);
-	writeReg(RA8875_VNDR0, vsync_nondisp - 1); // V non-display period = VNDR + 1
-	writeReg(RA8875_VNDR1, vsync_nondisp >> 8);
-	writeReg(RA8875_VSTR0, vsync_start - 1); // Vsync start position = VSTR + 1
-	writeReg(RA8875_VSTR1, vsync_start >> 8);
-	writeReg(RA8875_VPWR,
-		   RA8875_VPWR_LOW + vsync_pw - 1); // Vsync pulse width = VPWR + 1
-
-	/* Set active window X */
-	writeReg(RA8875_HSAW0, 0); // horizontal start point
-	writeReg(RA8875_HSAW1, 0);
-	writeReg(RA8875_HEAW0, (uint16_t)(_width - 1) & 0xFF); // horizontal end point
-	writeReg(RA8875_HEAW1, (uint16_t)(_width - 1) >> 8);
-
-	/* Set active window Y */
-	writeReg(RA8875_VSAW0, 0 + _voffset); // vertical start point
-	writeReg(RA8875_VSAW1, 0 + _voffset);
-	writeReg(RA8875_VEAW0,
-		   (uint16_t)(_height - 1 + _voffset) & 0xFF); // vertical end point
-	writeReg(RA8875_VEAW1, (uint16_t)(_height - 1 + _voffset) >> 8);
-
-	/* ToDo: Setup touch panel? */
-
-	/* Clear the entire window */
-	writeReg(RA8875_MCLR, RA8875_MCLR_START | RA8875_MCLR_FULL);
-	delay(500);
 }
 
 /**************************************************************************/
@@ -1449,160 +1605,9 @@ void PWM2out(uint8_t p) {
 
 /************************* Low Level ***********************************/
 
-/**************************************************************************/
-/*!
-    Write data to the specified register
 
-    @param reg Register to write to
-    @param val Value to write
-*/
-/**************************************************************************/
-void writeReg(uint8_t reg, uint8_t val) {
-	writeCommand(reg);
-	writeData(val);
-}
 
-/**************************************************************************/
-/*!
-    Set the register to read from
 
-    @param reg Register to read
-
-    @return The value
-*/
-/**************************************************************************/
-uint8_t Adafruit_RA8875::readReg(uint8_t reg) {
-	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
-	}
-
-	writeCommand(reg);
-
-	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
-	}
-
-	uint8_t retVal = readData();
-
-	return retVal;
-}
-
-/**************************************************************************/
-/*!
-    Write data to the current register
-
-    @param d Data to write
-*/
-/**************************************************************************/
-void writeData(uint8_t d) {
-	HAL_StatusTypeDef halStatus = HAL_OK;
-
-	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
-	}
-
-	uint8_t pData = RA8875_DATAWRITE;
-	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);
-
-	halStatus = HAL_SPI_Transmit(spiHandle, &pData, sizeof(uint8_t), 100);
-
-	if (halStatus != HAL_OK) {
-		Error_Handler();
-	}
-
-	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
-	}
-
-	pData = d;
-	halStatus = HAL_SPI_Transmit(spiHandle, &pData, sizeof(uint8_t), 100);
-
-	if (halStatus != HAL_OK) {
-		Error_Handler();
-	}
-
-	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_DISABLE);
-}
-
-/**************************************************************************/
-/*!
-    Read the data from the current register
-
-    @return The Value
-*/
-/**************************************************************************/
-uint8_t readData(void) {
-	HAL_StatusTypeDef halStatus = HAL_OK;
-
-	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
-	}
-
-	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);
-
-	uint8_t pData[1];
-	pData[0] = RA8875_DATAREAD;
-	halStatus = HAL_SPI_Transmit(spiHandle, &pData[0], sizeof(pData), 100);
-
-	if (halStatus != HAL_OK) {
-		Error_Handler();
-	}
-
-	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
-	}
-
-	uint8_t retVal = 0x00;
-	halStatus = HAL_SPI_Receive(spiHandle, &retVal, sizeof(uint8_t), 100);
-
-	if (halStatus != HAL_OK) {
-		Error_Handler();
-	}
-
-	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_DISABLE);
-
-	return retVal;
-}
-
-/**************************************************************************/
-/*!
-    Write a command to the current register
-
-    @param d The data to write as a command
- */
-/**************************************************************************/
-void writeCommand(uint8_t d) {
-	HAL_StatusTypeDef halStatus = HAL_OK;
-
-	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
-	}
-
-	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);
-
-	uint8_t pData;
-
-	pData = RA8875_CMDWRITE;
-
-	halStatus = HAL_SPI_Transmit(spiHandle, &pData, sizeof(pData), 100);
-
-	if (halStatus != HAL_OK) {
-		Error_Handler();
-	}
-
-	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
-	}
-
-	pData = d;
-	halStatus = HAL_SPI_Receive(spiHandle, &pData, sizeof(uint8_t), 100);
-
-	if (halStatus != HAL_OK) {
-		Error_Handler();
-	}
-
-	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_DISABLE);
-}
 
 /**************************************************************************/
 /*!

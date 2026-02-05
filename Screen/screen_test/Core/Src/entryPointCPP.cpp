@@ -5,8 +5,8 @@
  *      Author: johng
  */
 
+#include <Adafruit_RA8875.h>
 #include "entryPointCPP.hpp"
-#include "Adafruit_RA8875.hpp"
 
 
 Adafruit_RA8875 *tft;

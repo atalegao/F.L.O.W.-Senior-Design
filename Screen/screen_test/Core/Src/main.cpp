@@ -17,6 +17,8 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include <Adafruit_GFX.h>
+#include <Adafruit_RA8875.h>
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -24,8 +26,6 @@
 #include "stdio.h"
 #include "string.h"
 #include "stdbool.h"
-#include "Adafruit_RA8875.hpp"
-#include "Adafruit_GFX.h"
 #include "gfxfont.h"
 #include "entryPointCPP.hpp"
 
@@ -160,6 +160,18 @@ int main(void)
   MX_SPI1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  printf("\x1b[2J\x1b[H");	// Clear the dumb terminal screen
+  printf("Starting Initialization Process\r\n");
+
+  HAL_TIM_Base_Start(&htim2);
+
+  initTest(&hspi1);
+
+  HAL_Delay(1000);
+
+  MX_SPI1_ReInit(SPI_BAUDRATEPRESCALER_32);	// Increase the SPI clock rate
+
+  HAL_Delay(500);
 
   /* USER CODE END 2 */
 
