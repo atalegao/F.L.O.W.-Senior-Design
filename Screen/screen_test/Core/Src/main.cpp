@@ -27,6 +27,7 @@
 #include "Adafruit_RA8875.hpp"
 #include "Adafruit_GFX.h"
 #include "gfxfont.h"
+#include "entryPointCPP.hpp"
 
 /* USER CODE END Includes */
 

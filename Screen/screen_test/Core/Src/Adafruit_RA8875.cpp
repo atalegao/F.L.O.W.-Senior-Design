@@ -1226,7 +1226,7 @@ void softReset(void) {
 	writeCommand(RA8875_PWRR);
 	writeData(RA8875_PWRR_SOFTRESET);
 	writeData(RA8875_PWRR_NORMAL);
-	delayMS(1);
+	delay(1);
 }
 /**************************************************************************/
 /*!
@@ -1237,14 +1237,14 @@ void PLLinit(void) {
 	if (_size == RA8875_480x80 || _size == RA8875_480x128 ||
 			_size == RA8875_480x272) {
 		writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 10);
-		delayMS(1);
+		delay(1);
 		writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-		delayMS(1);
+		delay(1);
 	} else /* (_size == RA8875_800x480) */ {
 		writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 11);
-		delayMS(1);
+		delay(1);
 		writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-		delayMS(1);
+		delay(1);
 	}
 }
 
@@ -1343,7 +1343,7 @@ void initialize(void) {
 
 	/* Clear the entire window */
 	writeReg(RA8875_MCLR, RA8875_MCLR_START | RA8875_MCLR_FULL);
-	delayMS(500);
+	delay(500);
 }
 
 /**************************************************************************/
