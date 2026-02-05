@@ -82,7 +82,7 @@ bool begin(enum RA8875sizes s) {
 /**************************************************************************/
 void textMode(void) {
   /* Set text mode */
-  Adafruit_8875::writeCommand(RA8875_MWCR0);
+  Adafruit_RA8875::writeCommand(RA8875_MWCR0);
   uint8_t temp = readData();
   temp |= RA8875_MWCR0_TXTMODE; // Set bit 7
   writeData(temp);
@@ -1304,7 +1304,7 @@ void initialize(void) {
 	writeReg(RA8875_PCSR, pixclk);
 //	writeCommand(RA8875_PLLC1);
 //	writeData(0x0C);
-	delayMS(1);
+	delay(1);
 
 	/* Horizontal settings registers */
 	writeReg(RA8875_HDWR, (_width / 8) - 1); // H width: (HDWR + 1) * 8 = 480

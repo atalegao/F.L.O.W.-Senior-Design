@@ -25,6 +25,8 @@
 #include "string.h"
 #include "stdbool.h"
 #include "Adafruit_RA8875.hpp"
+#include "Adafruit_GFX.h"
+#include "gfxfont.h"
 
 /* USER CODE END Includes */
 
