@@ -93,20 +93,19 @@ void reset_wifi(void){
 
 void wifi_connect_to_network(void){
 	//this connects to the desired network (hardcoded)
-	uint8_t wifi_send_data [8];
-	const char * wifi_send_data_char = "AT+CWJAP_CUR="Drew","12211221"";
-	need to figure out how to actually use "", also need to add the /r /n
+	uint8_t wifi_send_data [13];
+	const char * wifi_send_data_char = "AT+CWMODE=?\r\n";//"AT+CWJAP_CUR=\"Drew\",\"12211221\"\r\r\n";
 
-	ascii_to_decimal(wifi_send_data_char, wifi_send_data, 8);
-	HAL_UART_Transmit(&hlpuart1, wifi_send_data, 8);
-	HAL_Delay(10);
+	ascii_to_decimal(wifi_send_data_char, wifi_send_data, 13);
+	HAL_UART_Transmit(&hlpuart1, wifi_send_data, 13, 100000);
+	//HAL_Delay();
 
 	uint8_t wifi_rec_data_int [100];//change to correct length
 	char wifi_rec_data [100]; //change to correct length
-	HAL_UART_Receive(&hlpuart1, wifi_rec_data_int, 8);
-	decimal_to_ascii(wifi_rec_data_int, wifi_rec_data, 8);
+	HAL_UART_Receive(&hlpuart1, wifi_rec_data_int, 35, 1000000);
+	decimal_to_ascii(wifi_rec_data_int, wifi_rec_data, 35);
 	//wifi_rec_data is output (in ascii)
-	if(wifi_rec_data)
+	//if(wifi_rec_data)
 }
 
 /* USER CODE END 0 */
@@ -143,6 +142,7 @@ int main(void)
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
   reset_wifi();
+  wifi_connect_to_network();
 
   /* USER CODE END 2 */
 
