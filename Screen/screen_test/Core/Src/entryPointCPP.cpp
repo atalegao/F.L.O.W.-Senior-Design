@@ -7,6 +7,7 @@
 
 #include <Adafruit_RA8875.h>
 #include "entryPointCPP.hpp"
+//#include <Adafruit_RA8875.cpp>
 
 
 Adafruit_RA8875 *tft;
