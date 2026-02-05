@@ -19,6 +19,10 @@ uint8_t _rotation;
 uint8_t _voffset;
 enum RA8875sizes _size;
 
+void Adafruit_RA8875(SPI_HandleTypeDef *halSPI) {
+	spiHandle = halSPI;
+}
+
 
 /**************************************************************************/
 /*!
@@ -299,10 +303,6 @@ void swap(int16_t x, int16_t y) {
   int16_t temp = x;
   x = y;
   y = temp;
-}
-
-void Adafruit_RA8875(SPI_HandleTypeDef *halSPI) {
-	spiHandle = halSPI;
 }
 
 bool begin(enum RA8875sizes s) {

@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include <Adafruit_GFX.h>
 #include <Adafruit_RA8875.h>
+//#include <Adafruit_RA8875.cpp>
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
