@@ -19,7 +19,9 @@ uint8_t _rotation;
 uint8_t _voffset;
 enum RA8875sizes _size;
 
-void Adafruit_RA8875(SPI_HandleTypeDef *halSPI) {
+Adafruit_RA8875::Adafruit_RA8875(SPI_HandleTypeDef *halSPI)
+	: Adafruit_GFX(0, 0)
+{
 	spiHandle = halSPI;
 }
 
@@ -31,7 +33,7 @@ void Adafruit_RA8875(SPI_HandleTypeDef *halSPI) {
     @param d The data to write as a command
  */
 /**************************************************************************/
-void writeCommand(uint8_t d) {
+void Adafruit_RA8875::writeCommand(uint8_t d) {
 	HAL_StatusTypeDef halStatus = HAL_OK;
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
@@ -71,7 +73,7 @@ void writeCommand(uint8_t d) {
     @return The Value
 */
 /**************************************************************************/
-uint8_t readData(void) {
+uint8_t Adafruit_RA8875::readData(void) {
 	HAL_StatusTypeDef halStatus = HAL_OK;
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
@@ -114,7 +116,7 @@ uint8_t readData(void) {
     @return The value
 */
 /**************************************************************************/
-uint8_t readReg(uint8_t reg) {
+uint8_t Adafruit_RA8875::readReg(uint8_t reg) {
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
 		delay(1);
 	}
@@ -138,7 +140,7 @@ uint8_t readReg(uint8_t reg) {
     @param d Data to write
 */
 /**************************************************************************/
-void writeData(uint8_t d) {
+void Adafruit_RA8875::writeData(uint8_t d) {
 	HAL_StatusTypeDef halStatus = HAL_OK;
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
@@ -176,7 +178,7 @@ void writeData(uint8_t d) {
     @param val Value to write
 */
 /**************************************************************************/
-void writeReg(uint8_t reg, uint8_t val) {
+void Adafruit_RA8875::writeReg(uint8_t reg, uint8_t val) {
 	writeCommand(reg);
 	writeData(val);
 }
@@ -185,7 +187,7 @@ void writeReg(uint8_t reg, uint8_t val) {
       Initialise the PLL
 */
 /**************************************************************************/
-void PLLinit(void) {
+void Adafruit_RA8875::PLLinit(void) {
 	if (_size == RA8875_480x80 || _size == RA8875_480x128 ||
 			_size == RA8875_480x272) {
 		writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 10);
@@ -206,7 +208,7 @@ void PLLinit(void) {
       Initialises the driver IC (clock setup, etc.)
 */
 /**************************************************************************/
-void initialize(void) {
+void Adafruit_RA8875::initialize(void) {
 	PLLinit();
 	writeReg(RA8875_SYSR, RA8875_SYSR_16BPP | RA8875_SYSR_MCU8);
 
@@ -299,13 +301,13 @@ void initialize(void) {
 	delay(500);
 }
 
-void swap(int16_t x, int16_t y) {
-  int16_t temp = x;
-  x = y;
-  y = temp;
-}
+//void Adafruit_RA8875::swap(int16_t &x, int16_t &y) {
+//  int16_t temp = x;
+//  x = y;
+//  y = temp;
+//}
 
-bool begin(enum RA8875sizes s) {
+bool Adafruit_RA8875::begin(enum RA8875sizes s) {
 	_size = s;
 
 	if (_size == RA8875_480x80) {
@@ -355,7 +357,7 @@ bool begin(enum RA8875sizes s) {
       Sets the display in text mode (as opposed to graphics mode)
 */
 /**************************************************************************/
-void textMode(void) {
+void Adafruit_RA8875::textMode(void) {
   /* Set text mode */
   writeCommand(RA8875_MWCR0);
   uint8_t temp = readData();
@@ -376,7 +378,7 @@ void textMode(void) {
     @return the X value with current rotation applied
  */
 /**************************************************************************/
-int16_t applyRotationX(int16_t x) {
+int16_t Adafruit_RA8875::applyRotationX(int16_t x) {
   switch (_rotation) {
   case 2:
     x = _width - 1 - x;
@@ -393,7 +395,7 @@ int16_t applyRotationX(int16_t x) {
     @return the Y value with current rotation applied
  */
 /**************************************************************************/
-int16_t applyRotationY(int16_t y) {
+int16_t Adafruit_RA8875::applyRotationY(int16_t y) {
   switch (_rotation) {
   case 2:
     y = _height - 1 - y;
@@ -411,7 +413,7 @@ int16_t applyRotationY(int16_t y) {
       @param y The y position of the cursor (in pixels, 0..511)
 */
 /**************************************************************************/
-void textSetCursor(uint16_t x, uint16_t y) {
+void Adafruit_RA8875::textSetCursor(uint16_t x, uint16_t y) {
   x = applyRotationX(x);
   y = applyRotationY(y);
 
@@ -434,7 +436,7 @@ void textSetCursor(uint16_t x, uint16_t y) {
       @param bgColor   The RGB565 colot to use for the background
 */
 /**************************************************************************/
-void textColor(uint16_t foreColor, uint16_t bgColor) {
+void Adafruit_RA8875::textColor(uint16_t foreColor, uint16_t bgColor) {
   /* Set Fore Color */
   writeCommand(0x63);
   writeData((foreColor & 0xf800) >> 11);
@@ -465,7 +467,7 @@ void textColor(uint16_t foreColor, uint16_t bgColor) {
       @param foreColor The RGB565 color to use when rendering the text
 */
 /**************************************************************************/
-void textTransparent(uint16_t foreColor) {
+void Adafruit_RA8875::textTransparent(uint16_t foreColor) {
   /* Set Fore Color */
   writeCommand(0x63);
   writeData((foreColor & 0xf800) >> 11);
@@ -493,7 +495,7 @@ void textTransparent(uint16_t foreColor) {
       @param scale   The zoom factor (0..3 for 1-4x zoom)
 */
 /**************************************************************************/
-void textEnlarge(uint8_t scale) {
+void Adafruit_RA8875::textEnlarge(uint8_t scale) {
   if (scale > 3)
     scale = 3; // highest setting is 3
 
@@ -523,7 +525,7 @@ void textEnlarge(uint8_t scale) {
  */
 /**************************************************************************/
 
-void cursorBlink(uint8_t rate) {
+void Adafruit_RA8875::cursorBlink(uint8_t rate) {
 
   writeCommand(RA8875_MWCR0);
   uint8_t temp = readData();
@@ -549,7 +551,7 @@ void cursorBlink(uint8_t rate) {
       @param len       The size of the buffer in bytes
 */
 /**************************************************************************/
-void textWrite2(const char *buffer, uint16_t len) {
+void Adafruit_RA8875::textWrite2(const char *buffer, uint16_t len) {
   if (len == 0)
     len = strlen(buffer);
   writeCommand(RA8875_MRWC);
@@ -582,7 +584,7 @@ void textWrite2(const char *buffer, uint16_t len) {
       @param len       The size of the buffer in bytes
 */
 /**************************************************************************/
-void textWrite(const char *buffer) {
+void Adafruit_RA8875::textWrite(const char *buffer, uint16_t len) {
 	textWrite2(buffer, strlen(buffer));
 }
 
@@ -593,7 +595,7 @@ void textWrite(const char *buffer) {
       Sets the display in graphics mode (as opposed to text mode)
 */
 /**************************************************************************/
-void graphicsMode(void) {
+void Adafruit_RA8875::graphicsMode(void) {
   writeCommand(RA8875_MWCR0);
   uint8_t temp = readData();
   temp &= ~RA8875_MWCR0_TXTMODE; // bit #7
@@ -610,7 +612,7 @@ void graphicsMode(void) {
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void drawPixel(int16_t x, int16_t y, uint16_t color) {
+void Adafruit_RA8875::drawPixel(int16_t x, int16_t y, uint16_t color) {
 	x = applyRotationX(x);
 	y = applyRotationY(y);
 
@@ -667,7 +669,7 @@ void drawPixel(int16_t x, int16_t y, uint16_t color) {
  @param y     The 0-base y location
  */
 /**************************************************************************/
-void drawPixels(uint16_t *p, uint32_t num, int16_t x, int16_t y) {
+void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x, int16_t y) {
 	x = applyRotationX(x);
 	y = applyRotationY(y);
 
@@ -724,7 +726,7 @@ void drawPixels(uint16_t *p, uint32_t num, int16_t x, int16_t y) {
       @return True if the expected status has been reached
 */
 /**************************************************************************/
-bool waitPoll(uint8_t regname, uint8_t waitflag) {
+bool Adafruit_RA8875::waitPoll(uint8_t regname, uint8_t waitflag) {
   /* Wait for the command to finish */
 
 	printf("Entering............ waitPoll regname 0x%x waitflag 0x%x\r\n", regname, waitflag);
@@ -765,7 +767,7 @@ bool waitPoll(uint8_t regname, uint8_t waitflag) {
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+void Adafruit_RA8875::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
                                uint16_t color) {
   x0 = applyRotationX(x0);
   y0 = applyRotationY(y0);
@@ -822,7 +824,7 @@ void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
     @param color The color
 */
 /**************************************************************************/
-void drawFastVLine(int16_t x, int16_t y, int16_t h,
+void Adafruit_RA8875::drawFastVLine(int16_t x, int16_t y, int16_t h,
                                     uint16_t color) {
   drawLine(x, y, x, y + h, color);
 }
@@ -837,7 +839,7 @@ void drawFastVLine(int16_t x, int16_t y, int16_t h,
      @param color The color
 */
 /**************************************************************************/
-void drawFastHLine(int16_t x, int16_t y, int16_t w,
+void Adafruit_RA8875::drawFastHLine(int16_t x, int16_t y, int16_t w,
                                     uint16_t color) {
   drawLine(x, y, x + w, y, color);
 }
@@ -848,7 +850,7 @@ void drawFastHLine(int16_t x, int16_t y, int16_t w,
       Helper function for higher level rectangle drawing code
 */
 /**************************************************************************/
-void rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
+void Adafruit_RA8875::rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
                                  uint16_t color, bool filled) {
   x = applyRotationX(x);
   y = applyRotationY(y);
@@ -910,7 +912,7 @@ void rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void drawRect(int16_t x, int16_t y, int16_t w, int16_t h,
+void Adafruit_RA8875::drawRect(int16_t x, int16_t y, int16_t w, int16_t h,
                                uint16_t color) {
   rectHelper(x, y, x + w - 1, y + h - 1, color, false);
 }
@@ -920,7 +922,7 @@ void drawRect(int16_t x, int16_t y, int16_t w, int16_t h,
     Fill the screen with the current color
 */
 /**************************************************************************/
-void fillRect(void) {
+void Adafruit_RA8875::fillRect(void) {
   writeCommand(RA8875_DCR);
   writeData(RA8875_DCR_LINESQUTRI_STOP | RA8875_DCR_DRAWSQUARE);
   writeData(RA8875_DCR_LINESQUTRI_START | RA8875_DCR_FILL |
@@ -938,7 +940,7 @@ void fillRect(void) {
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void fillRectArea(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+void Adafruit_RA8875::fillRectArea(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
   rectHelper(x, y, x + w - 1, y + h - 1, color, true);
 }
 
@@ -950,7 +952,7 @@ void fillRectArea(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void fillScreen(uint16_t color) {
+void Adafruit_RA8875::fillScreen(uint16_t color) {
   rectHelper(0, 0, _width - 1, _height - 1, color, true);
 }
 
@@ -960,7 +962,7 @@ void fillScreen(uint16_t color) {
       Helper function for higher level circle drawing code
 */
 /**************************************************************************/
-void circleHelper(int16_t x, int16_t y, int16_t r, uint16_t color, bool filled) {
+void Adafruit_RA8875::circleHelper(int16_t x, int16_t y, int16_t r, uint16_t color, bool filled) {
   x = applyRotationX(x);
   y = applyRotationY(y);
 
@@ -1010,7 +1012,7 @@ void circleHelper(int16_t x, int16_t y, int16_t r, uint16_t color, bool filled) 
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void drawCircle(int16_t x, int16_t y, int16_t r, uint16_t color) {
+void Adafruit_RA8875::drawCircle(int16_t x, int16_t y, int16_t r, uint16_t color) {
   circleHelper(x, y, r, color, false);
 }
 
@@ -1024,7 +1026,7 @@ void drawCircle(int16_t x, int16_t y, int16_t r, uint16_t color) {
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void fillCircle(int16_t x, int16_t y, int16_t r, uint16_t color) {
+void Adafruit_RA8875::fillCircle(int16_t x, int16_t y, int16_t r, uint16_t color) {
   circleHelper(x, y, r, color, true);
 }
 
@@ -1033,7 +1035,7 @@ void fillCircle(int16_t x, int16_t y, int16_t r, uint16_t color) {
       Helper function for higher level triangle drawing code
 */
 /**************************************************************************/
-void triangleHelper(int16_t x0, int16_t y0, int16_t x1,
+void Adafruit_RA8875::triangleHelper(int16_t x0, int16_t y0, int16_t x1,
                                      int16_t y1, int16_t x2, int16_t y2,
                                      uint16_t color, bool filled) {
   x0 = applyRotationX(x0);
@@ -1098,7 +1100,7 @@ void triangleHelper(int16_t x0, int16_t y0, int16_t x1,
       Helper function for higher level ellipse drawing code
 */
 /**************************************************************************/
-void ellipseHelper(int16_t xCenter, int16_t yCenter,
+void Adafruit_RA8875::ellipseHelper(int16_t xCenter, int16_t yCenter,
                                     int16_t longAxis, int16_t shortAxis,
                                     uint16_t color, bool filled) {
   xCenter = applyRotationX(xCenter);
@@ -1149,7 +1151,7 @@ void ellipseHelper(int16_t xCenter, int16_t yCenter,
       Helper function for higher level curve drawing code
 */
 /**************************************************************************/
-void curveHelper(int16_t xCenter, int16_t yCenter,
+void Adafruit_RA8875::curveHelper(int16_t xCenter, int16_t yCenter,
                                   int16_t longAxis, int16_t shortAxis,
                                   uint8_t curvePart, uint16_t color,
                                   bool filled) {
@@ -1203,7 +1205,7 @@ void curveHelper(int16_t xCenter, int16_t yCenter,
       Helper function for higher level rounded rectangle drawing code
  */
 /**************************************************************************/
-void roundRectHelper(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color, bool filled) {
+void Adafruit_RA8875::roundRectHelper(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color, bool filled) {
   x = applyRotationX(x);
   y = applyRotationY(y);
   w = applyRotationX(w);
@@ -1278,7 +1280,7 @@ void roundRectHelper(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint
 
  */
 /**************************************************************************/
-void setScrollWindow(int16_t x, int16_t y, int16_t w,
+void Adafruit_RA8875::setScrollWindow(int16_t x, int16_t y, int16_t w,
                                       int16_t h, uint8_t mode) {
   // Horizontal Start point of Scroll Window
   writeCommand(0x38);
@@ -1317,7 +1319,7 @@ void setScrollWindow(int16_t x, int16_t y, int16_t w,
 
  */
 /**************************************************************************/
-void scrollX(int16_t dist) {
+void Adafruit_RA8875::scrollX(int16_t dist) {
   writeCommand(0x24);
   writeData(dist);
   writeCommand(0x25);
@@ -1332,7 +1334,7 @@ void scrollX(int16_t dist) {
 
  */
 /**************************************************************************/
-void scrollY(int16_t dist) {
+void Adafruit_RA8875::scrollY(int16_t dist) {
   writeCommand(0x26);
   writeData(dist);
   writeCommand(0x27);
@@ -1352,7 +1354,7 @@ void scrollY(int16_t dist) {
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void drawTriangle(int16_t x0, int16_t y0, int16_t x1,
+void Adafruit_RA8875::drawTriangle(int16_t x0, int16_t y0, int16_t x1,
                                    int16_t y1, int16_t x2, int16_t y2,
                                    uint16_t color) {
   triangleHelper(x0, y0, x1, y1, x2, y2, color, false);
@@ -1371,7 +1373,7 @@ void drawTriangle(int16_t x0, int16_t y0, int16_t x1,
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void fillTriangle(int16_t x0, int16_t y0, int16_t x1,
+void Adafruit_RA8875::fillTriangle(int16_t x0, int16_t y0, int16_t x1,
                                    int16_t y1, int16_t x2, int16_t y2,
                                    uint16_t color) {
   triangleHelper(x0, y0, x1, y1, x2, y2, color, true);
@@ -1388,7 +1390,7 @@ void fillTriangle(int16_t x0, int16_t y0, int16_t x1,
       @param color     The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void drawEllipse(int16_t xCenter, int16_t yCenter,
+void Adafruit_RA8875::drawEllipse(int16_t xCenter, int16_t yCenter,
                                   int16_t longAxis, int16_t shortAxis,
                                   uint16_t color) {
   ellipseHelper(xCenter, yCenter, longAxis, shortAxis, color, false);
@@ -1405,7 +1407,7 @@ void drawEllipse(int16_t xCenter, int16_t yCenter,
       @param color     The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void fillEllipse(int16_t xCenter, int16_t yCenter,
+void Adafruit_RA8875::fillEllipse(int16_t xCenter, int16_t yCenter,
                                   int16_t longAxis, int16_t shortAxis,
                                   uint16_t color) {
   ellipseHelper(xCenter, yCenter, longAxis, shortAxis, color, true);
@@ -1427,7 +1429,7 @@ void fillEllipse(int16_t xCenter, int16_t yCenter,
       @param color     The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void drawCurve(int16_t xCenter, int16_t yCenter,
+void Adafruit_RA8875::drawCurve(int16_t xCenter, int16_t yCenter,
                                 int16_t longAxis, int16_t shortAxis,
                                 uint8_t curvePart, uint16_t color) {
   curveHelper(xCenter, yCenter, longAxis, shortAxis, curvePart, color, false);
@@ -1449,7 +1451,7 @@ void drawCurve(int16_t xCenter, int16_t yCenter,
       @param color     The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void fillCurve(int16_t xCenter, int16_t yCenter,
+void Adafruit_RA8875::fillCurve(int16_t xCenter, int16_t yCenter,
                                 int16_t longAxis, int16_t shortAxis,
                                 uint8_t curvePart, uint16_t color) {
   curveHelper(xCenter, yCenter, longAxis, shortAxis, curvePart, color, true);
@@ -1467,7 +1469,7 @@ void fillCurve(int16_t xCenter, int16_t yCenter,
       @param color  The RGB565 color to use when drawing the pixel
  */
 /**************************************************************************/
-void drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
+void Adafruit_RA8875::drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
   roundRectHelper(x, y, x + w, y + h, r, color, false);
 }
 
@@ -1483,7 +1485,7 @@ void drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16
       @param color  The RGB565 color to use when drawing the pixel
  */
 /**************************************************************************/
-void fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
+void Adafruit_RA8875::fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
   roundRectHelper(x, y, x + w, y + h, r, color, true);
 }
 
@@ -1496,7 +1498,7 @@ void fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16
       Performs a SW-based reset of the RA8875
 */
 /**************************************************************************/
-void softReset(void) {
+void Adafruit_RA8875::softReset(void) {
 	writeCommand(RA8875_PWRR);
 	writeData(RA8875_PWRR_SOFTRESET);
 	writeData(RA8875_PWRR_NORMAL);
@@ -1510,7 +1512,7 @@ void softReset(void) {
       @param on Whether to turn the display on or not
 */
 /**************************************************************************/
-void displayOn(bool on) {
+void Adafruit_RA8875::displayOn(bool on) {
   if (on)
     writeReg(RA8875_PWRR, RA8875_PWRR_NORMAL | RA8875_PWRR_DISPON);
   else
@@ -1524,7 +1526,7 @@ void displayOn(bool on) {
     @param sleep Whether to sleep or not
 */
 /**************************************************************************/
-void sleep(bool sleep) {
+void Adafruit_RA8875::sleep(bool sleep) {
 	if (sleep)
 		writeReg(RA8875_PWRR, RA8875_PWRR_DISPOFF | RA8875_PWRR_SLEEP);
 	else
@@ -1541,7 +1543,7 @@ void sleep(bool sleep) {
 
  */
 /**************************************************************************/
-void GPIOX(bool on) {
+void Adafruit_RA8875::GPIOX(bool on) {
   if (on)
     writeReg(RA8875_GPIOX, 1);
   else
@@ -1556,7 +1558,7 @@ void GPIOX(bool on) {
     @param clock The Clock Divider
 */
 /**************************************************************************/
-void PWM1config(bool on, uint8_t clock) {
+void Adafruit_RA8875::PWM1config(bool on, uint8_t clock) {
   if (on) {
     writeReg(RA8875_P1CR, RA8875_P1CR_ENABLE | (clock & 0xF));
   } else {
@@ -1571,7 +1573,7 @@ void PWM1config(bool on, uint8_t clock) {
     @param p The duty Cycle (0-255)
 */
 /**************************************************************************/
-void PWM1out(uint8_t p) {
+void Adafruit_RA8875::PWM1out(uint8_t p) {
 	writeReg(RA8875_P1DCR, p);
 }
 
@@ -1583,7 +1585,7 @@ void PWM1out(uint8_t p) {
      @param clock The Clock Divider
 */
 /**************************************************************************/
-void PWM2config(bool on, uint8_t clock) {
+void Adafruit_RA8875::PWM2config(bool on, uint8_t clock) {
   if (on) {
     writeReg(RA8875_P2CR, RA8875_P2CR_ENABLE | (clock & 0xF));
   } else {
@@ -1599,7 +1601,7 @@ void PWM2config(bool on, uint8_t clock) {
      @param p The duty Cycle (0-255)
 */
 /**************************************************************************/
-void PWM2out(uint8_t p) {
+void Adafruit_RA8875::PWM2out(uint8_t p) {
 	writeReg(RA8875_P2DCR, p);
 }
 
@@ -1617,7 +1619,7 @@ void PWM2out(uint8_t p) {
     @return The value
  */
 /**************************************************************************/
-uint8_t readStatus(void) {
+uint8_t Adafruit_RA8875::readStatus(void) {
 	HAL_StatusTypeDef halStatus = HAL_OK;
 
 	while (HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {

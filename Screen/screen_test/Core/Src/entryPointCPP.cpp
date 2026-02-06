@@ -96,7 +96,7 @@ void testLCD(bool buildTest) {
 	  HAL_Delay(1000);
 
 	  printf("fillRect\r\n");
-	  tft->fillRect(11, 11, 398, 198, RA8875_BLUE);
+	  tft->fillRectArea(11, 11, 398, 198, RA8875_BLUE);
 	  HAL_Delay(1000);
 	  printf("drawRect\r\n");
 	  tft->drawRect(10, 10, 400, 200, RA8875_GREEN);

@@ -150,7 +150,8 @@ public:
   void fillScreen(uint16_t color);
   void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
   void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
-  void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+  void fillRectArea(int16_t, int16_t, int16_t, int16_t, uint16_t);
+  //void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
   void drawCircle(int16_t x, int16_t y, int16_t r, uint16_t color);
   void fillCircle(int16_t x, int16_t y, int16_t r, uint16_t color);
   void drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2,
@@ -223,10 +224,10 @@ public:
      @return The number of bytes written
    */
   /**************************************************************************/
-  virtual size_t write(uint8_t b) {
-    textWrite((const char *)&b, 1);
-    return 1;
-  }
+//  virtual size_t write(uint8_t b) {
+//    textWrite((const char *)&b, 1);
+//    return 1;
+//  } //changed
 
   /**************************************************************************/
   /*!
@@ -238,7 +239,7 @@ public:
        @return The number of bytes written
    */
   /**************************************************************************/
-  virtual size_t write(const uint8_t *buffer, size_t size) {
+  //virtual size_t write(const uint8_t *buffer, size_t size) { //changed
     textWrite((const char *)buffer, size);
     return size;
   }
@@ -262,6 +263,7 @@ private:
                    bool filled);
   void roundRectHelper(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r,
                        uint16_t color, bool filled);
+  void textWrite2(const char *buffer, uint16_t len);
 
   /* Rotation Functions */
   int16_t applyRotationX(int16_t x);
