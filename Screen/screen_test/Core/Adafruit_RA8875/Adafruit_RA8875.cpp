@@ -20,7 +20,7 @@ uint8_t _voffset;
 enum RA8875sizes _size;
 
 Adafruit_RA8875::Adafruit_RA8875(SPI_HandleTypeDef *halSPI)
-	: Adafruit_GFX(0, 0)
+	: Adafruit_GFX(800, 480)
 {
 	spiHandle = halSPI;
 }
