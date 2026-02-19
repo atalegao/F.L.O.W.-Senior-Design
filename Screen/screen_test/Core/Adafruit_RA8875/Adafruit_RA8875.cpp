@@ -37,7 +37,7 @@ void Adafruit_RA8875::writeCommand(uint8_t d) {
 	HAL_StatusTypeDef halStatus = HAL_OK;
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);
@@ -53,7 +53,7 @@ void Adafruit_RA8875::writeCommand(uint8_t d) {
 	}
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	pData = d;
@@ -77,7 +77,7 @@ uint8_t Adafruit_RA8875::readData(void) {
 	HAL_StatusTypeDef halStatus = HAL_OK;
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);
@@ -91,7 +91,7 @@ uint8_t Adafruit_RA8875::readData(void) {
 	}
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	uint8_t retVal = 0x00;
@@ -118,13 +118,13 @@ uint8_t Adafruit_RA8875::readData(void) {
 /**************************************************************************/
 uint8_t Adafruit_RA8875::readReg(uint8_t reg) {
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	writeCommand(reg);
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	uint8_t retVal = readData();
@@ -144,7 +144,7 @@ void Adafruit_RA8875::writeData(uint8_t d) {
 	HAL_StatusTypeDef halStatus = HAL_OK;
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	uint8_t pData = RA8875_DATAWRITE;
@@ -157,7 +157,7 @@ void Adafruit_RA8875::writeData(uint8_t d) {
 	}
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	pData = d;
@@ -191,14 +191,14 @@ void Adafruit_RA8875::PLLinit(void) {
 	if (_size == RA8875_480x80 || _size == RA8875_480x128 ||
 			_size == RA8875_480x272) {
 		writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 10);
-		delay(1);
+		HAL_Delay(1);
 		writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-		delay(1);
+		HAL_Delay(1);
 	} else /* (_size == RA8875_800x480) */ {
 		writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 11);
-		delay(1);
+		HAL_Delay(1);
 		writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-		delay(1);
+		HAL_Delay(1);
 	}
 }
 
@@ -259,7 +259,7 @@ void Adafruit_RA8875::initialize(void) {
 	writeReg(RA8875_PCSR, pixclk);
 //	writeCommand(RA8875_PLLC1);
 //	writeData(0x0C);
-	delay(1);
+	HAL_Delay(1);
 
 	/* Horizontal settings registers */
 	writeReg(RA8875_HDWR, (_width / 8) - 1); // H width: (HDWR + 1) * 8 = 480
@@ -298,7 +298,7 @@ void Adafruit_RA8875::initialize(void) {
 
 	/* Clear the entire window */
 	writeReg(RA8875_MCLR, RA8875_MCLR_START | RA8875_MCLR_FULL);
-	delay(500);
+	HAL_Delay(500);
 }
 
 //void Adafruit_RA8875::swap(int16_t &x, int16_t &y) {
@@ -329,15 +329,15 @@ bool Adafruit_RA8875::begin(enum RA8875sizes s) {
 	_rotation = 0;
 
 	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);
-	delay(100);
+	HAL_Delay(100);
 	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_DISABLE);
-	delay(100);
+	HAL_Delay(100);
 
 	HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_RESET);
-	delay(100);
+	HAL_Delay(100);
 	HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_SET);
 
-	uint8_t x = readReg(0);
+	uint8_t x = readReg(0); //should be 0
 	//    Serial.print("x = 0x"); Serial.println(x,HEX);
 	if (x != 0x75) {
 		printf("x=0x%2x\r\n", x);
@@ -561,16 +561,16 @@ void Adafruit_RA8875::textWrite2(const char *buffer, uint16_t len) {
 /// @cond DISABLE
 #if !defined(__arm__)
     /// @endcond
-    // This delay is needed with textEnlarge(1) because
+    // This HAL_Delay is needed with textEnlarge(1) because
     // Teensy 3.X is much faster than Arduino Uno
     if (_textScale > 0)
-      delay(1);
+      HAL_Delay(1);
 /// @cond DISABLE
 #else
     /// @endcond
-    // For others, delay starting with textEnlarge(2)
+    // For others, HAL_Delay starting with textEnlarge(2)
     if (_textScale > 0)
-      delay(500);
+      HAL_Delay(500);
 /// @cond DISABLE
 #endif
     /// @endcond
@@ -635,7 +635,7 @@ void Adafruit_RA8875::drawPixel(int16_t x, int16_t y, uint16_t color) {
 	}
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	pData = color >> 8;
@@ -646,7 +646,7 @@ void Adafruit_RA8875::drawPixel(int16_t x, int16_t y, uint16_t color) {
 	}
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	pData = color;
@@ -689,7 +689,7 @@ void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x, int16_t y
 	HAL_StatusTypeDef halStatus = HAL_OK;
 
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	uint8_t pData = RA8875_DATAWRITE;
@@ -703,7 +703,7 @@ void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x, int16_t y
 
 	while (num--) {
 		while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-			delay(1);
+			HAL_Delay(1);
 		}
 
 		pData = *p++;
@@ -735,7 +735,7 @@ bool Adafruit_RA8875::waitPoll(uint8_t regname, uint8_t waitflag) {
 
   while (1) {
 	while (!HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
     uint8_t temp = readReg(regname);
     printf("waitPoll regname 0x%x waitflag 0x%x temp = 0x%x\r\n", regname, waitflag, temp);
@@ -744,7 +744,7 @@ bool Adafruit_RA8875::waitPoll(uint8_t regname, uint8_t waitflag) {
     	printf("Exiting.......... waitPoll regname 0x%x waitflag 0x%x temp = 0x%x\r\n", regname, waitflag, temp);
       return true;
     } else {
-  	  delay(5);
+  	  HAL_Delay(5);
   	  cntr ++;
 
   	  if (cntr > 9) {
@@ -1502,7 +1502,7 @@ void Adafruit_RA8875::softReset(void) {
 	writeCommand(RA8875_PWRR);
 	writeData(RA8875_PWRR_SOFTRESET);
 	writeData(RA8875_PWRR_NORMAL);
-	delay(1);
+	HAL_Delay(1);
 }
 
 /**************************************************************************/
@@ -1623,7 +1623,7 @@ uint8_t Adafruit_RA8875::readStatus(void) {
 	HAL_StatusTypeDef halStatus = HAL_OK;
 
 	while (HAL_GPIO_ReadPin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin)) {
-		delay(1);
+		HAL_Delay(1);
 	}
 
 	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_ENABLE);

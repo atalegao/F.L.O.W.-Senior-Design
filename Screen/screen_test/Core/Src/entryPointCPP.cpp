@@ -16,9 +16,9 @@ void initTest(SPI_HandleTypeDef *halSPI) {
 	HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, CS_DISABLE);
 
 	HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_SET);
-	delay(100);
+	HAL_Delay(100);
 	HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_RESET);
-	delay(100);
+	HAL_Delay(100);
 	HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_SET);
 
 	HAL_GPIO_WritePin(LCD_WAIT_GPIO_Port, LCD_WAIT_Pin, GPIO_PIN_SET);
@@ -56,12 +56,12 @@ void testLCD(bool buildTest) {
 	  for (uint8_t i=255; i!=0; i-=5 )
 	  {
 		tft->PWM1out(i);
-		delay(100);
+		HAL_Delay(100);
 	  }
 	  for (uint8_t i=0; i!=255; i+=5 )
 	  {
 		tft->PWM1out(i);
-		delay(100);
+		HAL_Delay(100);
 	  }
 	  tft->PWM1out(255);
 
