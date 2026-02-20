@@ -69,6 +69,9 @@ void Error_Handler(void);
 /* USER CODE BEGIN Private defines */
 #define CS_DISABLE GPIO_PIN_SET //Pin set and reset for CS
 #define CS_ENABLE GPIO_PIN_RESET
+
+#define RA8875_INT_GPIO_Port GPIOC
+#define RA8875_INT_Pin GPIO_PIN_6
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

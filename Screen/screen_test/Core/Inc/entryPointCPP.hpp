@@ -19,6 +19,13 @@ extern "C" {
 #endif
 	void initTest(SPI_HandleTypeDef *halSPI);
 	void testLCD(bool buildTest);
+	int setCalibrationMatrix( tsPoint_t * displayPtr, tsPoint_t * screenPtr, tsMatrix_t * matrixPtr);
+	int calibrateTSPoint( tsPoint_t * displayPtr, tsPoint_t * screenPtr, tsMatrix_t * matrixPtr );
+	void waitForTouchEvent(tsPoint_t * point);
+	tsPoint_t renderCalibrationScreen(uint16_t x, uint16_t y, uint16_t radius);
+	void tsCalibrate(void);
+	void setup();
+	void loop();
 #ifdef __cplusplus
 }
 #endif

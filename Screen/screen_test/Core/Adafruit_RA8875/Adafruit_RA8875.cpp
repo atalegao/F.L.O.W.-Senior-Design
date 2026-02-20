@@ -1638,3 +1638,81 @@ uint8_t Adafruit_RA8875::readStatus(void) {
 
   return pData;
 }
+/**************************************************************************/
+/*!
+      Checks if a touch event has occured
+
+      @return  True is a touch event has occured (reading it via
+               touchRead() will clear the interrupt in memory)
+*/
+/**************************************************************************/
+bool Adafruit_RA8875::touched(void) {
+  if (readReg(RA8875_INTC2) & RA8875_INTC2_TP)
+    return true;
+  return false;
+}
+
+/**************************************************************************/
+/*!
+      Reads the last touch event
+
+      @param x  Pointer to the uint16_t field to assign the raw X value
+      @param y  Pointer to the uint16_t field to assign the raw Y value
+
+      @return True if successful
+
+      @note Calling this function will clear the touch panel interrupt on
+            the RA8875, resetting the flag used by the 'touched' function
+*/
+/**************************************************************************/
+bool Adafruit_RA8875::touchRead(uint16_t* x, uint16_t* y) {
+  uint16_t tx, ty;
+  uint8_t temp;
+
+  tx = readReg(RA8875_TPXH);
+  ty = readReg(RA8875_TPYH);
+  temp = readReg(RA8875_TPXYL);
+  tx <<= 2;
+  ty <<= 2;
+  tx |= temp & 0x03;        // get the bottom x bits
+  ty |= (temp >> 2) & 0x03; // get the bottom y bits
+
+  *x = tx;
+  *y = ty;
+
+  /* Clear TP INT Status */
+  writeReg(RA8875_INTC2, RA8875_INTC2_TP);
+
+  return true;
+}
+
+/**************************************************************************/
+/*!
+      Enables or disables the on-chip touch screen controller
+
+      @param on Whether to turn touch sensing on or not
+*/
+/**************************************************************************/
+void Adafruit_RA8875::touchEnable(bool on) {
+  uint8_t adcClk = (uint8_t)RA8875_TPCR0_ADCCLK_DIV4;
+
+  if (_size == RA8875_800x480) // match up touch size with LCD size
+    adcClk = (uint8_t)RA8875_TPCR0_ADCCLK_DIV16;
+
+  if (on) {
+    /* Enable Touch Panel (Reg 0x70) */
+    writeReg(RA8875_TPCR0, RA8875_TPCR0_ENABLE | RA8875_TPCR0_WAIT_4096CLK |
+                               RA8875_TPCR0_WAKEENABLE | adcClk); // 10mhz max!
+    /* Set Auto Mode      (Reg 0x71) */
+    writeReg(RA8875_TPCR1, RA8875_TPCR1_AUTO |
+                               // RA8875_TPCR1_VREFEXT |
+                               RA8875_TPCR1_DEBOUNCE);
+    /* Enable TP INT */
+    writeReg(RA8875_INTC1, readReg(RA8875_INTC1) | RA8875_INTC1_TP);
+  } else {
+    /* Disable TP INT */
+    writeReg(RA8875_INTC1, readReg(RA8875_INTC1) & ~RA8875_INTC1_TP);
+    /* Disable Touch Panel (Reg 0x70) */
+    writeReg(RA8875_TPCR0, RA8875_TPCR0_DISABLE);
+  }
+}
