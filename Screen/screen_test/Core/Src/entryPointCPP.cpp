@@ -392,7 +392,7 @@ void tsCalibrate(void)
   /* --------------- Welcome Screen --------------- */
   printf("Starting the calibration process");
   data = renderCalibrationScreen(width / 2, height / 2, 5);
-  delay(250);
+  HAL_Delay(250);
 
   /* ----------------- First Dot ------------------ */
   // 10% over and 10% down
@@ -410,7 +410,7 @@ void tsCalibrate(void)
   printf("%ld",_tsTSPoints[0].x);
   printf(" Y: ");
   printf("%ld",_tsTSPoints[0].y);
-  delay(250);
+  HAL_Delay(250);
 
   /* ---------------- Second Dot ------------------ */
   // 50% over and 90% down
@@ -428,7 +428,7 @@ void tsCalibrate(void)
   printf("%ld",_tsTSPoints[1].x);
   printf(" Y: ");
   printf("%ld",_tsTSPoints[1].y);
-  delay(250);
+  HAL_Delay(500);
 
   /* ---------------- Third Dot ------------------- */
   // 90% over and 50% down
@@ -446,7 +446,7 @@ void tsCalibrate(void)
   printf("%ld",_tsTSPoints[2].x);
   printf(" Y: ");
   printf("%ld",_tsTSPoints[2].y);
-  delay(250);
+  HAL_Delay(500);
 
   /* Clear the screen */
   tft->fillScreen(RA8875_WHITE);
@@ -497,7 +497,7 @@ void setup()
   //tft.drawLine(10, 10, 200, 100, RA8875_RED);
 
   tft->fillScreen(RA8875_WHITE);
-  delay(100);
+  HAL_Delay(100);
 
 #if defined(EEPROM_SUPPORTED)
   /* Start the calibration process */
