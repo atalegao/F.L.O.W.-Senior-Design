@@ -4,7 +4,7 @@
  *  Created on: Jan 19, 2025
  *      Author: johng
  */
-#include <Adafruit_GFX.h>
+#include <Adafruit_GFX.hpp>
 #include "main.h"
 
 #include "stdio.h"

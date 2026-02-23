@@ -5,7 +5,7 @@
  *      Author: johng
  */
 
-#include <Adafruit_RA8875.h>
+#include <Adafruit_RA8875.hpp>
 #include "entryPointCPP.hpp"
 //#include <Adafruit_RA8875.cpp>
 
@@ -561,7 +561,7 @@ void update_on_touch()
 
 	  /* Make sure this is really a touch event */
 	  //this is used to make each touch only count once (will not count multiple times unless pressed for a while)
-	  HAL_Delay(100);
+	  //HAL_Delay(100);
 	  ///////////////////////////////
 	  if (tft->touched())
 	  {
@@ -581,5 +581,8 @@ void update_on_touch()
 
 	  /* Draw a single pixel at the calibrated point */
 	  tft->fillCircle(calibrated.x, calibrated.y, 3, RA8875_BLACK);
+
+	  uint16_t x2, y2;
+	  tft->touchRead(&x2, &y2);
 }
 

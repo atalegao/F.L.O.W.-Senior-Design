@@ -5,7 +5,7 @@
  *      Author: johng
  */
 
-#include <Adafruit_GFX.h>
+#include <Adafruit_GFX.hpp>
 #include "glcdfont.c"
 #ifdef __AVR__
 #include <avr/pgmspace.h>

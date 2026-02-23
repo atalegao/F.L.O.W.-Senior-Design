@@ -5,7 +5,7 @@
  *      Author: johng
  */
 
-#include <Adafruit_RA8875.h>
+#include <Adafruit_RA8875.hpp>
 #include "stdio.h"
 #include "string.h"
 #include "stdbool.h"

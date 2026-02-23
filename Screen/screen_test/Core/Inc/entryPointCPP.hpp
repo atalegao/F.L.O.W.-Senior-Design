@@ -9,9 +9,9 @@
 #define INC_ENTRYPOINTCPP_HPP_
 
 
+#include <Adafruit_RA8875.hpp>
 #include "main.h"
 #include <stdbool.h>
-#include "Adafruit_RA8875.h"
 
 // Define all C function calls that will be called from main.c in the following extern "C" group
 // Using extern "C" stops name mangling and allows "C" code to call C++ code

@@ -17,12 +17,13 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#include <Adafruit_GFX.hpp>
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <Adafruit_GFX.h>
-#include <Adafruit_RA8875.h>
+//#include "stm32l0xx_hal.h"
+#include <Adafruit_RA8875.hpp>
 #include "stdio.h"
 #include "string.h"
 #include "stdbool.h"
