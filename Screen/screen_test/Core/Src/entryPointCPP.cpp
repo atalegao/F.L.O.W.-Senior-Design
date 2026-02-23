@@ -329,7 +329,7 @@ void waitForTouchEvent(tsPoint_t * point)
 
   /* Wait around for a new touch event (INT pin goes low) */
   //while (digitalRead(RA8875_INT))
-  while(HAL_GPIO_ReadPin(RA8875_INT_GPIO_Port, RA8875_INT_Pin) == 0)
+  while(HAL_GPIO_ReadPin(RA8875_INT_GPIO_Port, RA8875_INT_Pin) == 1)
   {
   }
 
@@ -454,7 +454,16 @@ void tsCalibrate(void)
   // Do matrix calculations for calibration and store to EEPROM
   setCalibrationMatrix(&_tsLCDPoints[0], &_tsTSPoints[0], &_tsMatrix);
 }
-
+void set_calibration_from_history(tsMatrix_t * matrixPtr)
+{
+	matrixPtr->Divider = -379722;
+	matrixPtr->An = -320640;
+	matrixPtr->Bn = 5760;
+	matrixPtr->Cn = 13027680;
+	matrixPtr->Dn = 1152;
+	matrixPtr->En = -218304;
+	matrixPtr->Fn = 25710624;
+}
 /**************************************************************************/
 /*!
 this is for testing the touchscreen
@@ -508,7 +517,8 @@ void setup()
   else
     printf("Calibration found\n");
 #else
-  tsCalibrate();
+  //tsCalibrate(); //uncomment to calibrate manually
+  set_calibration_from_history(&_tsMatrix);//uncomment to set calibration from memory
 #endif
   /* _tsMatrix should now be populated with the correct coefficients! */
   printf("Waiting for touch events ...");
