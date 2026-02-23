@@ -334,6 +334,9 @@ void waitForTouchEvent(tsPoint_t * point)
   }
 
   /* Make sure this is really a touch event */
+  //this is used to make each touch only count once (will not count multiple times unless pressed for a while)
+  HAL_Delay(100);
+  ///////////////////////////////
   if (tft->touched())
   {
     tft->touchRead(&x, &y);
@@ -542,5 +545,41 @@ void loop()
 
   /* Draw a single pixel at the calibrated point */
   tft->fillCircle(calibrated.x, calibrated.y, 3, RA8875_BLACK);
+}
+
+void update_on_touch()
+{
+	  tsPoint_t raw;
+	  tsPoint_t calibrated;
+	/* Clear the touch data object and placeholder variables */
+	  memset(&raw, 0, sizeof(tsPoint_t));
+
+	  /* Clear any previous interrupts to avoid false buffered reads */
+	  uint16_t x, y;
+	  tft->touchRead(&x, &y);
+	  delay(1);
+
+	  /* Make sure this is really a touch event */
+	  //this is used to make each touch only count once (will not count multiple times unless pressed for a while)
+	  HAL_Delay(100);
+	  ///////////////////////////////
+	  if (tft->touched())
+	  {
+	    tft->touchRead(&x, &y);
+	    raw.x = x;
+	    raw.y = y;
+	    printf("Touch: ");
+	    printf("%ld",raw.x); printf(", "); printf("%ld",raw.y);
+	  }
+	  else
+	  {
+		  raw.x = 0;
+		  raw.y = 0;
+	  }
+
+	  calibrateTSPoint(&calibrated, &raw, &_tsMatrix );
+
+	  /* Draw a single pixel at the calibrated point */
+	  tft->fillCircle(calibrated.x, calibrated.y, 3, RA8875_BLACK);
 }
 

@@ -17,13 +17,12 @@
 //  */
 ///* USER CODE END Header */
 ///* Includes ------------------------------------------------------------------*/
-//#include <Adafruit_GFX.h>
-//#include <Adafruit_RA8875.h>
-////#include <Adafruit_RA8875.cpp>
 //#include "main.h"
 //
 ///* Private includes ----------------------------------------------------------*/
 ///* USER CODE BEGIN Includes */
+//#include <Adafruit_GFX.h>
+//#include <Adafruit_RA8875.h>
 //#include "stdio.h"
 //#include "string.h"
 //#include "stdbool.h"
@@ -67,7 +66,6 @@
 //
 ///* Private user code ---------------------------------------------------------*/
 ///* USER CODE BEGIN 0 */
-//
 //#ifdef REDIRECT_PRINTF
 //#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 //#endif
@@ -127,6 +125,7 @@
 //
 //}
 //
+//
 ///* USER CODE END 0 */
 //
 ///**
@@ -142,7 +141,8 @@
 //
 //  /* MCU Configuration--------------------------------------------------------*/
 //
-//  /* Reset of all peripherals, Initializes the Flash interface and the Systick. *  HAL_Init(); */
+//  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+//  HAL_Init();
 //
 //  /* USER CODE BEGIN Init */
 //
@@ -161,17 +161,18 @@
 //  MX_TIM2_Init();
 //  /* USER CODE BEGIN 2 */
 //  printf("\x1b[2J\x1b[H");	// Clear the dumb terminal screen
-//  printf("Starting Initialization Process\r\n");
+//    printf("Starting Initialization Process\r\n");
 //
-//  HAL_TIM_Base_Start(&htim2);
+//    HAL_TIM_Base_Start(&htim2);
 //
-//  initTest(&hspi1);
+//    initTest(&hspi1);
 //
-//  HAL_Delay(1000);
+//    HAL_Delay(1000);
 //
-//  MX_SPI1_ReInit(SPI_BAUDRATEPRESCALER_32);	// Increase the SPI clock rate
+//    MX_SPI1_ReInit(SPI_BAUDRATEPRESCALER_32);	// Increase the SPI clock rate
 //
-//  HAL_Delay(500);
+//    HAL_Delay(500);
+//    setup();
 //
 //  /* USER CODE END 2 */
 //
@@ -179,12 +180,13 @@
 //  /* USER CODE BEGIN WHILE */
 //  while (1)
 //  {
-//	  printf("Start Tests\r\n");
-//	  testLCD(true);
-//	  HAL_Delay(5000);
-//	  testLCD(false);
-//	  printf("Done\r\n");
-//	  HAL_Delay(5000);
+//	  //  	  printf("Start Tests\r\n");
+//	  //  	  testLCD(true);
+//	  //  	  HAL_Delay(5000);
+//	  //  	  testLCD(false);
+//	  //  	  printf("Done\r\n");
+//	  //  	  HAL_Delay(5000);
+//	  	  loop();
 //    /* USER CODE END WHILE */
 //
 //    /* USER CODE BEGIN 3 */
@@ -258,7 +260,7 @@
 //  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
 //  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
 //  hspi1.Init.NSS = SPI_NSS_SOFT;
-//  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+//  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
 //  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
 //  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
 //  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -285,6 +287,7 @@
 //
 //  /* USER CODE END TIM2_Init 0 */
 //
+//  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
 //  TIM_MasterConfigTypeDef sMasterConfig = {0};
 //  TIM_OC_InitTypeDef sConfigOC = {0};
 //
@@ -292,11 +295,20 @@
 //
 //  /* USER CODE END TIM2_Init 1 */
 //  htim2.Instance = TIM2;
-//  htim2.Init.Prescaler = 0;
+//  htim2.Init.Prescaler = 180-1;
 //  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
 //  htim2.Init.Period = 65535;
 //  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
 //  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+//  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+//  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
 //  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
 //  {
 //    Error_Handler();
@@ -348,6 +360,12 @@
 //
 //  /*Configure GPIO pin Output Level */
 //  HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, GPIO_PIN_RESET);
+//
+//  /*Configure GPIO pin : RA8875_INT_Pin */
+//  GPIO_InitStruct.Pin = RA8875_INT_Pin;
+//  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+//  GPIO_InitStruct.Pull = GPIO_NOPULL;
+//  HAL_GPIO_Init(RA8875_INT_GPIO_Port, &GPIO_InitStruct);
 //
 //  /*Configure GPIO pin : LCD_RESET_Pin */
 //  GPIO_InitStruct.Pin = LCD_RESET_Pin;

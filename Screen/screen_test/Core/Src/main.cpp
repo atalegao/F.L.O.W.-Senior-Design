@@ -28,7 +28,6 @@
 #include "stdbool.h"
 #include "gfxfont.h"
 #include "entryPointCPP.hpp"
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -125,6 +124,7 @@ void MX_SPI1_ReInit(uint32_t scaler)
 
 }
 
+
 /* USER CODE END 0 */
 
 /**
@@ -160,32 +160,33 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   printf("\x1b[2J\x1b[H");	// Clear the dumb terminal screen
-  printf("Starting Initialization Process\r\n");
+      printf("Starting Initialization Process\r\n");
 
-  HAL_TIM_Base_Start(&htim2);
+      HAL_TIM_Base_Start(&htim2);
 
-  initTest(&hspi1);
+      initTest(&hspi1);
 
-  HAL_Delay(1000);
+      HAL_Delay(1000);
 
-  MX_SPI1_ReInit(SPI_BAUDRATEPRESCALER_32);	// Increase the SPI clock rate
+      MX_SPI1_ReInit(SPI_BAUDRATEPRESCALER_32);	// Increase the SPI clock rate
 
-  HAL_Delay(500);
-  setup();
+      HAL_Delay(500);
+      setup();
+
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
-    {
-//  	  printf("Start Tests\r\n");
-//  	  testLCD(true);
-//  	  HAL_Delay(5000);
-//  	  testLCD(false);
-//  	  printf("Done\r\n");
-//  	  HAL_Delay(5000);
-	  loop();
+  {
+	  //  	  printf("Start Tests\r\n");
+	  	  //  	  testLCD(true);
+	  	  //  	  HAL_Delay(5000);
+	  	  //  	  testLCD(false);
+	  	  //  	  printf("Done\r\n");
+	  	  //  	  HAL_Delay(5000);
+	  	  	  //loop();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -360,11 +361,11 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PC6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  /*Configure GPIO pin : RA8875_INT_Pin */
+  GPIO_InitStruct.Pin = RA8875_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+  HAL_GPIO_Init(RA8875_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LCD_RESET_Pin */
   GPIO_InitStruct.Pin = LCD_RESET_Pin;
@@ -386,6 +387,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(RA8875_CS_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

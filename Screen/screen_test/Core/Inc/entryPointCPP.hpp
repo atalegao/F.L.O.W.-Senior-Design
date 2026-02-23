@@ -10,6 +10,8 @@
 
 
 #include "main.h"
+#include <stdbool.h>
+#include "Adafruit_RA8875.h"
 
 // Define all C function calls that will be called from main.c in the following extern "C" group
 // Using extern "C" stops name mangling and allows "C" code to call C++ code
@@ -17,6 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+	void update_on_touch();
 	void initTest(SPI_HandleTypeDef *halSPI);
 	void testLCD(bool buildTest);
 	int setCalibrationMatrix( tsPoint_t * displayPtr, tsPoint_t * screenPtr, tsMatrix_t * matrixPtr);

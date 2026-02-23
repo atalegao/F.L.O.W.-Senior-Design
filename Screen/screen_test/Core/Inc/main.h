@@ -31,6 +31,8 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+//#include "entryPointCPP.hpp"
+//#include "Adafruit_RA8875.h"
 
 /* USER CODE END Includes */
 
@@ -59,6 +61,9 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define RA8875_INT_Pin GPIO_PIN_6
+#define RA8875_INT_GPIO_Port GPIOC
+#define RA8875_INT_EXTI_IRQn EXTI4_15_IRQn
 #define LCD_RESET_Pin GPIO_PIN_7
 #define LCD_RESET_GPIO_Port GPIOC
 #define LCD_WAIT_Pin GPIO_PIN_9
