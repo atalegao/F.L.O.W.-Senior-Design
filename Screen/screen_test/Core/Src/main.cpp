@@ -17,7 +17,6 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include <Adafruit_GFX.hpp>
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -362,11 +361,11 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(RA8875_CS_GPIO_Port, RA8875_CS_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : RA8875_INT_Pin */
-  GPIO_InitStruct.Pin = RA8875_INT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  /*Configure GPIO pin : LCD_INT_Pin */
+  GPIO_InitStruct.Pin = LCD_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(RA8875_INT_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(LCD_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LCD_RESET_Pin */
   GPIO_InitStruct.Pin = LCD_RESET_Pin;
@@ -379,7 +378,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = LCD_WAIT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LCD_WAIT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : RA8875_CS_Pin */

@@ -61,12 +61,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define RA8875_INT_Pin GPIO_PIN_6
-#define RA8875_INT_GPIO_Port GPIOC
-#define RA8875_INT_EXTI_IRQn EXTI4_15_IRQn
+#define LCD_INT_Pin GPIO_PIN_7
+#define LCD_INT_GPIO_Port GPIOA
+#define LCD_INT_EXTI_IRQn EXTI4_15_IRQn
 #define LCD_RESET_Pin GPIO_PIN_7
 #define LCD_RESET_GPIO_Port GPIOC
-#define LCD_WAIT_Pin GPIO_PIN_9
+#define LCD_WAIT_Pin GPIO_PIN_8
 #define LCD_WAIT_GPIO_Port GPIOA
 #define RA8875_CS_Pin GPIO_PIN_6
 #define RA8875_CS_GPIO_Port GPIOB
@@ -75,8 +75,8 @@ void Error_Handler(void);
 #define CS_DISABLE GPIO_PIN_SET //Pin set and reset for CS
 #define CS_ENABLE GPIO_PIN_RESET
 
-#define RA8875_INT_GPIO_Port GPIOC
-#define RA8875_INT_Pin GPIO_PIN_6
+#define RA8875_INT_GPIO_Port GPIOA
+#define RA8875_INT_Pin GPIO_PIN_7
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

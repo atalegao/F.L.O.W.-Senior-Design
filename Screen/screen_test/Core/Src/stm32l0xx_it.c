@@ -22,7 +22,6 @@
 #include "stm32l0xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "entryPointCPP.hpp"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -147,13 +146,11 @@ void SysTick_Handler(void)
 void EXTI4_15_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI4_15_IRQn 0 */
-	update_on_touch();
-	//HAL_Delay(100);
-	//below clears the interrupt
+
   /* USER CODE END EXTI4_15_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(RA8875_INT_Pin);
+  HAL_GPIO_EXTI_IRQHandler(LCD_INT_Pin);
   /* USER CODE BEGIN EXTI4_15_IRQn 1 */
-//  update_on_touch();
+
   /* USER CODE END EXTI4_15_IRQn 1 */
 }
 
