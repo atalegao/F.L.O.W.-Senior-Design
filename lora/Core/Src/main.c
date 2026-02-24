@@ -43,7 +43,7 @@
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
 #define FIFOSIZE_RX 1 //number of bytes in a received message (always 1)
-#define FIFOSIZE_TX 4 //max number of bytes in a sent message
+#define FIFOSIZE_TX 100 //max number of bytes in a sent message (not just one write, but an actual sent LoRa message)
 #define ADDRTO 0x10 //address of message that should receive any sent message
 #define ADDRFROM 0x10 //address of this node (should be same as ADDRTO)
 #define HEADERID 0 //this is one of the lora headers, but don't know what it is
@@ -170,7 +170,7 @@ bool sendfifo_ready = true;
         setModemRegisters(&cfg);
         return true;
         #endif
-
+        lora_dma_write_send(sendfifo_offset);
     }
 
 
@@ -180,7 +180,7 @@ uint8_t lora_read_fifo_single(){//done, not tested
     uart_write('R'); //0x52
     uart_write(0X00 & ~RH_WRITE_MASK); //0x00 & ~0x80, so 0x00
     uart_write(1); //0x01
-    lora_dma_write_send(3);
+    lora_dma_write_send(sendfifo_offset); //3
     val = uart_read();
     return val;
     // 52, 00, 01
@@ -213,6 +213,7 @@ void lora_dma_write_send(int length){
 	status = HAL_UART_Transmit_DMA(&huart1, sendfifo, length);
 	sendfifo_ready = false;
 	dma_status = HAL_DMA_GetState(&hdma_usart1_tx);
+	sendfifo_offset = 0;
 //	while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
 //	        //do nothing while data is sending
 //	    }
@@ -229,9 +230,11 @@ void lora_dma_write_send(int length){
 void set_mode_continuous_receive(){
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_RXCONTINUOUS); // 57, 81, 01, 05
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x00); // 57 C0 01 00
+    lora_dma_write_send(sendfifo_offset);
 }
 void set_mode_sleep(){/////////////////////////////////////maybe or values | RH_RF95_LONG_RANGE_MODE to put in LoRa mode
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP);
+    lora_dma_write_send(sendfifo_offset);
 }
 
 void lora_write_multiple(uint8_t reg, uint8_t* value, uint8_t length){//done, not tested
@@ -245,7 +248,7 @@ void lora_write_multiple(uint8_t reg, uint8_t* value, uint8_t length){//done, no
     for (int i = 0; i < length; i ++) {
         uart_write(*(value + i));
     }
-    lora_dma_write_send((3 + length));
+    //lora_dma_write_send(sendfifo_offset); //3+length
 }
 
 
@@ -257,7 +260,7 @@ void lora_read_multiple(uint8_t reg, uint8_t* result, uint8_t length){//done, no
     uart_write('R');
     uart_write(reg & ~RH_WRITE_MASK);
     uart_write(length);
-    lora_dma_write_send(0x3);
+    lora_dma_write_send(sendfifo_offset); //3
 
     int i = 0;
     while (1) {
@@ -279,7 +282,7 @@ void lora_write_single(uint8_t reg, uint8_t value){//done, not tested
     uart_write(1);
     uart_write(value);
     //57 80 01 FF //writes FF to addr 00 worked
-    lora_dma_write_send(0x4);
+    //lora_dma_write_send(sendfifo_offset); //4
 }
 
 bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear){ //done, not tested
@@ -301,6 +304,7 @@ bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *cr
     //clear
     if(clear){
             lora_write_single(0x12, 0xFF);
+            lora_dma_write_send(sendfifo_offset);
         }
     return true;
 }
@@ -313,6 +317,7 @@ void lora_read_fifo_all(uint8_t* data, uint8_t length){//done, not tested
     //start_addr = lora_read_single(0x10);//read start addr of last packet received
     //for some reason 0x10 does not have the correct addr, receive correct values when this is commented out
     lora_write_single(0x0D, start_addr);//set FIFO pointer to addr of last packet received
+    lora_dma_write_send(sendfifo_offset);
     datab = 0;
 
     for (int i = 0; i < 4; i ++) {
@@ -335,6 +340,7 @@ bool connected_test(void){
     while(done == false){
         //set mode to LORA sleep
         lora_write_single(RH_RF95_REG_01_OP_MODE, (RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE)); // 57 81 01 80
+        lora_dma_write_send(sendfifo_offset);
 
         value = lora_read_single(0x01);//check irq register for done
         if(value == 0x80){//==0x80
@@ -447,7 +453,7 @@ uint8_t lora_read_single(uint8_t reg){//done, not tested
     uart_write('R'); //0x52
     uart_write(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
     uart_write(1); //0x01
-    lora_dma_write_send(0x3);
+    lora_dma_write_send(sendfifo_offset); //3
     val = uart_read();
     return val; //baud is 57600
     //worked with 52 0F 01
@@ -524,6 +530,7 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     //     value = uart_read();
     // }
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX);  // 57, 81, 01, 03
+    lora_dma_write_send(sendfifo_offset);
     HAL_Delay(1000);
     // value = 0;
     // while((value == 0) | (value == 0x80)){
@@ -558,6 +565,7 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
         // if(value == 0x80){//
             done = true;
             lora_write_single(0x12, 0xff); // Clear all IRQ flags
+            lora_dma_write_send(sendfifo_offset);
             return true;
         }
         else{
@@ -565,6 +573,7 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
             counter += 1;
             if(counter > 50){ //5 seconds
                 lora_write_single(0x12, 0xff); // Clear all IRQ flags
+                lora_dma_write_send(sendfifo_offset);
                 return false;
             }
         }
