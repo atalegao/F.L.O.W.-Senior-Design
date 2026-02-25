@@ -55,6 +55,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern TIM_HandleTypeDef htim21;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern UART_HandleTypeDef huart1;
@@ -155,6 +156,33 @@ void DMA1_Channel2_3_IRQHandler(void)
   /* USER CODE BEGIN DMA1_Channel2_3_IRQn 1 */
 
   /* USER CODE END DMA1_Channel2_3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM21 global interrupt.
+  */
+void TIM21_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM21_IRQn 0 */
+	//this is the LoRa CAD cycle timer
+	bool detect;
+	detect = cad_cycle();
+	if(detect){
+		//go to continuous receive
+		set_mode_continuous_receive();
+		//set another timer or same timer to check back after some time
+		//no use a timer to quit (did not actually receive anything)
+			//and use the interrupt from the I response to check FIFO if a message was received (might need to use a global variable)
+	}
+	else{
+		//go to sleep mode
+		set_mode_sleep();//set mode to sleep
+	}
+  /* USER CODE END TIM21_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim21);
+  /* USER CODE BEGIN TIM21_IRQn 1 */
+
+  /* USER CODE END TIM21_IRQn 1 */
 }
 
 /**

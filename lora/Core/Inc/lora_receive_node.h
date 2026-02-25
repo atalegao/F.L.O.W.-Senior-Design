@@ -39,4 +39,7 @@ void uart_write(uint8_t data);
 bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear);
 void setup_leds(void);
 void lora_dma_write_send(int length);
+void set_mode_cad(void);
+bool cad_cycle(void);
+void sleep_cycle(void);
 int main(void);

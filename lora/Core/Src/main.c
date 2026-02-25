@@ -39,7 +39,7 @@
 //#define RECEIVE_BOL //for receive mode
 #define SEND_BOL //for send mode
 #define RH_WRITE_MASK 0x80
-#define PREAMBLE_LENGTH 8
+#define PREAMBLE_LENGTH 18 //was 8
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
 #define FIFOSIZE_RX 1 //number of bytes in a received message (always 1)
@@ -76,6 +76,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim21;
+
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
@@ -89,6 +91,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_TIM21_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -581,6 +584,41 @@ bool lora_send(uint8_t* data, uint8_t length) { //not done, not tested
     return true;
 }
 
+void set_mode_cad(void){
+    lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_CAD | RH_RF95_LONG_RANGE_MODE);
+    lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0xA0);
+}
+
+bool cad_cycle(void){ //done, not tested
+    //THIS IS THE CAD CYCLE OF RECEIVING
+    //returning true means go to continuous receive mode
+    //returning false means go to sleep mode
+
+    set_mode_cad(); //go to cad mode (111)
+    uint8_t done = 0;
+
+    while(1){
+        done = lora_read_single(0x12); //wait until reg 12-2 is high (CAD is done)
+        if(((done >> 2) & 0x1)){
+            if((done & 0x1)){//if 12-0 is high, return true
+                lora_write_single(0x12, 0xFF); //clear irq flags
+                return true;
+            }
+            else{
+                lora_write_single(0x12, 0xFF); //clear irq flags
+                return false; //else return 0
+            }
+        }
+        else{
+            //maybe add a very small wait here to reduce power consumption
+        }
+    }
+}
+
+//one timer for LoRa mode changes
+//calls cad_cycle with one length
+//in interrupt, checks value and calls receive or sleep and resets timer
+//cad_cycle sets mode to sleep and resets the timer
 
 /* USER CODE END 0 */
 
@@ -615,6 +653,7 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART1_UART_Init();
+  MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_RESET);
   HAL_Delay(1000);
@@ -671,13 +710,13 @@ int main(void)
 #ifdef SEND_BOL
 		  good = lora_send(data, 2);
 		  if(good){
-			  GPIOC->ODR = 1 | (1 << 1) | (0 << 2) | (data[0] << 3);
+			  //GPIOC->ODR = 1 | (1 << 1) | (0 << 2) | (data[0] << 3);
 		  }
 		  else{
-		      GPIOC->ODR = 0 | (0 << 1) | (1 << 2) | (data[0] << 3);
+		      //GPIOC->ODR = 0 | (0 << 1) | (1 << 2) | (data[0] << 3);
 		   }
 		  HAL_Delay(1000);
-		  GPIOC->ODR = 0;
+		  //GPIOC->ODR = 0;
 		  HAL_Delay(1000);
 		  lora_write_single(RH_RF95_REG_12_IRQ_FLAGS, 0xff); // Clear all IRQ flags (can try adding this in send module as well)
 		  //like reading register until get send done and then clear it
@@ -742,6 +781,51 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief TIM21 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM21_Init(void)
+{
+
+  /* USER CODE BEGIN TIM21_Init 0 */
+
+  /* USER CODE END TIM21_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM21_Init 1 */
+
+  /* USER CODE END TIM21_Init 1 */
+  htim21.Instance = TIM21;
+  htim21.Init.Prescaler = 0;
+  htim21.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim21.Init.Period = 65535;
+  htim21.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim21.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim21) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim21, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim21, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM21_Init 2 */
+
+  /* USER CODE END TIM21_Init 2 */
+
 }
 
 /**
@@ -833,6 +917,15 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 	rx_ready = true;
 	//then call receive again
 	HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
+	if(waiting_for_receive_response){
+		//this is for when CAD mode detected a preamble
+		//this should not happen, figure out what to do here later
+		if(receivefifo[0] == 0x49){
+			//this is when the response is I (0x49)
+			//this means this is actually the I response for a DIO interrupt
+			//call the read FIFO and figure out response function
+		}
+	}
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
