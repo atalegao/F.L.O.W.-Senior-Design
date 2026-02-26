@@ -304,9 +304,11 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
 
     //HAL_Delay(100);
     while(rx_ready == false){
-    	//
+    	if(receivefifo[0] == 0x49){ //automatic I response
+    		rx_ready = true;
+    	}
     }
-    HAL_Delay(1);
+    //HAL_Delay(1); had to remove since called in interrupt?
     c = receivefifo[0];
     receivefifo[0] = 0;
     rx_ready = false;
@@ -334,14 +336,17 @@ void uart_write(uint8_t data){ //done, not tested
 
     //changes for DMA
     //nano_wait(500000000000); //wait 0.5 seconds
-    while(sendfifo_ready == false) {
-        //nano_wait(1000000); //wait 1/1000 second
-    	HAL_Delay(1000);
-        counter += 1;
-        if(counter >= 10000){
-            break;
-        }
-    }
+
+    //commented the below out for CAD, should add something like it back later
+//    while(sendfifo_ready == false) {
+//        //nano_wait(1000000); //wait 1/1000 second
+//    	HAL_Delay(1000);
+//        counter += 1;
+//        if(counter >= 10000){
+//            break;
+//        }
+//    }
+
     sendfifo[sendfifo_offset] = data;
     sendfifo_offset += 1;
     if(sendfifo_offset > FIFOSIZE_TX){

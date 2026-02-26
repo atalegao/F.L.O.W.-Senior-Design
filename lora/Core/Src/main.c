@@ -75,6 +75,19 @@ uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
 uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
 //0 means the lora timer is currently for cad cycle
+
+
+
+#ifdef CAD_BOL
+  uint8_t rxdone = 0;
+  uint8_t valid_header = 0;
+  uint8_t crc_error = 0;
+  bool clear = true; //this clears irq registers (need to for this, else LEDs would never reset)
+  uint8_t rec_data [MESSAGE_LENGTH];
+  bool rec_good = false;
+  uint8_t send_data [MESSAGE_LENGTH];
+  bool send_good = false;
+#endif
 /* USER CODE END 0 */
 
 /**
@@ -121,6 +134,12 @@ int main(void)
   //rxdone LED = C0, valid_header LED = C1, crc_error LED = C2 USE RESISTORS: 150 ohm
   //C3-10 are 8 bits for data
   //if(receive_bol){ //receiving
+#ifdef CAD_BOL
+  send_data[0] = 0xF0;
+  send_data[1] = 0x0F;
+  HAL_TIM_Base_Start_IT(&htim21);
+#endif
+
 #ifdef RECEIVE_BOL
 	  uint8_t rxdone = 0;
 	  uint8_t valid_header = 0;
@@ -180,6 +199,10 @@ int main(void)
 		  }
 		  data[0] += 0x1;
 		  set_mode_sleep(hdma_usart1_tx, huart1); //this clears FIFO
+#endif
+
+#ifdef CAD_BOL
+  //do nothing, wait for timer
 #endif
     /* USER CODE END WHILE */
 
@@ -257,9 +280,9 @@ static void MX_TIM21_Init(void)
 
   /* USER CODE END TIM21_Init 1 */
   htim21.Instance = TIM21;
-  htim21.Init.Prescaler = 0;
+  htim21.Init.Prescaler = 6399;
   htim21.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim21.Init.Period = 65535;
+  htim21.Init.Period = 9999;
   htim21.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim21.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim21) != HAL_OK)
@@ -372,13 +395,15 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 	rx_ready = true;
 	//then call receive again
 	HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
-	if(global_receive_mode_from_cad){
+	if(global_receive_mode_from_cad == 1){
+		global_receive_mode_from_cad = 0;
 		//this is for when CAD mode detected a preamble
 		//this should not happen, figure out what to do here later
 		if(receivefifo[0] == 0x49){
 			//this is when the response is I (0x49)
 			//this means this is actually the I response for a DIO interrupt
 			//call the read FIFO and figure out response function
+			lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart[0]); //second input is length
 		}
 	}
 }

@@ -4,8 +4,11 @@
 #include <RH_RF95.h>
 #include <main.h>
 #include "stm32l0xx_hal.h"
+
 //#define RECEIVE_BOL //for receive mode
-#define SEND_BOL //for send mode
+//#define SEND_BOL //for send mode
+#define CAD_BOL //for cad cycle
+
 #define RH_WRITE_MASK 0x80
 #define PREAMBLE_LENGTH 18 //was 8
 #define CENTER_FREQUENCY 868
