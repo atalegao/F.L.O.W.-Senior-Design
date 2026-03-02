@@ -28,6 +28,8 @@
 #include "stdbool.h"
 #include "gfxfont.h"
 #include "entryPointCPP.hpp"
+#include "stm32l0xx_it.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -187,6 +189,7 @@ int main(void)
 	  	  //  	  printf("Done\r\n");
 	  	  //  	  HAL_Delay(5000);
 	  	  	  //loop();
+	 volatile GPIO_PinState state = HAL_GPIO_ReadPin(LCD_INT_GPIO_Port, LCD_INT_Pin);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -365,6 +368,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = LCD_INT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
+
   HAL_GPIO_Init(LCD_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LCD_RESET_Pin */

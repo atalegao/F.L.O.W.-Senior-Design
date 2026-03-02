@@ -150,7 +150,7 @@ void EXTI4_15_IRQHandler(void)
   /* USER CODE END EXTI4_15_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(LCD_INT_Pin);
   /* USER CODE BEGIN EXTI4_15_IRQn 1 */
-
+  update_on_touch();
   /* USER CODE END EXTI4_15_IRQn 1 */
 }
 
