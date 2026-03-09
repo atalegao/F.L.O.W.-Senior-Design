@@ -63,6 +63,7 @@ extern uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
         lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, 0xC0  | 0x04); //last 57 9E 01 C4
         //end
         lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, 6); //57 A2 01 06      update regpayload length (for implicit header mode only)
+        lora_dma_write_send(sendfifo_offset, hdma_usart_tx, huart);
         return true;
         #endif
 
@@ -307,8 +308,12 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
     	if(receivefifo[0] == 0x49){ //automatic I response
     		rx_ready = true;
     	}
+    	else if(receivefifo[0] == 0x00){
+    		rx_ready = true;
+    	}
     }
     //HAL_Delay(1); had to remove since called in interrupt?
+    //HAL priority needs to be set higher to be used in an interrupt
     c = receivefifo[0];
     receivefifo[0] = 0;
     rx_ready = false;
@@ -337,15 +342,19 @@ void uart_write(uint8_t data){ //done, not tested
     //changes for DMA
     //nano_wait(500000000000); //wait 0.5 seconds
 
-    //commented the below out for CAD, should add something like it back later
-//    while(sendfifo_ready == false) {
-//        //nano_wait(1000000); //wait 1/1000 second
-//    	HAL_Delay(1000);
-//        counter += 1;
-//        if(counter >= 10000){
-//            break;
-//        }
-//    }
+    //commented the below out for CAD, should add something like it back later (has been added back now)
+    while(sendfifo_ready == false) {
+        //nano_wait(1000000); //wait 1/1000 second
+    	HAL_Delay(1);
+        counter += 1;
+        if(counter >= 10000){
+            break;
+        }
+    	if(sendfifo[sendfifo_offset] == 0x0){
+    		//if sendfifo[offset] == 0, then most likely it is available to be modified
+    		sendfifo_ready = true;
+    	}
+    }
 
     sendfifo[sendfifo_offset] = data;
     sendfifo_offset += 1;
@@ -490,9 +499,10 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     return true;
 }
 
-void set_mode_cad(void){
+void set_mode_cad(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_CAD | RH_RF95_LONG_RANGE_MODE);
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0xA0);
+    lora_dma_write_send(sendfifo_offset, hdma_usart_tx, huart);
 }
 
 bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done, not tested
@@ -500,10 +510,11 @@ bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //don
     //returning true means go to continuous receive mode
     //returning false means go to sleep mode
 
-    set_mode_cad(); //go to cad mode (111)
+    set_mode_cad(hdma_usart_tx, huart); //go to cad mode (111)
     uint8_t done = 0;
 
     while(1){
+    	HAL_Delay(100); //this is used to prevent the first read from occurring before CAD is done
         done = lora_read_single(0x12, hdma_usart_tx, huart); //wait until reg 12-2 is high (CAD is done)
         if(((done >> 2) & 0x1)){
             if((done & 0x1)){//if 12-0 is high, return true

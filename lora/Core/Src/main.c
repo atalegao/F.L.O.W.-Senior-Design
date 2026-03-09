@@ -107,6 +107,10 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  //change systick priority
+  HAL_NVIC_DisableIRQ (SysTick_IRQn);
+  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(SysTick_IRQn);//while this is added here, it needs to be at the bottom of the main function right before the loop
 
   /* USER CODE END Init */
 
@@ -123,9 +127,9 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
-  HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_RESET);
-  HAL_Delay(1000);
   HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_SET);
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_RESET);
   HAL_Delay(1000);
   HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
   connected_test(hdma_usart1_tx, huart1);
@@ -158,6 +162,9 @@ int main(void)
 	  bool good = false;
 #endif
   //}
+	  HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
+	  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+	  HAL_NVIC_EnableIRQ(SysTick_IRQn);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -374,7 +381,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LoRa_power_GPIO_Port, LoRa_power_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LoRa_power_GPIO_Port, LoRa_power_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LoRa_power_Pin */
   GPIO_InitStruct.Pin = LoRa_power_Pin;

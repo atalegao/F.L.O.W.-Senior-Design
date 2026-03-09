@@ -99,7 +99,9 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
     HAL_NVIC_SetPriority(TIM21_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM21_IRQn);
     /* USER CODE BEGIN TIM21_MspInit 1 */
-
+    HAL_NVIC_DisableIRQ (TIM21_IRQn);
+    HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(TIM21_IRQn);
     /* USER CODE END TIM21_MspInit 1 */
 
   }
@@ -199,7 +201,9 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(USART1_IRQn);
     /* USER CODE BEGIN USART1_MspInit 1 */
-
+    HAL_NVIC_DisableIRQ (USART1_IRQn);
+    HAL_NVIC_SetPriority(USART1_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(USART1_IRQn);
     /* USER CODE END USART1_MspInit 1 */
 
   }

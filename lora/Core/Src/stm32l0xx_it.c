@@ -168,7 +168,7 @@ void TIM21_IRQHandler(void)
 	HAL_TIM_Base_Stop_IT(&htim21);
 	if(global_receive_mode_from_cad){ //went to receive mode from CAD, but did not receive anything
 		set_mode_sleep(hdma_usart1_tx, huart1);//set mode to sleep
-		change_lora_timer_period(0, &htim21);
+		change_lora_timer_period(0, &htim21); //0 means sleep time
 		global_receive_mode_from_cad = 0;
 	}
 	else{ //switch to CAD
@@ -178,7 +178,7 @@ void TIM21_IRQHandler(void)
 			//go to continuous receive
 			set_mode_continuous_receive();
 			global_receive_mode_from_cad = 1;
-			change_lora_timer_period(1, &htim21);
+			change_lora_timer_period(1, &htim21); //1 means receive got nothing time
 			//start timer again (when the timer goes off this time, did not actually receive anything, so quit and go to sleep mode
 			//need to disable and reset the timer in the I response
 			//use a timer to quit (did not actually receive anything)
@@ -186,7 +186,7 @@ void TIM21_IRQHandler(void)
 		}
 		else{
 			set_mode_sleep(hdma_usart1_tx, huart1);//set mode to sleep
-			change_lora_timer_period(0, &htim21);
+			change_lora_timer_period(0, &htim21); //0 means sleep time
 			global_receive_mode_from_cad = 0;
 		}
 	}

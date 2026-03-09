@@ -61,7 +61,7 @@ void uart_write(uint8_t data);
 bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void setup_leds(void);
 void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-void set_mode_cad(void);
+void set_mode_cad(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void sleep_cycle(void);
 void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim);
