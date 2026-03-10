@@ -165,6 +165,10 @@ int main(void)
 	  HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
 	  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
 	  HAL_NVIC_EnableIRQ(SysTick_IRQn);
+
+//	  //this is for special fake interrupt for LoRa (Rx callback was calling a function that needed Tx callback, but they had same priority)
+//	  HAL_NVIC_SetPriority(EXTI0_1_IRQn, 3, 0);
+//	  HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -377,11 +381,17 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LoRa_power_GPIO_Port, LoRa_power_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LoRa_power_GPIO_Port, LoRa_power_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin : PA1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LoRa_power_Pin */
   GPIO_InitStruct.Pin = LoRa_power_Pin;
@@ -410,7 +420,8 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 			//this is when the response is I (0x49)
 			//this means this is actually the I response for a DIO interrupt
 			//call the read FIFO and figure out response function
-			lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart[0]); //second input is length
+			//lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart[0]); //second input is length
+			HAL_NVIC_SetPendingIRQ(1);//above line is called in this interrupt to deal with interrupt priorities
 		}
 	}
 }

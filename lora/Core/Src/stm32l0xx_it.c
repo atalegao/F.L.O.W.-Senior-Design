@@ -61,6 +61,7 @@ extern DMA_HandleTypeDef hdma_usart1_tx;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 extern uint8_t global_receive_mode_from_cad;
+extern uint8_t rec_data [MESSAGE_LENGTH];
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -213,5 +214,11 @@ void USART1_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+
+void EXTI0_1_IRQHandler(void)
+{
+	__HAL_GPIO_EXTI_CLEAR_IT(1); //using pin 1, clear interrupt
+	lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart1); //second input is length
+}
 
 /* USER CODE END 1 */

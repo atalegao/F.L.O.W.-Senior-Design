@@ -4,6 +4,7 @@ extern int sendfifo_offset;
 extern bool rx_ready;
 extern uint8_t sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
 extern uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+extern uint8_t global_receive_mode_from_cad;
 
 
  bool lora_init(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//not done, not tested
@@ -120,6 +121,10 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 	//dma_status = HAL_DMA_GetState(&hdma_usart1_tx);
 	status = HAL_UART_Transmit_DMA(&huart, sendfifo, length);
 	sendfifo_ready = false;
+	if(global_receive_mode_from_cad == 1){//remove, this is for testing
+		//do nothing
+		global_receive_mode_from_cad = 1;
+	}
 	dma_status = HAL_DMA_GetState(&hdma_usart_tx);
 	sendfifo_offset = 0;
 //	while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
@@ -519,10 +524,12 @@ bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //don
         if(((done >> 2) & 0x1)){
             if((done & 0x1)){//if 12-0 is high, return true
                 lora_write_single(0x12, 0xFF); //clear irq flags
+                lora_dma_write_send(sendfifo_offset, hdma_usart_tx, huart);
                 return true;
             }
             else{
                 lora_write_single(0x12, 0xFF); //clear irq flags
+                lora_dma_write_send(sendfifo_offset, hdma_usart_tx, huart);
                 return false; //else return 0
             }
         }
@@ -545,10 +552,12 @@ void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim){
 	//reset timer
 	HAL_TIM_Base_DeInit(htim);
 	//change period
+	//input clock is APB2Tim_clock (currently 32 MHz)
+	//period is 1/ (APB2Tim_clock / Prescaler / Period)
 	if(cause == 1){
-		htim->Init.Prescaler = 0;
+		htim->Init.Prescaler = 10000;
 		htim->Init.Period = 65535;
-		htim->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+		htim->Init.ClockDivision = TIM_CLOCKDIVISION_DIV4;
 	}
 	else if(cause == 0){
 		htim->Init.Prescaler = 0;
