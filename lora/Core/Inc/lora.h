@@ -20,7 +20,9 @@
 
 
 #define FIFOSIZE_RX 1 //number of bytes in a received message (always 1)
-#define FIFOSIZE_TX 100 //max number of bytes in a sent message (not just one write, but an actual sent LoRa message)
+#define FIFOSIZE_TX_NORM 50 //max number of bytes in a sent message (generic reads and writes)
+#define FIFOSIZE_TX_SEND 100 //max number of bytes in a sent message (not just one write, but an actual sent LoRa message)
+#define FIFOSIZE_TX_REC 50 //max number of bytes in a messaage to read the FIFO buffer
 
 #define MESSAGE_LENGTH 2 //length of the message without headers
 

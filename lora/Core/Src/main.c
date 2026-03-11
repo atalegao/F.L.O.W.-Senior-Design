@@ -67,11 +67,21 @@ static void MX_TIM21_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-bool sendfifo_ready = true;
-int sendfifo_offset = 0;
+bool sendfifo_ready_norm = true;
+int sendfifo_offset_norm = 0;
 bool rx_ready = false;
-uint8_t sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
+uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa module
 uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
+uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
+int sendfifo_offset_send = 0;
+bool sendfifo_ready_send = true;
+int sendfifo_offset_rec = 0;
+bool sendfifo_ready_rec = true;
+
+bool send_normal;
+bool send_send;
+bool send_rec; //great names I know
 
 uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
@@ -431,11 +441,33 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
-	for (int i = 0;  i < FIFOSIZE_TX; i++){
-	        sendfifo[i] = 0;
-	    }
-	    sendfifo_offset = 0;
-	    sendfifo_ready = true;
+	if(send_normal){
+		for (int i = 0;  i < FIFOSIZE_TX_NORM; i++){
+		        sendfifo[i] = 0;
+		    }
+		    sendfifo_offset = 0;
+		    sendfifo_ready = true;
+	}
+	else if(send_send){
+		for (int i = 0;  i < FIFOSIZE_TX_SEND; i++){
+			sendfifo_send_message[i] = 0;
+		}
+		sendfifo_offset_send = 0;
+		sendfifo_ready_send = true;
+	}
+	else if(send_rec){
+		for (int i = 0;  i < FIFOSIZE_TX_REC; i++){
+			sendfifo_rec_message[i] = 0;
+		}
+		sendfifo_offset_rec = 0;
+		sendfifo_ready_rec = true;
+	}
+	else{
+		//should not happen, error
+		while (true){
+			//infinite loop to know something is wrong
+		}
+	}
 }
 
 /* USER CODE END 4 */

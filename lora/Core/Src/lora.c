@@ -1,10 +1,16 @@
 #include <lora.h>
-extern bool sendfifo_ready;
-extern int sendfifo_offset;
+extern bool sendfifo_ready_norm;
+extern int sendfifo_offset_norm;
 extern bool rx_ready;
-extern uint8_t sendfifo[FIFOSIZE_TX]; //array of data read from LoRa module
+extern uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data sending to LoRa module
+extern uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
+extern uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
 extern uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
 extern uint8_t global_receive_mode_from_cad;
+extern int sendfifo_offset_send;
+extern bool sendfifo_ready_send;
+extern int sendfifo_offset_rec;
+extern bool sendfifo_ready_rec;
 
 
  bool lora_init(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//not done, not tested
@@ -64,7 +70,7 @@ extern uint8_t global_receive_mode_from_cad;
         lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, 0xC0  | 0x04); //last 57 9E 01 C4
         //end
         lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, 6); //57 A2 01 06      update regpayload length (for implicit header mode only)
-        lora_dma_write_send(sendfifo_offset, hdma_usart_tx, huart);
+        lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart);
         return true;
         #endif
 
@@ -79,7 +85,7 @@ extern uint8_t global_receive_mode_from_cad;
         setModemRegisters(&cfg);
         return true;
         #endif
-        lora_dma_write_send(sendfifo_offset, hdma_usart_tx, huart);
+        lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart);
     }
 
 
@@ -89,55 +95,50 @@ uint8_t lora_read_fifo_single(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDe
     uart_write('R'); //0x52
     uart_write(0X00 & ~RH_WRITE_MASK); //0x00 & ~0x80, so 0x00
     uart_write(1); //0x01
-    lora_dma_write_send(sendfifo_offset, hdma_usart_tx, huart); //3
+    lora_dma_write_send(sendfifo_offset_rec, hdma_usart_tx, huart); //3
     val = uart_read();
     return val;
     // 52, 00, 01
 }
 
-void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart, uint8_t send_type){
     //This enables the message send for the LoRa's DMA
-    //set EN bit to send writes
-	//old
-//    DMA1_Channel2->CCR &= ~DMA_CCR_EN; //turn off DMA sending
-//    DMA1_Channel2->CNDTR = length;//set CNDTR
-//    while(DMA1_Channel2->CNDTR != (length)){
-//        //do nothing while data is sending over DMA
-//    }
-//    DMA1_Channel2->CCR |= DMA_CCR_EN;
-//    while(DMA1_Channel2->CNDTR != 0){
-//        //do nothing while data is sending over DMA
-//    }
-//    //wait for transfer complete flag
-//    while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
-//        //do nothing while data is sending
-//    }
-//    USART1->ICR |= (1 << 6); //clear TC
-//    //clear sendfifo and reset offset
-	//end old
-	HAL_StatusTypeDef status;
-	HAL_DMA_StateTypeDef dma_status;
-	//uint32_t dma_estatus;
-	//dma_status = HAL_DMA_GetState(&hdma_usart1_tx);
-	status = HAL_UART_Transmit_DMA(&huart, sendfifo, length);
-	sendfifo_ready = false;
-	if(global_receive_mode_from_cad == 1){//remove, this is for testing
-		//do nothing
-		global_receive_mode_from_cad = 1;
+	//send type is 1 for normal, 2 for rx, 3 for tx
+	if(send_type == 1){ //normal
+		HAL_UART_Transmit_DMA(&huart, sendfifo_norm, length);
+		sendfifo_ready = false;
+//		if(global_receive_mode_from_cad == 1){//remove, this is for testing
+//			//do nothing
+//			global_receive_mode_from_cad = 1;
+//		}
+		dma_status = HAL_DMA_GetState(&hdma_usart_tx);
+		sendfifo_offset = 0;
 	}
-	dma_status = HAL_DMA_GetState(&hdma_usart_tx);
-	sendfifo_offset = 0;
-//	while(((USART1->ISR >> 6) & 0x1) == 0){ //TC(bit 6)
-//	        //do nothing while data is sending
-//	    }
-	//dma_estatus = HAL_DMA_GetError(&hdma_usart1_tx);
-
-//    for (int i = 0;  i < FIFOSIZE_TX; i++){
-//        sendfifo[i] = 0;
-//    }
-//    sendfifo_offset = 0;
-    //DMA1_Channel7->CNDTR = FIFOSIZE_TX;//set CNDTR
-    //DMA1_Channel2->CCR &= ~DMA_CCR_EN; //turn off DMA sending
+	else if(send_type == 2){//rx
+		HAL_UART_Transmit_DMA(&huart, sendfifo_rec_message, length);
+		sendfifo_ready = false;
+//		if(global_receive_mode_from_cad == 1){//remove, this is for testing
+//			//do nothing
+//			global_receive_mode_from_cad = 1;
+//		}
+		dma_status = HAL_DMA_GetState(&hdma_usart_tx);
+		sendfifo_offset = 0;
+	}
+	else if (send_type == 3){//tx
+		HAL_UART_Transmit_DMA(&huart, sendfifo_send_message, length);
+		sendfifo_ready = false;
+//		if(global_receive_mode_from_cad == 1){//remove, this is for testing
+//			//do nothing
+//			global_receive_mode_from_cad = 1;
+//		}
+		dma_status = HAL_DMA_GetState(&hdma_usart_tx);
+		sendfifo_offset = 0;
+	}
+	else{
+		while (true){
+			//error
+		}
+	}
 }
 
 void set_mode_continuous_receive(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
@@ -325,46 +326,85 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
     return c;
 }
 
-void uart_write(uint8_t data){ //done, not tested
+void uart_write_normal(uint8_t data){ //done, not tested
     //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
     //USE lora_write_single, lora_write_multiple, or lora_send instead
+	//this is for normal writes only (no message sending or FIFO reads)
 
-    //non DMA
     int counter = 0;
-    // while(!(USART5->ISR & USART_ISR_TXE)) {
-    //     nano_wait(1000000); //wait 1/1000 second
-    //     counter += 1;
-    //     if(counter >= 10000){
-    //         break;
-    //     }
-    // }
-    // USART5->TDR = data;
-    //wait and then set back to 0
-    // nano_wait(1000000000); //wait 1/1000 second
-    // USART5->TDR = 0x0;
-    //end of non-DMA
 
-    //changes for DMA
-    //nano_wait(500000000000); //wait 0.5 seconds
-
-    //commented the below out for CAD, should add something like it back later (has been added back now)
-    while(sendfifo_ready == false) {
+    while(sendfifo_ready_norm == false) {
         //nano_wait(1000000); //wait 1/1000 second
     	HAL_Delay(1);
         counter += 1;
         if(counter >= 10000){
             break;
         }
-    	if(sendfifo[sendfifo_offset] == 0x0){
+    	if(sendfifo_norm[sendfifo_offset_norm] == 0x0){
     		//if sendfifo[offset] == 0, then most likely it is available to be modified
-    		sendfifo_ready = true;
+    		sendfifo_ready_norm = true;
     	}
     }
 
-    sendfifo[sendfifo_offset] = data;
-    sendfifo_offset += 1;
-    if(sendfifo_offset > FIFOSIZE_TX){
-        sendfifo_offset = 0;
+    sendfifo_norm[sendfifo_offset_norm] = data;
+    sendfifo_offset_norm += 1;
+    if(sendfifo_offset_norm > FIFOSIZE_TX_NORM){
+        sendfifo_offset_norm = 0;
+    }
+}
+
+void uart_write_rx(uint8_t data){ //done, not tested
+    //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
+    //USE lora_write_single, lora_write_multiple, or lora_send instead
+	//this is for FIFO reads only (no message sending or normal messages)
+
+    int counter = 0;
+
+    while(sendfifo_ready_rec == false) {
+        //nano_wait(1000000); //wait 1/1000 second
+    	HAL_Delay(1);
+        counter += 1;
+        if(counter >= 10000){
+            break;
+        }
+    	if(sendfifo_rec_message[sendfifo_offset_rec] == 0x0){
+    		//if sendfifo[offset] == 0, then most likely it is available to be modified
+    		sendfifo_ready_rec = true;
+    	}
+    }
+
+    sendfifo_rec_message[sendfifo_offset_rec] = data;
+    sendfifo_offset_rec += 1;
+    if(sendfifo_offset_rec > FIFOSIZE_TX_REC){
+    	sendfifo_offset_rec = 0;
+    }
+}
+
+
+void uart_write_tx(uint8_t data){ //done, not tested
+    //DO NOT CALL THIS!!!!!! THIS IS FOR SENDING DATA TO THE LORA MICRO USING UART
+    //USE lora_write_single, lora_write_multiple, or lora_send instead
+	//this is for send writes only (no normal messages or FIFO reads)
+
+    int counter = 0;
+
+    while(sendfifo_ready_send == false) {
+        //nano_wait(1000000); //wait 1/1000 second
+    	HAL_Delay(1);
+        counter += 1;
+        if(counter >= 10000){
+            break;
+        }
+    	if(sendfifo_send_message[sendfifo_offset_send] == 0x0){
+    		//if sendfifo[offset] == 0, then most likely it is available to be modified
+    		sendfifo_ready_send = true;
+    	}
+    }
+
+    sendfifo_send_message[sendfifo_offset_send] = data;
+    sendfifo_offset_send += 1;
+    if(sendfifo_offset_send > FIFOSIZE_TX_SEND){
+        sendfifo_offset_send = 0;
     }
 }
 
@@ -557,7 +597,7 @@ void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim){
 	HAL_TIM_Base_DeInit(htim);
 	//change period
 	//input clock is APB2Tim_clock (currently 32 MHz)
-	//period is 1/ (APB2Tim_clock / Prescaler / Period)
+	//period is 1/ (APB2Tim_clock / (Prescaler + 1) / (Period + 1))
 	if(cause == 1){
 		htim->Init.Prescaler = 10000;
 		htim->Init.Period = 65535;
@@ -569,5 +609,8 @@ void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim){
 		htim->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
 	}
 	//update timer
-	HAL_TIM_Base_Init(htim);
+	HAL_TIM_Base_Init(htim); //init
+	htim->Instance->EGR |= TIM_EGR_UG; //manually trigger update event (loads new Prescaler and ARR values)
+	__HAL_TIM_CLEAR_IT(htim, TIM_IT_UPDATE); //clears interrupt flag, htim.Instance->CR1 |= TIM_CR1_URS; // Interrupts only on overflow
+	__HAL_TIM_SET_COUNTER(htim, 0); //set counter to 0
 }
