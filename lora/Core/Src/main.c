@@ -443,10 +443,10 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(send_normal){
 		for (int i = 0;  i < FIFOSIZE_TX_NORM; i++){
-		        sendfifo[i] = 0;
+		        sendfifo_norm[i] = 0;
 		    }
-		    sendfifo_offset = 0;
-		    sendfifo_ready = true;
+		    sendfifo_offset_norm = 0;
+		    sendfifo_ready_norm = true;
 	}
 	else if(send_send){
 		for (int i = 0;  i < FIFOSIZE_TX_SEND; i++){
