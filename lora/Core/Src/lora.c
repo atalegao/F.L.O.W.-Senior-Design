@@ -521,6 +521,10 @@ bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //don
     while(1){
     	HAL_Delay(100); //this is used to prevent the first read from occurring before CAD is done
         done = lora_read_single(0x12, hdma_usart_tx, huart); //wait until reg 12-2 is high (CAD is done)
+        if(done == 0x49){
+        	//I response
+        	done = lora_read_single(0x12, hdma_usart_tx, huart); //get actual value
+        }
         if(((done >> 2) & 0x1)){
             if((done & 0x1)){//if 12-0 is high, return true
                 lora_write_single(0x12, 0xFF); //clear irq flags
@@ -560,7 +564,7 @@ void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim){
 		htim->Init.ClockDivision = TIM_CLOCKDIVISION_DIV4;
 	}
 	else if(cause == 0){
-		htim->Init.Prescaler = 0;
+		htim->Init.Prescaler = 100;
 		htim->Init.Period = 65535;
 		htim->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
 	}

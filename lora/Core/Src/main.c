@@ -51,6 +51,7 @@ DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
+bool read_lora_fifo;
 
 /* USER CODE END PV */
 
@@ -127,6 +128,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
+  read_lora_fifo = false;
   HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_SET);
   HAL_Delay(1000);
   HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_RESET);
@@ -175,6 +177,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if(read_lora_fifo){ //
+		  lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart1); //second input is length
+		  read_lora_fifo = false;
+	  }
 #ifdef RECEIVE_BOL
 		  set_mode_continuous_receive();
 		  HAL_Delay(1000);
@@ -381,17 +387,11 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LoRa_power_GPIO_Port, LoRa_power_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin : PA1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(LoRa_power_GPIO_Port, LoRa_power_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LoRa_power_Pin */
   GPIO_InitStruct.Pin = LoRa_power_Pin;
@@ -421,7 +421,10 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 			//this means this is actually the I response for a DIO interrupt
 			//call the read FIFO and figure out response function
 			//lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart[0]); //second input is length
-			HAL_NVIC_SetPendingIRQ(1);//above line is called in this interrupt to deal with interrupt priorities
+			//HAL_NVIC_SetPendingIRQ(1);//above line is called in this interrupt to deal with interrupt priorities
+			int value;
+			value = uart_read(); //dummy read to get rid of the I response
+			read_lora_fifo = true;
 		}
 	}
 }

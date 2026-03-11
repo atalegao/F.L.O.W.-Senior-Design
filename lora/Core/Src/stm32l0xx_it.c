@@ -62,6 +62,7 @@ extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 extern uint8_t global_receive_mode_from_cad;
 extern uint8_t rec_data [MESSAGE_LENGTH];
+extern bool read_lora_fifo;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -166,32 +167,34 @@ void TIM21_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM21_IRQn 0 */
 	//this is the LoRa CAD cycle timer
-	HAL_TIM_Base_Stop_IT(&htim21);
-	if(global_receive_mode_from_cad){ //went to receive mode from CAD, but did not receive anything
-		set_mode_sleep(hdma_usart1_tx, huart1);//set mode to sleep
-		change_lora_timer_period(0, &htim21); //0 means sleep time
-		global_receive_mode_from_cad = 0;
-	}
-	else{ //switch to CAD
-		bool detect;
-		detect = cad_cycle(hdma_usart1_tx, huart1);
-		if(detect){
-			//go to continuous receive
-			set_mode_continuous_receive();
-			global_receive_mode_from_cad = 1;
-			change_lora_timer_period(1, &htim21); //1 means receive got nothing time
-			//start timer again (when the timer goes off this time, did not actually receive anything, so quit and go to sleep mode
-			//need to disable and reset the timer in the I response
-			//use a timer to quit (did not actually receive anything)
-			//and use the interrupt from the I response to check FIFO if a message was received (might need to use a global variable)
-		}
-		else{
+	if(read_lora_fifo == false){
+		HAL_TIM_Base_Stop_IT(&htim21);
+		if(global_receive_mode_from_cad){ //went to receive mode from CAD, but did not receive anything
 			set_mode_sleep(hdma_usart1_tx, huart1);//set mode to sleep
 			change_lora_timer_period(0, &htim21); //0 means sleep time
 			global_receive_mode_from_cad = 0;
 		}
+		else{ //switch to CAD
+			bool detect;
+			detect = cad_cycle(hdma_usart1_tx, huart1);
+			if(detect){
+				//go to continuous receive
+				set_mode_continuous_receive();
+				global_receive_mode_from_cad = 1;
+				change_lora_timer_period(1, &htim21); //1 means receive got nothing time
+				//start timer again (when the timer goes off this time, did not actually receive anything, so quit and go to sleep mode
+				//need to disable and reset the timer in the I response
+				//use a timer to quit (did not actually receive anything)
+				//and use the interrupt from the I response to check FIFO if a message was received (might need to use a global variable)
+			}
+			else{
+				set_mode_sleep(hdma_usart1_tx, huart1);//set mode to sleep
+				change_lora_timer_period(0, &htim21); //0 means sleep time
+				global_receive_mode_from_cad = 0;
+			}
+		}
+		HAL_TIM_Base_Start_IT(&htim21);
 	}
-	HAL_TIM_Base_Start_IT(&htim21);
   /* USER CODE END TIM21_IRQn 0 */
   HAL_TIM_IRQHandler(&htim21);
   /* USER CODE BEGIN TIM21_IRQn 1 */
@@ -215,10 +218,10 @@ void USART1_IRQHandler(void)
 
 /* USER CODE BEGIN 1 */
 
-void EXTI0_1_IRQHandler(void)
-{
-	__HAL_GPIO_EXTI_CLEAR_IT(1); //using pin 1, clear interrupt
-	lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart1); //second input is length
-}
+//void EXTI0_1_IRQHandler(void)
+//{
+//	__HAL_GPIO_EXTI_CLEAR_IT(1); //using pin 1, clear interrupt
+//	lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart1); //second input is length
+//}
 
 /* USER CODE END 1 */
