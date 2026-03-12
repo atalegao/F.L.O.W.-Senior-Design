@@ -79,9 +79,9 @@ bool sendfifo_ready_send = true;
 int sendfifo_offset_rec = 0;
 bool sendfifo_ready_rec = true;
 
-bool send_normal;
-bool send_send;
-bool send_rec; //great names I know
+bool send_normal = false;
+bool send_send = false;
+bool send_rec = false; //great names I know
 
 uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
@@ -139,11 +139,13 @@ int main(void)
   MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
   read_lora_fifo = false;
+  receivefifo[0] = 0; //added
   HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_SET);
   HAL_Delay(1000);
   HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_RESET);
   HAL_Delay(1000);
   HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
+  HAL_Delay(1000);//added
   connected_test(hdma_usart1_tx, huart1);
   lora_init();
   //tx = C12, rx = D2
@@ -445,8 +447,9 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 		for (int i = 0;  i < FIFOSIZE_TX_NORM; i++){
 		        sendfifo_norm[i] = 0;
 		    }
-		    sendfifo_offset_norm = 0;
-		    sendfifo_ready_norm = true;
+		sendfifo_offset_norm = 0;
+		sendfifo_ready_norm = true;
+		send_normal = false;
 	}
 	else if(send_send){
 		for (int i = 0;  i < FIFOSIZE_TX_SEND; i++){
@@ -454,6 +457,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 		}
 		sendfifo_offset_send = 0;
 		sendfifo_ready_send = true;
+		send_send = false;
 	}
 	else if(send_rec){
 		for (int i = 0;  i < FIFOSIZE_TX_REC; i++){
@@ -461,6 +465,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 		}
 		sendfifo_offset_rec = 0;
 		sendfifo_ready_rec = true;
+		send_rec = false;
 	}
 	else{
 		//should not happen, error

@@ -180,6 +180,10 @@ void TIM21_IRQHandler(void)
 			if(detect){
 				//go to continuous receive
 				set_mode_continuous_receive();
+
+				//check that mode is receive
+				//lora_read_single(0x01, hdma_usart1_tx, huart1, 1);
+
 				global_receive_mode_from_cad = 1;
 				change_lora_timer_period(1, &htim21); //1 means receive got nothing time
 				//start timer again (when the timer goes off this time, did not actually receive anything, so quit and go to sleep mode
@@ -194,6 +198,9 @@ void TIM21_IRQHandler(void)
 			}
 		}
 		HAL_TIM_Base_Start_IT(&htim21);
+	}
+	else{
+		//do nothing
 	}
   /* USER CODE END TIM21_IRQn 0 */
   HAL_TIM_IRQHandler(&htim21);

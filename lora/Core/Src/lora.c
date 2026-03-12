@@ -11,6 +11,12 @@ extern int sendfifo_offset_send;
 extern bool sendfifo_ready_send;
 extern int sendfifo_offset_rec;
 extern bool sendfifo_ready_rec;
+extern bool send_normal;
+extern bool send_send;
+extern bool send_rec;
+
+
+bool doing_connected_test = false;
 
 
  bool lora_init(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//not done, not tested
@@ -113,6 +119,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 //		}
 		//HAL_DMA_GetState(&hdma_usart_tx);
 		sendfifo_offset_norm = 0;
+		send_normal = true;
 	}
 	else if(send_type == 2){//rx
 		HAL_UART_Transmit_DMA(&huart, sendfifo_rec_message, length);
@@ -123,6 +130,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 //		}
 		//HAL_DMA_GetState(&hdma_usart_tx);
 		sendfifo_offset_rec = 0;
+		send_rec = true;
 	}
 	else if (send_type == 3){//tx
 		HAL_UART_Transmit_DMA(&huart, sendfifo_send_message, length);
@@ -133,6 +141,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 //		}
 		//HAL_DMA_GetState(&hdma_usart_tx);
 		sendfifo_offset_send = 0;
+		send_send = true;
 	}
 	else{
 		while (true){
@@ -191,22 +200,22 @@ void lora_read_multiple(uint8_t reg, uint8_t* result, uint8_t length, DMA_Handle
     //length is the number of bytes to read
 	//send type is 1 for normal, 2 for rx, 3 for tx
     if(send_type == 1){
-    	lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1); //3
     	uart_write_normal('R');
     	uart_write_normal(reg & ~RH_WRITE_MASK);
     	uart_write_normal(length);
+    	lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1); //3
     }
     else if(send_type == 2){
-    	lora_dma_write_send(sendfifo_offset_rec, hdma_usart_tx, huart, 2); //3
     	uart_write_rx('R');
     	uart_write_rx(reg & ~RH_WRITE_MASK);
     	uart_write_rx(length);
+    	lora_dma_write_send(sendfifo_offset_rec, hdma_usart_tx, huart, 2); //3
     }
     else if(send_type == 3){
-    	lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3); //3
     	uart_write_tx('R');
     	uart_write_tx(reg & ~RH_WRITE_MASK);
     	uart_write_tx(length);
+    	lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3); //3
     }
 
     int i = 0;
@@ -297,6 +306,7 @@ bool connected_test(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
     uint8_t counter = 0;
     uint8_t value = 0;
     bool done = false;
+    doing_connected_test = true;
     while(done == false){
         //set mode to LORA sleep
         lora_write_single(RH_RF95_REG_01_OP_MODE, (RH_RF95_MODE_SLEEP | RH_RF95_LONG_RANGE_MODE), 1); // 57 81 01 80
@@ -305,6 +315,7 @@ bool connected_test(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
         value = lora_read_single(0x01, hdma_usart_tx, huart, 1);//check irq register for done, norm
         if(value == 0x80){//==0x80
             //GPIOC->ODR = 0;//testing
+        	doing_connected_test = false;
             return true;
         }
         else{
@@ -357,14 +368,19 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
 
     //HAL_Delay(100);
     while(rx_ready == false){
-    	if(receivefifo[0] == 0x49){ //automatic I response
-    		rx_ready = true;
-    	}
-    	else if(receivefifo[0] == 0x00){
-    		rx_ready = true;
+//    	if(receivefifo[0] == 0x49){ //automatic I response
+//    		rx_ready = true;
+//    	}
+//    	if(receivefifo[0] == 0x00){
+//    		rx_ready = true;
+//    	}
+    	if(doing_connected_test){
+    		if(receivefifo[0] == 0x00){
+    		    rx_ready = true;
+    		}
     	}
     }
-    //HAL_Delay(1); had to remove since called in interrupt?
+    HAL_Delay(1);
     //HAL priority needs to be set higher to be used in an interrupt
     c = receivefifo[0];
     receivefifo[0] = 0;
@@ -460,22 +476,22 @@ uint8_t lora_read_single(uint8_t reg, DMA_HandleTypeDef hdma_usart_tx, UART_Hand
     //reg is in the LoRa microcontroller
     uint8_t val = 0;
     if(message_type == 1){ //norm
-    	lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1); //1
     	uart_write_normal('R'); //0x52
     	uart_write_normal(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
     	uart_write_normal(1); //0x01
+    	lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1); //1
     }
     else if(message_type == 2){ //rx
-    	lora_dma_write_send(sendfifo_offset_rec, hdma_usart_tx, huart, 2); //2
     	uart_write_rx('R'); //0x52
     	uart_write_rx(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
     	uart_write_rx(1); //0x01
+    	lora_dma_write_send(sendfifo_offset_rec, hdma_usart_tx, huart, 2); //2
     }
     else if(message_type == 3){ //tx
-    	lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3); //3
     	uart_write_tx('R'); //0x52
     	uart_write_tx(reg & ~RH_WRITE_MASK); //try 0x0F & ~0x80, so 0x0F
     	uart_write_tx(1); //0x01
+    	lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3); //3
     }
 
     val = uart_read();
@@ -624,7 +640,8 @@ bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //don
         done = lora_read_single(0x12, hdma_usart_tx, huart, 1); //wait until reg 12-2 is high (CAD is done) //norm
         if(done == 0x49){
         	//I response
-        	done = lora_read_single(0x12, hdma_usart_tx, huart, 1); //get actual value //norm
+        	//done = lora_read_single(0x12, hdma_usart_tx, huart, 1); //get actual value //norm
+        	done = uart_read();
         }
         if(((done >> 2) & 0x1)){
             if((done & 0x1)){//if 12-0 is high, return true
