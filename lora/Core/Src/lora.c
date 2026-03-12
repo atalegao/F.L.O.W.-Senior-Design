@@ -636,7 +636,7 @@ bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //don
     uint8_t done = 0;
 
     while(1){
-    	HAL_Delay(100); //this is used to prevent the first read from occurring before CAD is done
+    	HAL_Delay(10); //this is used to prevent the first read from occurring before CAD is done
         done = lora_read_single(0x12, hdma_usart_tx, huart, 1); //wait until reg 12-2 is high (CAD is done) //norm
         if(done == 0x49){
         	//I response
