@@ -138,6 +138,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
+  HAL_NVIC_DisableIRQ (TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
   read_lora_fifo = false;
   receivefifo[0] = 0; //added
   HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_SET);
@@ -148,6 +149,9 @@ int main(void)
   HAL_Delay(1000);//added
   connected_test(hdma_usart1_tx, huart1);
   lora_init();
+  HAL_Delay(1000);
+  HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
+  HAL_NVIC_EnableIRQ(TIM21_IRQn);
   //tx = C12, rx = D2
   //rxdone LED = C0, valid_header LED = C1, crc_error LED = C2 USE RESISTORS: 150 ohm
   //C3-10 are 8 bits for data

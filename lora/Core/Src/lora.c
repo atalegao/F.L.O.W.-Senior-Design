@@ -412,6 +412,9 @@ void uart_write_normal(uint8_t data){ //done, not tested
     sendfifo_offset_norm += 1;
     if(sendfifo_offset_norm > FIFOSIZE_TX_NORM){
         sendfifo_offset_norm = 0;
+        while(1){
+        	//
+        }
     }
 }
 
@@ -439,6 +442,9 @@ void uart_write_rx(uint8_t data){ //done, not tested
     sendfifo_offset_rec += 1;
     if(sendfifo_offset_rec > FIFOSIZE_TX_REC){
     	sendfifo_offset_rec = 0;
+    	while(1){
+    	        	//
+    	        }
     }
 }
 
@@ -467,6 +473,9 @@ void uart_write_tx(uint8_t data){ //done, not tested
     sendfifo_offset_send += 1;
     if(sendfifo_offset_send > FIFOSIZE_TX_SEND){
         sendfifo_offset_send = 0;
+        while(1){
+                	//
+                }
     }
 }
 
@@ -621,6 +630,12 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     return true;
 }
 
+void set_mode_standby(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+	lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY,1);
+	lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x00,1);
+	lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1); //normal
+}
+
 void set_mode_cad(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_CAD | RH_RF95_LONG_RANGE_MODE,1);
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0xA0,1);
@@ -631,6 +646,8 @@ bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //don
     //THIS IS THE CAD CYCLE OF RECEIVING
     //returning true means go to continuous receive mode
     //returning false means go to sleep mode
+	set_mode_standby(hdma_usart_tx, huart);
+	HAL_Delay(10);
 
     set_mode_cad(hdma_usart_tx, huart); //go to cad mode (111)
     uint8_t done = 0;
