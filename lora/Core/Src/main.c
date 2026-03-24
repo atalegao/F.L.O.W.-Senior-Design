@@ -158,16 +158,17 @@ int main(void)
   setup_lora_send_timer(&htim6); //set up lora send data timer
   HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
   HAL_NVIC_EnableIRQ(TIM21_IRQn);
-  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 3, 0);
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
   HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
   //tx = C12, rx = D2
   //rxdone LED = C0, valid_header LED = C1, crc_error LED = C2 USE RESISTORS: 150 ohm
   //C3-10 are 8 bits for data
   //if(receive_bol){ //receiving
-#ifdef CAD_BOL
+#ifdef CAD_BOL //important code in here, do not forget to add it
   send_data[0] = 0xF0;
   send_data[1] = 0x0F;
   HAL_TIM_Base_Start_IT(&htim21);
+  HAL_TIM_Base_Start_IT(&htim6);
 #endif
 
 #ifdef RECEIVE_BOL

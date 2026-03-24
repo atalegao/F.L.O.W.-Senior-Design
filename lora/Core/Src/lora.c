@@ -110,6 +110,12 @@ uint8_t lora_read_fifo_single(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDe
 void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart, uint8_t send_type){
     //This enables the message send for the LoRa's DMA
 	//send type is 1 for normal, 2 for rx, 3 for tx
+
+	HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable all interrupts that could use the Lora DMA
+	HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable all interrupts that could use the Lora DMA
+	HAL_NVIC_DisableIRQ(USART1_IRQn); //disable all interrupts that could use the Lora DMA
+
+
 	if(send_type == 1){ //normal
 		HAL_UART_Transmit_DMA(&huart, sendfifo_norm, length);
 		sendfifo_ready_norm = false;
@@ -148,6 +154,9 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 			//error
 		}
 	}
+	HAL_NVIC_EnableIRQ(TIM21_IRQn); //enable all interrupts that could use the Lora DMA
+	HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn); //enable all interrupts that could use the Lora DMA
+	HAL_NVIC_EnableIRQ(USART1_IRQn); //enable all interrupts that could use the Lora DMA
 }
 
 void set_mode_continuous_receive(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){

@@ -167,7 +167,11 @@ void DMA1_Channel2_3_IRQHandler(void)
 void TIM6_DAC_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM6_DAC_IRQn 0 */
-
+  //send message
+  uint8_t data [2];
+  data[0] = 0xF0;
+  data[1] = 0x0F;
+  lora_send(data, 2, hdma_usart1_tx, huart1);
   /* USER CODE END TIM6_DAC_IRQn 0 */
   HAL_TIM_IRQHandler(&htim6);
   /* USER CODE BEGIN TIM6_DAC_IRQn 1 */
