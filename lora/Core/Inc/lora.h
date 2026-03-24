@@ -24,6 +24,8 @@
 #define FIFOSIZE_TX_SEND 100 //max number of bytes in a sent message (not just one write, but an actual sent LoRa message)
 #define FIFOSIZE_TX_REC 50 //max number of bytes in a messaage to read the FIFO buffer
 
+#define LORA_SEND_TIME 1000 //this is the time in ms between each node data send
+
 #define MESSAGE_LENGTH 2 //length of the message without headers
 
 //comment out one of the 2 below
@@ -70,4 +72,5 @@ void set_mode_cad(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void sleep_cycle(void);
 void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim);
+void setup_lora_send_timer(TIM_HandleTypeDef * htim);
 int main(void);

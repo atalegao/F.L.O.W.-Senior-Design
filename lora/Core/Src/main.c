@@ -44,6 +44,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim21;
 
 UART_HandleTypeDef huart1;
@@ -52,6 +53,7 @@ DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
 bool read_lora_fifo;
+//htim6 is lora send timer
 
 /* USER CODE END PV */
 
@@ -61,6 +63,7 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM21_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -137,8 +140,10 @@ int main(void)
   MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_TIM21_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   HAL_NVIC_DisableIRQ (TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
+  HAL_NVIC_DisableIRQ (TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
   read_lora_fifo = false;
   receivefifo[0] = 0; //added
   HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_SET);
@@ -150,8 +155,11 @@ int main(void)
   connected_test(hdma_usart1_tx, huart1);
   lora_init();
   HAL_Delay(1000);
+  setup_lora_send_timer(&htim6); //set up lora send data timer
   HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
   HAL_NVIC_EnableIRQ(TIM21_IRQn);
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 3, 0);
+  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
   //tx = C12, rx = D2
   //rxdone LED = C0, valid_header LED = C1, crc_error LED = C2 USE RESISTORS: 150 ohm
   //C3-10 are 8 bits for data
@@ -194,6 +202,11 @@ int main(void)
   while (1)
   {
 	  if(read_lora_fifo){ //
+		  // start restart the CAD timer so it doesn't take the entire receive-timout time
+		  HAL_TIM_Base_Stop_IT(&htim21);
+		  change_lora_timer_period(0, &htim21); //0 means sleep time,
+		  HAL_TIM_Base_Start_IT(&htim21);
+		  //end restart the CAD timer so it doesn't take the entire receive-timout time
 		  lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart1); //second input is length
 		  read_lora_fifo = false;
 	  }
@@ -292,6 +305,44 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 6399;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 9999;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
 }
 
 /**

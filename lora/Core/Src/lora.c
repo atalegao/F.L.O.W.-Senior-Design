@@ -652,14 +652,15 @@ bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //don
     set_mode_cad(hdma_usart_tx, huart); //go to cad mode (111)
     uint8_t done = 0;
 
+    uart_read(); //this should wait until the I response and then let the code move to the actual read
     while(1){
-    	HAL_Delay(10); //this is used to prevent the first read from occurring before CAD is done
+    	//HAL_Delay(60); //this is used to prevent the first read from occurring before CAD is done //removed for the above uart_read
         done = lora_read_single(0x12, hdma_usart_tx, huart, 1); //wait until reg 12-2 is high (CAD is done) //norm
-        if(done == 0x49){
-        	//I response
-        	//done = lora_read_single(0x12, hdma_usart_tx, huart, 1); //get actual value //norm
-        	done = uart_read();
-        }
+//        if(done == 0x49){ //removed for the above uart_read
+//        	//I response
+//        	//done = lora_read_single(0x12, hdma_usart_tx, huart, 1); //get actual value //norm
+//        	done = uart_read();
+//        }
         if(((done >> 2) & 0x1)){
             if((done & 0x1)){//if 12-0 is high, return true
                 lora_write_single(0x12, 0xFF,1); //clear irq flags
@@ -704,6 +705,30 @@ void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim){
 		htim->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
 	}
 	//update timer
+	HAL_TIM_Base_Init(htim); //init
+	htim->Instance->EGR |= TIM_EGR_UG; //manually trigger update event (loads new Prescaler and ARR values)
+	__HAL_TIM_CLEAR_IT(htim, TIM_IT_UPDATE); //clears interrupt flag, htim.Instance->CR1 |= TIM_CR1_URS; // Interrupts only on overflow
+	__HAL_TIM_SET_COUNTER(htim, 0); //set counter to 0
+}
+
+void setup_lora_send_timer(TIM_HandleTypeDef * htim){
+	//this is for setting up the lora_send timer
+	uint16_t prescaler;
+	uint16_t period;
+	uint32_t val;
+
+	HAL_TIM_Base_DeInit(htim);
+	//input clock is APB2Tim_clock (currently 32 MHz)
+	//use LORA_SEND_TIME (in ms)
+	//time * (APB2Tim_clock / (Prescaler + 1) / (Period + 1)) = 1
+	// (time * APB2Tim_clock) = ((Prescaler + 1) * (Period + 1))
+
+	val = LORA_SEND_TIME / 100 * 32 * 1000000; // /100 is for ms conversion 10^6 is M
+	period = 64 * 1000; //64000, almost max value
+	prescaler = val / period;
+
+	htim->Init.Prescaler = prescaler;
+	htim->Init.Period = period;
 	HAL_TIM_Base_Init(htim); //init
 	htim->Instance->EGR |= TIM_EGR_UG; //manually trigger update event (loads new Prescaler and ARR values)
 	__HAL_TIM_CLEAR_IT(htim, TIM_IT_UPDATE); //clears interrupt flag, htim.Instance->CR1 |= TIM_CR1_URS; // Interrupts only on overflow
