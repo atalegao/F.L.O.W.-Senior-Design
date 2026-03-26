@@ -17,6 +17,7 @@ extern bool send_rec;
 
 
 bool doing_connected_test = false;
+bool doing_send = false;
 
 
  bool lora_init(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//not done, not tested
@@ -110,6 +111,10 @@ uint8_t lora_read_fifo_single(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDe
 void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart, uint8_t send_type){
     //This enables the message send for the LoRa's DMA
 	//send type is 1 for normal, 2 for rx, 3 for tx
+
+	while((send_normal == true) | (send_send == true) | (send_rec == true)){
+		//wait until all sends are complete before doing another one
+	}
 
 	HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable all interrupts that could use the Lora DMA
@@ -377,8 +382,11 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
 
     //HAL_Delay(100);
     while(rx_ready == false){
-//    	if(receivefifo[0] == 0x49){ //automatic I response
-//    		rx_ready = true;
+//    	if((receivefifo[0] == 0x49) & doing_send){ //automatic I response
+//    		c = receivefifo[0];
+//    		receivefifo[0] = 0;
+//    		rx_ready = false;
+//    		return c;
 //    	}
 //    	if(receivefifo[0] == 0x00){
 //    		rx_ready = true;
@@ -526,14 +534,19 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     bool done = false;
     uint8_t counter = 0;
     uint8_t value = 0;
+    doing_send = true;
 
     //this function will need to be updated
     if (length > RH_RF95_MAX_MESSAGE_LEN) {
+    	doing_send = false;
         return false;
     }
 
     //this->waitPacketSent(); // Make sure we dont interrupt an outgoing message
     //setModeIdle();
+    lora_write_single(0x12, 0xff,3); // Clear all IRQ flags//tx
+    lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3); //send
+
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY, 3); //new 57, 81, 01, 01 //tx
     //value = lora_read_single(RH_RF95_REG_01_OP_MODE);
     // while(value != 0x81){
@@ -589,7 +602,7 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     // }
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_TX,3);  // 57, 81, 01, 03//tx
     lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3); //send
-    HAL_Delay(1000);
+    //HAL_Delay(1000);
     // value = 0;
     // while((value == 0) | (value == 0x80)){
     //     value = lora_read_single(RH_RF95_REG_01_OP_MODE);//check irq register for done (12) //remove, checking if in tx state
@@ -615,6 +628,10 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     // }
 
     //logic to clear irq flags
+    value = uart_read(); //this should wait until the I response and then let the code move to the actual read
+    while(value != 0x49){
+    	HAL_Delay(1000);//error
+    }
     while(done == false){
         value = lora_read_single(0x12, hdma_usart_tx, huart, 3);//check irq register for done (12), send
         //value = lora_read_single(RH_RF95_REG_01_OP_MODE);//check irq register for done (12) //remove, checking if in tx state
@@ -624,6 +641,7 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
             done = true;
             lora_write_single(0x12, 0xff,3); // Clear all IRQ flags//tx
             lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3); //send
+            doing_send = false;
             return true;
         }
         else{
@@ -632,10 +650,12 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
             if(counter > 50){ //5 seconds
                 lora_write_single(0x12, 0xff,3); // Clear all IRQ flags//tx
                 lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3); //send
+                doing_send = false;
                 return false;
             }
         }
     }
+    doing_send = false;
     return true;
 }
 
