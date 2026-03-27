@@ -544,8 +544,10 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
 
     //this->waitPacketSent(); // Make sure we dont interrupt an outgoing message
     //setModeIdle();
+    HAL_Delay(10);
     lora_write_single(0x12, 0xff,3); // Clear all IRQ flags//tx
     lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3); //send
+    HAL_Delay(10);
 
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY, 3); //new 57, 81, 01, 01 //tx
     //value = lora_read_single(RH_RF95_REG_01_OP_MODE);
@@ -645,6 +647,11 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
             return true;
         }
         else{
+        	if(value == 0x15){
+        		while(true){
+        			//
+        		}
+        	}
         	HAL_Delay(1000);
             counter += 1;
             if(counter > 50){ //5 seconds
