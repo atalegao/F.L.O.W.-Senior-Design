@@ -100,10 +100,66 @@ bool mesh_send_data(uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery
 	good = lora_send(data, 2, hdma_usart1_tx, huart1);
 	return good;
 }
+bool mesh_handle_id_and_message_type(mesh_msg_type * type){
+	//read message_id
+	uint8_t message_id [4];
+	lora_read_fifo_all(message_id, 4, hdma_usart_tx, huart);
+
+	TODO: check if message id was already seen
+	: if so, ignore and return false
+	: else continue
+
+	//read message_type
+	uint8_t message_type [1];
+	lora_read_fifo_all(message_type, 1, hdma_usart_tx, huart);
+
+	TODO: will not work since read_fifo currently just resets fifo pointer to 0,
+			it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
+
+	type[0] = (mesh_msg_type) message_type[0]; //might be a typecasting error/warning
+	return true;
+}
+
+bool mesh_message_type_helper(mesh_msg_type type){
+	//this calls the correct sending message
+	bool good;
+	if(type == MESH_MSG_DATA){
+		good = mesh_send_data();
+	}
+	else if(type == MESH_MSG_POLL){
+		good = mesh_send_poll();
+	}
+	else if(type == MESH_MSG_ACK){
+		good = mesh_send_ack();
+	}
+	else if(type == MESH_MSG_DEAD){
+		good = mesh_send_dead();
+	}
+	else if(type == MESH_MSG_HELLO){
+		good = mesh_send_hello();
+	}
+	else if(type == MESH_MSG_ADD){
+		good = mesh_send_add();
+	}
+	else{
+		while(1){
+			//error
+		}
+	}
+}
+bool check_addr_correct_dir(uint8_t * dest_addr){
+	//TODO: check if addr is in the correct direction, if so return true, else false
+}
+
+bool check_addr_any_dir(uint8_t * dest_addr, mesh_msg_type * type){
+	//TODO:check if this node knows any nodes in the direction closer to the hub than the sender's addr
+	//or father from hub than sender's addr
+}
 
 bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
-	//this is the function that is called whenever a receive is sucessful in CAD mode
+	//this is the function that is called whenever a receive is successful in CAD mode
 	//this figure out what to do with the message
+	//return value is true if everything worked, false if something went wrong
 
 	//read buffer to get dest_addr
 	uint8_t dest_addr [ADDR_LENGTH];
@@ -120,19 +176,41 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 		}
 		i += 1;
 	}
-	//check if addr is in known nodes
-	TODO
+	TODO: check if addr is in known nodes and update that list accoridngly
+
 	if(addr_match == false){
 		if(addr_match_right_direction == true){
-			//check if addr is in the correct direction, if so, pass it on, else, don't
+			bool valid = check_addr_correct_dir(dest_addr);
+			if(valid){
+				mesh_msg_type type [1];
+				bool id_valid = mesh_handle_id_and_message_type(type);
+				if (id_valid){
+					bool good = mesh_message_type_helper(type);//pass on
+					return good;
+				}
+			}
+			return true; //don't pass on
 		}
 		else if(addr_match_any_direction == true){
-			//check if this node knows any nodes in the direction closer to the hub than the sender's addr
-			//or farther from hub if message is going away from hub
+			mesh_msg_type type [1];
+			bool id_valid = mesh_handle_id_and_message_type(type);
+			if (id_valid){
+				bool good_pre = check_addr_any_dir(dest_addr, type);
+				if(good_pre == true){
+					bool good = mesh_message_type_helper(type);//pass on
+					return good;
+				}
+			}
+			return true; //don't pass on
 		}
 		else{
 			//do nothing
+			return true;
 		}
+	}
+
+	if(addr_match == true){
+
 	}
 }
 
