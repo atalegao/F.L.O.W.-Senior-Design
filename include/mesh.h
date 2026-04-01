@@ -9,6 +9,10 @@
 #define MESH_DEFAULT_TIMEOUT    (4 * MESH_DEFAULT_HELLO_SEC)
 #define MESH_MAX_PACKET         64            // I need to look into what the actual mesh packet limit it, but I have put it as 64 for now
 
+#define ADDR_LENGTH 2
+#define BATTERY_LENGTH 1
+#define WATER_LENGTH 1
+
 typedef enum {
     MESH_MSG_DATA  = 1,
     MESH_MSG_POLL  = 2,
@@ -19,16 +23,16 @@ typedef enum {
 } mesh_msg_type;  // using this to enumerate the different message types. Currently, we have 6 types. 
 
 typedef struct {
-    uint8_t addr;
-    uint8_t battery;          
+    uint8_t [ADDR_LENGTH] addr;
+    uint8_t [BATTERY_LENGTH] battery;
     uint32_t last_seen;       
 } mesh_neighbor;  // this struct to detail characteristics for each neighbor in the table.  
 
 typedef struct{
     mesh_msg_type type;
-    uint8_t src;
-    uint8_t dest;
-    unit8_t msg_id;
+    uint8_t [ADDR_LENGTH] src;
+    uint8_t [ADDR_LENGTH] dest;
+    unit32_t msg_id;
 } mesh_header;
 
 void mesh_init(bool isHub, uint8_t ownAddress);  //isHub is just a bool which indicates whether a module is a node or hub, since they have different characteristics. 
