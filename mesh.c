@@ -28,13 +28,6 @@ uint32_t random_number_gen(void){
 	return random_number;
 }
 
-void get_self_addr(uint8_t * self_addr_local){
-	int i = 0;
-	while(i < ADDR_LENGTH){
-			self_addr_local[i] = self_addr[i];
-			i += 1;
-	}
-}
 
 bool check_addr_correct_dir(uint8_t * sending_addr, mesh_msg_type * type){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	//TODO: check if addr is in the correct direction, if so return true, else false
@@ -75,8 +68,7 @@ bool mesh_send_hello(uint8_t * battery, uint8_t * sending_addr, DMA_HandleTypeDe
 
 	//dest addr is any direction
 
-	uint8_t self_addr_local [ADDR_LENGTH];
-	get_self_addr(self_addr_local);//sending addr is this addr
+	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_HELLO);
 
 	//battery is from don't know where: register, call a function?
 
@@ -97,27 +89,13 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
 	//dead since is 4 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + BATTERY_LENGTH * 2];
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + BATTERY_LENGTH * 2];
 
 	int i = 0;
 	int j = 0;
 	int k = 0;
 
-	while(i < ADDR_LENGTH){ //dest_addr
-			message[i] = dest_addr[i];
-			i += 1;
-	}
-
-	k = i;
-	j = 0;
-	while(i < k + 4){ //message_id
-		message[i] = message_id[j];
-		i += 1;
-		j += 1;
-	}
-
-	message[i] = MESH_MSG_ADD; //message type
-	i += 1;
+	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_DEAD);
 
 	k = i;
 	j = 0;
@@ -184,30 +162,13 @@ bool mesh_send_add(uint8_t * dest_addr,uint8_t *, new_addr,uint8_t * coords, uin
 
 	//message is dest_addr, message_id, message_type, new node_addr, node coordinates (4 bytes), distance (2)
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + 2];
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2];
 
 	int i = 0;
+	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_ACK);
+
+	int k = i;
 	int j = 0;
-	int k = 0;
-
-	while(i < ADDR_LENGTH){ //dest_addr
-			message[i] = dest_addr[i];
-			i += 1;
-	}
-
-	k = i;
-	j = 0;
-	while(i < k + 4){ //message_id
-		message[i] = message_id[j];
-		i += 1;
-		j += 1;
-	}
-
-	message[i] = MESH_MSG_ADD; //message type
-	i += 1;
-
-	k = i;
-	j = 0;
 	while(i < k + ADDR_LENGTH){ //new_node_addr
 		message[i] = new_addr[j];
 		i += 1;
@@ -266,29 +227,12 @@ bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 }
 
 bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
-	//message is dest_addr, message_id, message_type, new_frequency
+	//message is dest_addr, message_id, message_type, sending_addr, new_frequency
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + 4];
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4];
 
 	int i = 0;
-	int j = 0;
-	int k = 0;
-
-	while(i < ADDR_LENGTH){ //dest_addr
-			message[i] = dest_addr[i];
-			i += 1;
-	}
-
-	k = i;
-	j = 0;
-	while(i < k + 4){ //message_id
-		message[i] = message_id[j];
-		i += 1;
-		j += 1;
-	}
-
-	message[i] = MESH_MSG_POLL; //message type
-	i += 1;
+	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_POLL);
 
 	k = i;
 	j = 0;
@@ -357,8 +301,8 @@ bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 ////////////////////////message id is the same for the same message through the chain, should not change along chain!!
 
 bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
-	//message is dest_addr, message_id, message_type, Message ID that it is acking
-	uint8_t message [ADDR_LENGTH + 4 + 1 + 4];
+	//message is dest_addr, message_id, message_type, sending_addr, Message ID that it is acking
+	uint8_t message [ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4];
 
 	//message ID is 32 bit random number
 	uint32_t message_id;
@@ -368,21 +312,7 @@ bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, DMA_HandleTypeDef
 	int j = 0;
 	int k = 0;
 
-	while(i < ADDR_LENGTH){ //dest_addr
-			message[i] = dest_addr[i];
-			i += 1;
-	}
-
-	k = i;
-	j = 0;
-	while(i < k + 4){ //message_id
-		message[i] = (uint8_t) (message_id >> (8 * j) );
-		i += 1;
-		j += 1;
-	}
-
-	message[i] = MESH_MSG_ACK; //message type
-	i += 1;
+	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_ACK);
 
 	k = i;
 	j = 0;
@@ -396,25 +326,40 @@ bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, DMA_HandleTypeDef
 	return good;
 }
 
-bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
-	//sending time, water distance, node addr that took data, battery level/status
-
-	//message is dest_addr, message_id, message_type, node addr that took data, time, water distance, battery status/level
-	int i = 0;
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH];
+int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_addr, mesh_msg_type type){
+	//adds dest_addr, message_id, message_type, and sending_node's addr to message
+	int i = 0
 	while(i < ADDR_LENGTH){ //dest_addr
 		message[i] = dest_addr[i];
 		i += 1;
 	}
 	int j = 0;
-	while(i < ADDR_LENGTH + 4){ //message_id
+	int k = i;
+	while(i < k + 4){ //message_id
 		message[i] = message_id[j];
 		i += 1;
 		j += 1;
 	}
-	message[i] = MESH_MSG_DATA; //message type
+	message[i] = type; //message type
 	i += 1;
 	j = 0;
+	int k = i;
+	while(i < k + ADDR_LENGTH){ //sending_addr
+		message[i] = self_addr[j];
+		i += 1;
+		j += 1;
+	}
+
+	return i;
+}
+bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
+	//sending time, water distance, node addr that took data, battery level/status
+
+	//message is dest_addr, message_id, message_type, sending_addr, node addr that took data, time, water distance, battery status/level
+	int i = 0;
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH];
+
+	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_DATA);
 	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH){ //addr that took data
 		message[i] = node_addr[j];
 		i += 1;
@@ -527,6 +472,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	}
 	mesh_msg_type type [1];
 	bool id_valid = mesh_handle_id_and_message_type(type);
+	////////////////get sending addr
 
 	if(id_valid == false){
 		return true; //don't have to do anything else, false is either message that this node already sent or a message that has already been seen
