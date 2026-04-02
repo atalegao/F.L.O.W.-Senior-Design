@@ -28,6 +28,44 @@ uint32_t random_number_gen(void){
 	return random_number;
 }
 
+void get_self_addr(uint8_t * self_addr_local){
+	int i = 0;
+	while(i < ADDR_LENGTH){
+			self_addr_local[i] = self_addr[i];
+			i += 1;
+	}
+}
+
+bool check_addr_correct_dir(uint8_t * sending_addr, mesh_msg_type * type){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+	//TODO: check if addr is in the correct direction, if so return true, else false
+}
+
+bool check_addr_any_dir(uint8_t * sending_addr, mesh_msg_type * type){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+	//TODO:check if this node knows any nodes in the direction closer to the hub than the sender's addr
+	//or father from hub than sender's addr
+
+}
+
+void find_dest_addr_to_hub(uint8_t * dest_addr){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+	//finds dest addr for a message going towards the hub
+}
+
+void find_dest_addr_away_hub(uint8_t * dest_addr){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+	//finds dest addr for a message going away from the hub
+}
+
+void set_self_addr(){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+	//updates a global uint8_t * called self_addr
+}
+
+void get_addr_any_direction(uint8_t * addr){
+	//define a special addr that means any direction
+}
+
+void get_addr_right_direction(uint8_t * addr){
+	//define a special addr that means correct direction
+}
+
 bool mesh_send_hello(uint8_t * battery, uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, sending_addr, battery
 
@@ -35,10 +73,18 @@ bool mesh_send_hello(uint8_t * battery, uint8_t * sending_addr, DMA_HandleTypeDe
 	uint32_t message_id;
 	message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
 
+	//dest addr is any direction
+
+	uint8_t self_addr_local [ADDR_LENGTH];
+	get_self_addr(self_addr_local);//sending addr is this addr
+
+	//battery is from don't know where: register, call a function?
+
 }
 
 bool mesh_rec_hello(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//update node addr list if needed
+	//message is dest_addr, message_id, message_type, sending_addr, battery
 	if(isHub){
 		//update mem
 	}
@@ -49,16 +95,87 @@ bool mesh_rec_hello(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 
 bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
-	//dead since is 4 bytes
-}
+	//dead since is 4 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
 
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + BATTERY_LENGTH * 2];
+
+	int i = 0;
+	int j = 0;
+	int k = 0;
+
+	while(i < ADDR_LENGTH){ //dest_addr
+			message[i] = dest_addr[i];
+			i += 1;
+	}
+
+	k = i;
+	j = 0;
+	while(i < k + 4){ //message_id
+		message[i] = message_id[j];
+		i += 1;
+		j += 1;
+	}
+
+	message[i] = MESH_MSG_ADD; //message type
+	i += 1;
+
+	k = i;
+	j = 0;
+	while(i < k+ADDR_LENGTH){ //dead_addr
+		message[i] = dead_addr[j];
+		i += 1;
+		j += 1;
+	}
+	k = i;
+	j = 0;
+	while(i < k+4){ //dead_since
+		message[i] = dead_since[j];
+		i += 1;
+		j += 1;
+	}
+	k = i;
+	j = 0;
+	while(i < k+BATTERY_LENGTH * 2){ //battery
+		message[i] = battery[j];
+		i += 1;
+		j += 1;
+	}
+	bool good;
+	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + BATTERY_LENGTH * 2), hdma_usart_tx, huart);
+	return good;
+}
+//dead since could be the actual time (I think 6 bytes)
 bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
-	if(isHub){
+	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
+	//dead since is 4 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
+
+	if(isHub){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 		//update mem
-		//send ack
+
+		//dest addr is node in any direction??????
+		 mesh_send_ack(uint8_t * dest_addr, message_id, hdma_usart_tx, huart);//send ack
 	}
 	//rest is node
 	//pass on towards hub
+
+	//get dead_addr
+	uint8_t dead_addr [ADDR_LENGTH];
+	lora_read_fifo_all(dead_addr, ADDR_LENGTH, hdma_usart_tx, huart);
+
+	uint8_t dead_since [4];
+	lora_read_fifo_all(dead_since, 4, hdma_usart_tx, huart);//get dead_since
+
+	uint8_t battery [BATTERY_LENGTH * 2];
+	lora_read_fifo_all(battery, BATTERY_LENGTH * 2, hdma_usart_tx, huart);//get battery
+
+	uint8_t dest_addr [ADDR_LENGTH];
+	find_dest_addr_to_hub(uint8_t * dest_addr);//find addr closer to hub
+
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + BATTERY_LENGTH * 2];
+
+	bool good;
+	good = mesh_send_dead(dest_addr, dead_addr,  dead_since, battery, message_id, hdma_usart_tx, huart);
+	return good;//send towards hub
 }
 
 
@@ -386,22 +503,7 @@ bool mesh_message_type_helper(mesh_msg_type type){ //TODO TODO TODO TODO TODO TO
 		}
 	}
 }
-bool check_addr_correct_dir(uint8_t * dest_addr){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-	//TODO: check if addr is in the correct direction, if so return true, else false
-}
 
-bool check_addr_any_dir(uint8_t * dest_addr, mesh_msg_type * type){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-	//TODO:check if this node knows any nodes in the direction closer to the hub than the sender's addr
-	//or father from hub than sender's addr
-}
-
-void find_dest_addr_to_hub(uint8_t * dest_addr){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-	//finds dest addr for a message going towards the hub
-}
-
-void find_dest_addr_away_hub(uint8_t * dest_addr){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-	//finds dest addr for a message going away from the hub
-}
 
 bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//////////////////////////done
 	//this is the function that is called whenever a receive is successful in CAD mode
@@ -416,7 +518,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	bool addr_match = true;
 	bool addr_match_right_direction = true;
 	bool addr_match_any_direction = true;
-	while (i < ADDR_LENGTH){
+	while (i < ADDR_LENGTH){//TODO for right and any direction check
 		if(dest_addr[i] != self_addr[i]){
 			addr_match = false;
 			break;
@@ -432,7 +534,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 
 	if(addr_match == false){
 		if(addr_match_right_direction == true){
-			bool valid = check_addr_correct_dir(dest_addr);
+			bool valid = check_addr_correct_dir(sending_addr, type);
 			if(valid){
 				bool good = mesh_message_type_helper(type);//pass on
 				return good;
@@ -440,7 +542,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 			return true; //don't pass on
 		}
 		else if(addr_match_any_direction == true){
-			bool good_pre = check_addr_any_dir(dest_addr, type);
+			bool good_pre = check_addr_any_dir(sending_addr, type);
 			if(good_pre == true){
 				bool good = mesh_message_type_helper(type);//pass on
 				return good;
@@ -489,19 +591,4 @@ bool mesh_rec_data(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 
 	}
 }
-
-typedef enum {
-    MESH_MSG_DATA  = 1,
-    MESH_MSG_POLL  = 2,
-    MESH_MSG_ACK   = 3,
-    MESH_MSG_DEAD  = 4,
-    MESH_MSG_HELLO = 5,
-    MESH_MSG_ADD   = 6,
-} mesh_msg_type;  // using this to enumerate the different message types. Currently, we have 6 types.
-
-typedef struct {
-    uint8_t [ADDR_LENGTH] addr;
-    uint8_t [BATTERY_LENGTH] battery;
-    uint32_t last_seen;
-} mesh_neighbor;  // this struct to detail characteristics for each neighbor in the table.
 
