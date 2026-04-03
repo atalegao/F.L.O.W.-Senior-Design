@@ -146,9 +146,11 @@ int main(void)
   HAL_NVIC_DisableIRQ (TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
   read_lora_fifo = false;
   receivefifo[0] = 0; //added
-  HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_SET);
+  //HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_SET);
+  HAL_GPIO_WritePin (GPIOB, 0, GPIO_PIN_RESET);
   HAL_Delay(1000);
-  HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_RESET);
+  //HAL_GPIO_WritePin (GPIOC, 8, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin (GPIOB, 0, GPIO_PIN_SET);
   HAL_Delay(1000);
   HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
   HAL_Delay(1000);//added
@@ -455,11 +457,22 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LoRa_power_GPIO_Port, LoRa_power_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PB0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LoRa_power_Pin */
   GPIO_InitStruct.Pin = LoRa_power_Pin;
