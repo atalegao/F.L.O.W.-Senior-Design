@@ -556,8 +556,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PH0 PH1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+  /*Configure GPIO pin : PH1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
@@ -663,9 +663,9 @@ void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
 
 
 void connected_test_all(void){
-	HAL_GPIO_WritePin(GPIOC, 2, GPIO_PIN_SET);//turn on all LEDs
-	HAL_GPIO_WritePin(GPIOC, 3, GPIO_PIN_SET);//turn on all LEDs
-	HAL_GPIO_WritePin(GPIOC, 4, GPIO_PIN_SET);//turn on all LEDs
+	HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);//turn on all LEDs
+	//HAL_GPIO_WritePin(GPIOC, 3, GPIO_PIN_SET);//turn on all LEDs
+	//HAL_GPIO_WritePin(GPIOC, 4, GPIO_PIN_SET);//turn on all LEDs
 
 	connected_test(hdma_usart2_tx, huart2);//check LoRa
 
