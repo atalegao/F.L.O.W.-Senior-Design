@@ -21,6 +21,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <RH_RF95.h>
 
 /* USER CODE END Includes */
 
@@ -59,6 +63,7 @@ RTC_TimeTypeDef *current_time;
 RTC_DateTypeDef *current_date;
 
 uint8_t usb_buffer_rtc [7];
+bool read_lora_fifo;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -77,6 +82,25 @@ static void MX_TIM21_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+bool sendfifo_ready_norm = true;
+int sendfifo_offset_norm = 0;
+bool rx_ready = false;
+uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa module
+uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
+uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
+int sendfifo_offset_send = 0;
+bool sendfifo_ready_send = true;
+int sendfifo_offset_rec = 0;
+bool sendfifo_ready_rec = true;
+
+bool send_normal = false;
+bool send_send = false;
+bool send_rec = false; //great names I know
+
+uint8_t global_receive_mode_from_cad;
+//1 means the lora timer is currently for receive mode timeout
+//0 means the lora timer is currently for cad cycle
 
 /* USER CODE END 0 */
 
@@ -97,6 +121,9 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  HAL_NVIC_DisableIRQ (SysTick_IRQn);
+  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(SysTick_IRQn);//while this is added here, it needs to be at the bottom of the main function right before the loop
 
   /* USER CODE END Init */
 
@@ -117,6 +144,33 @@ int main(void)
   MX_RTC_Init();
   MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
+  HAL_NVIC_DisableIRQ (TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
+  HAL_NVIC_DisableIRQ (TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
+  read_lora_fifo = false;
+  receivefifo[0] = 0; //added
+  HAL_GPIO_WritePin (GPIOB, 0, GPIO_PIN_RESET);
+  HAL_Delay(1000);
+  HAL_GPIO_WritePin (GPIOB, 0, GPIO_PIN_SET);
+  HAL_Delay(1000);
+  HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
+  HAL_Delay(1000);//added
+  connected_test_all();
+  lora_init();
+  HAL_Delay(1000);
+  //setup_lora_send_timer(&htim6); //set up lora send data timer
+  HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
+  HAL_NVIC_EnableIRQ(TIM21_IRQn);
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+
+  //send_data[0] = 0xF0;
+  //send_data[1] = 0x0F;
+  HAL_TIM_Base_Start_IT(&htim21);
+  //HAL_TIM_Base_Start_IT(&htim6);
+
+  HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
+  HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(SysTick_IRQn);
 
   /* USER CODE END 2 */
 
@@ -124,7 +178,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	go_to_sleep();//this should be the final line in the loop
+	//go_to_sleep();//this should be the final line in the loop
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -604,6 +658,30 @@ void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
 	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
 		//error
 	}
+}
+
+
+
+void connected_test_all(void){
+	HAL_GPIO_WritePin(GPIOC, 2, GPIO_PIN_SET);//turn on all LEDs
+	HAL_GPIO_WritePin(GPIOC, 3, GPIO_PIN_SET);//turn on all LEDs
+	HAL_GPIO_WritePin(GPIOC, 4, GPIO_PIN_SET);//turn on all LEDs
+
+	connected_test(hdma_usart2_tx, huart2);//check LoRa
+
+	//check Ultrasonic
+	//lpuart1
+
+	//send something to USB-TTL (don't require a response because it might not be connected)
+	//usart1
+
+	//wait some time
+	HAL_Delay(100);
+
+	HAL_GPIO_WritePin(GPIOC, 2, GPIO_PIN_RESET);//turn off all LEDs
+	HAL_GPIO_WritePin(GPIOC, 3, GPIO_PIN_RESET);//turn off all LEDs
+	HAL_GPIO_WritePin(GPIOC, 4, GPIO_PIN_RESET);//turn off all LEDs
+
 }
 
 /* USER CODE END 4 */

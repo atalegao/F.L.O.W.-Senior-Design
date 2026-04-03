@@ -31,6 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "lora.h"
 
 /* USER CODE END Includes */
 
@@ -83,6 +84,7 @@ void Error_Handler(void);
 #define TP_RX1_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+void connected_test_all(void);
 
 /* USER CODE END Private defines */
 
