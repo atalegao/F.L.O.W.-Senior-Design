@@ -898,6 +898,7 @@ void Adafruit_RA8875::rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
   }
 
   /* Wait for the command to finish */
+  //HAL_Delay(1000);
   waitPoll(RA8875_DCR, RA8875_DCR_LINESQUTRI_STATUS);
 }
 

@@ -7,6 +7,7 @@
 
 #include <Adafruit_RA8875.hpp>
 #include "entryPointCPP.hpp"
+#include "ui_def.h"
 //#include <Adafruit_RA8875.cpp>
 
 
@@ -452,7 +453,7 @@ void tsCalibrate(void)
   HAL_Delay(500);
 
   /* Clear the screen */
-  tft->fillScreen(RA8875_WHITE);
+  tft->fillScreen(RA8875_GREEN);
 
   // Do matrix calculations for calibration and store to EEPROM
   setCalibrationMatrix(&_tsLCDPoints[0], &_tsTSPoints[0], &_tsMatrix);
@@ -484,14 +485,14 @@ void setup()
 //    printf("RA8875 not found ... check your wires!");
 //    while (1);
 //  }
+//
 
-  /* Enables the display and sets up the backlight */
-  printf("Found RA8875");
+//  /* Enables the display and sets up the backlight */
   tft->displayOn(true);
   tft->GPIOX(true); // Enable TFT - display enable tied to GPIOX
   tft->PWM1config(true, RA8875_PWM_CLK_DIV1024); // PWM output for backlight
   tft->PWM1out(255);
-
+//
   /* Enable the touch screen */
   printf("Enabled the touch screen");
   //pinMode(RA8875_INT, INPUT);
@@ -499,16 +500,17 @@ void setup()
   HAL_GPIO_WritePin(RA8875_INT_GPIO_Port, RA8875_INT_Pin, GPIO_PIN_SET);
   tft->touchEnable(true);
 
+
   // Try some GFX acceleration!
-  //tft.drawCircle(100, 100, 50, RA8875_BLACK);
-  //tft.fillCircle(100, 100, 49, RA8875_GREEN);
-  //tft.drawPixel(10,10,RA8875_BLACK);
-  //tft.drawPixel(11,11,RA8875_BLACK);
-  //tft.drawRect(10, 10, 400, 200, RA8875_GREEN);
+//  tft->drawCircle(100, 100, 50, RA8875_BLACK);
+//  tft->fillCircle(100, 100, 49, RA8875_GREEN);
+//  tft->drawPixel(10,10,RA8875_BLACK);
+//  tft->drawPixel(11,11,RA8875_BLACK);
+//  tft->drawRect(10, 10, 400, 200, RA8875_GREEN);
   //tft.fillRect(11, 11, 398, 198, RA8875_BLUE);
   //tft.drawLine(10, 10, 200, 100, RA8875_RED);
 
-  tft->fillScreen(RA8875_WHITE);
+  //tft->fillScreen(RA8875_WHITE);
   HAL_Delay(100);
 
 #if defined(EEPROM_SUPPORTED)
@@ -524,7 +526,8 @@ void setup()
   set_calibration_from_history(&_tsMatrix);//uncomment to set calibration from memory
 #endif
   /* _tsMatrix should now be populated with the correct coefficients! */
-  printf("Waiting for touch events ...");
+  uiInit(tft);
+  //testLCD(tft);
 }
 
 /**************************************************************************/
@@ -568,8 +571,7 @@ void update_on_touch()
 	    tft->touchRead(&x, &y);
 	    raw.x = x;
 	    raw.y = y;
-	    printf("Touch: ");
-	    printf("%ld",raw.x); printf(", "); printf("%ld",raw.y);
+
 	  }
 	  else
 	  {
@@ -579,10 +581,9 @@ void update_on_touch()
 
 	  calibrateTSPoint(&calibrated, &raw, &_tsMatrix );
 
-	  /* Draw a single pixel at the calibrated point */
-	  tft->fillCircle(calibrated.x, calibrated.y, 3, RA8875_BLACK);
 
 	  uint16_t x2, y2;
 	  tft->touchRead(&x2, &y2);
+	  uiHandleTouch(calibrated.x, calibrated.y);
 }
 
