@@ -49,6 +49,7 @@ I2C_HandleTypeDef hi2c2;
 UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart1_rx;
 DMA_HandleTypeDef hdma_usart2_rx;
 DMA_HandleTypeDef hdma_usart2_tx;
 
@@ -102,6 +103,8 @@ uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
 //0 means the lora timer is currently for cad cycle
 
+uint8_t receivefifo_usb_ttl [0];
+
 /* USER CODE END 0 */
 
 /**
@@ -152,7 +155,8 @@ int main(void)
   HAL_Delay(1000);
   HAL_GPIO_WritePin (GPIOB, 0, GPIO_PIN_SET);
   HAL_Delay(1000);
-  HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
+  HAL_UART_Receive_DMA(&huart2, receivefifo, 1); //lora
+  HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
   HAL_Delay(1000);//added
   connected_test_all();
   lora_init();
@@ -512,6 +516,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Channel2_3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
   /* DMA1_Channel4_5_6_7_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel4_5_6_7_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel4_5_6_7_IRQn);
@@ -658,6 +665,12 @@ void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
 	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
 		//error
 	}
+	HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+	//turns on DMA for receive again since non-dma was used before
+}
+
+void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef huart){
+	HAL_UART_Transmit_DMA(&huart, message, length);
 }
 
 
@@ -673,7 +686,12 @@ void connected_test_all(void){
 	//lpuart1
 
 	//send something to USB-TTL (don't require a response because it might not be connected)
-	//usart1
+	uint8_t message [4];
+	message[0] = 't';
+	message[1] = 'e';
+	message[2] = 's';
+	message[3] = 't';
+	send_usb_ttl(message, 4, huart1);
 
 	//wait some time
 	HAL_Delay(100);
@@ -683,6 +701,82 @@ void connected_test_all(void){
 	HAL_GPIO_WritePin(GPIOC, 4, GPIO_PIN_RESET);//turn off all LEDs
 
 }
+
+void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
+	if(huart->Instance == huart2.Instance){ //lora
+		//normal code
+		//receivefifo[0] = 0;
+		rx_ready = true;
+		//then call receive again
+		HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
+		if(global_receive_mode_from_cad == 1){
+			global_receive_mode_from_cad = 0;
+			//this is for when CAD mode detected a preamble
+			//this should not happen, figure out what to do here later
+			if(receivefifo[0] == 0x49){
+				//this is when the response is I (0x49)
+				//this means this is actually the I response for a DIO interrupt
+				//call the read FIFO and figure out response function
+				//lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart[0]); //second input is length
+				//HAL_NVIC_SetPendingIRQ(1);//above line is called in this interrupt to deal with interrupt priorities
+				int value;
+				value = uart_read(); //dummy read to get rid of the I response
+				read_lora_fifo = true;
+			}
+		}
+	}
+	else if(huart->Instance == huart1.Instance){ //usb-ttl
+		if(receivefifo_usb_ttl[0] == 0xFF){ //special character to indicate setting RTC
+			//set flag to update rtc
+			//do not activate DMA
+			//activate it when done with rtc stuff
+		}
+		else{//ignore
+			HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+		}
+	}
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if(huart->Instance == huart2.Instance){
+		if(send_normal){
+			for (int i = 0;  i < FIFOSIZE_TX_NORM; i++){
+				sendfifo_norm[i] = 0;
+				}
+			sendfifo_offset_norm = 0;
+			sendfifo_ready_norm = true;
+			send_normal = false;
+		}
+		else if(send_send){
+			for (int i = 0;  i < FIFOSIZE_TX_SEND; i++){
+				sendfifo_send_message[i] = 0;
+			}
+			sendfifo_offset_send = 0;
+			sendfifo_ready_send = true;
+			send_send = false;
+		}
+		else if(send_rec){
+			for (int i = 0;  i < FIFOSIZE_TX_REC; i++){
+				sendfifo_rec_message[i] = 0;
+			}
+			sendfifo_offset_rec = 0;
+			sendfifo_ready_rec = true;
+			send_rec = false;
+		}
+		else{
+			//should not happen, error
+			while (true){
+				//infinite loop to know something is wrong
+			}
+		}
+	}
+	else if(huart->Instance == huart1.Instance){//usb-ttl
+		//do nothing
+	}
+
+}
+
 
 /* USER CODE END 4 */
 
