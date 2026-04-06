@@ -149,13 +149,13 @@ int main(void)
   MX_RTC_Init();
   MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
-  HAL_NVIC_DisableIRQ (TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
-  HAL_NVIC_DisableIRQ (TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
+  HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
+  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
   read_lora_fifo = false;
   receivefifo[0] = 0; //added
-  HAL_GPIO_WritePin (GPIOB, 0, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_RESET);
   HAL_Delay(1000);
-  HAL_GPIO_WritePin (GPIOB, 0, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_SET);
   HAL_Delay(1000);
   HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1); //ultrasonic sensor data receive on lpuart1
 
@@ -163,8 +163,12 @@ int main(void)
   HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
   HAL_Delay(1000);//added
   connected_test_all();
+<<<<<<< HEAD
   lora_init();
   ultrasonic_init(); 
+=======
+  lora_init(hdma_usart2_tx, huart2);
+>>>>>>> 83b061861a4f7e2ee69a7fffebc84da48a79a26d
   HAL_Delay(1000);
   //setup_lora_send_timer(&htim6); //set up lora send data timer
   HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
@@ -554,10 +558,13 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin|LORA_TGL_RELAY_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LORA_MOSFET_Pin|TP_TX1_Pin|TP_RX1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, TP_TX2_Pin|TP_RX2_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, TP_TX1_Pin|TP_RX1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PC13 PC14 PC15 PC0
                            PC1 PC5 PC6 PC7
@@ -683,8 +690,6 @@ void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef huart){
 
 void connected_test_all(void){
 	HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);//turn on all LEDs
-	//HAL_GPIO_WritePin(GPIOC, 3, GPIO_PIN_SET);//turn on all LEDs
-	//HAL_GPIO_WritePin(GPIOC, 4, GPIO_PIN_SET);//turn on all LEDs
 
 	connected_test(hdma_usart2_tx, huart2);//check LoRa
 
@@ -702,19 +707,17 @@ void connected_test_all(void){
 	//wait some time
 	HAL_Delay(100);
 
-	HAL_GPIO_WritePin(GPIOC, 2, GPIO_PIN_RESET);//turn off all LEDs
-	HAL_GPIO_WritePin(GPIOC, 3, GPIO_PIN_RESET);//turn off all LEDs
-	HAL_GPIO_WritePin(GPIOC, 4, GPIO_PIN_RESET);//turn off all LEDs
+	HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);//turn off all LEDs
 
 }
 
 void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
-	if(huart->Instance == huart2.Instance){ //lora
+	if(huart->Instance == USART2){ //lora
 		//normal code
 		//receivefifo[0] = 0;
 		rx_ready = true;
 		//then call receive again
-		HAL_UART_Receive_DMA(&huart1, receivefifo, 1);
+		HAL_UART_Receive_DMA(&huart2, receivefifo, 1);
 		if(global_receive_mode_from_cad == 1){
 			global_receive_mode_from_cad = 0;
 			//this is for when CAD mode detected a preamble
@@ -731,6 +734,7 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 			}
 		}
 	}
+<<<<<<< HEAD
   //ADDED FOR ULTRASONIC
   else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
     ultrasonic_process_rx(rx_data);
@@ -738,6 +742,9 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
   }
   //
 	else if(huart->Instance == huart1.Instance){ //usb-ttl
+=======
+	else if(huart->Instance == USART1){ //usb-ttl
+>>>>>>> 83b061861a4f7e2ee69a7fffebc84da48a79a26d
 		if(receivefifo_usb_ttl[0] == 0xFF){ //special character to indicate setting RTC
 			//set flag to update rtc
 			//do not activate DMA
@@ -751,7 +758,7 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
-	if(huart->Instance == huart2.Instance){
+	if(huart->Instance == USART2){//lora
 		if(send_normal){
 			for (int i = 0;  i < FIFOSIZE_TX_NORM; i++){
 				sendfifo_norm[i] = 0;
@@ -783,7 +790,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 			}
 		}
 	}
-	else if(huart->Instance == huart1.Instance){//usb-ttl
+	else if(huart->Instance == USART1){//usb-ttl
 		//do nothing
 	}
 
