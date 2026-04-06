@@ -18,7 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include "ultrasonic.h"
+#include "lora.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
@@ -60,6 +61,7 @@ TIM_HandleTypeDef htim21;
 /* USER CODE BEGIN PV */
 //usart2 is lora
 //uart1 is USB
+//
 RTC_TimeTypeDef *current_time;
 RTC_DateTypeDef *current_date;
 
@@ -155,11 +157,14 @@ int main(void)
   HAL_Delay(1000);
   HAL_GPIO_WritePin (GPIOB, 0, GPIO_PIN_SET);
   HAL_Delay(1000);
+  HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1); //ultrasonic sensor data receive on lpuart1
+
   HAL_UART_Receive_DMA(&huart2, receivefifo, 1); //lora
   HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
   HAL_Delay(1000);//added
   connected_test_all();
   lora_init();
+  ultrasonic_init(); 
   HAL_Delay(1000);
   //setup_lora_send_timer(&htim6); //set up lora send data timer
   HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
@@ -184,6 +189,7 @@ int main(void)
   {
 	//go_to_sleep();//this should be the final line in the loop
     /* USER CODE END WHILE */
+      ultrasonic_update();  // Handle ultrasonic state machine
 
     /* USER CODE BEGIN 3 */
   }
@@ -725,6 +731,12 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 			}
 		}
 	}
+  //ADDED FOR ULTRASONIC
+  else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
+    ultrasonic_process_rx(rx_data);
+    HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1);
+  }
+  //
 	else if(huart->Instance == huart1.Instance){ //usb-ttl
 		if(receivefifo_usb_ttl[0] == 0xFF){ //special character to indicate setting RTC
 			//set flag to update rtc
