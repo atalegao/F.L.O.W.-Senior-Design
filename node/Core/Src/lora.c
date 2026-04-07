@@ -119,10 +119,11 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 	HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_NVIC_DisableIRQ(USART1_IRQn); //disable all interrupts that could use the Lora DMA
+	HAL_StatusTypeDef status;
 
 
 	if(send_type == 1){ //normal
-		HAL_UART_Transmit_DMA(&huart, sendfifo_norm, length);
+		status = HAL_UART_Transmit_DMA(&huart, sendfifo_norm, length);
 		sendfifo_ready_norm = false;
 //		if(global_receive_mode_from_cad == 1){//remove, this is for testing
 //			//do nothing

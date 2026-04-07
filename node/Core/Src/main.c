@@ -154,8 +154,10 @@ int main(void)
   HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
   read_lora_fifo = false;
   receivefifo[0] = 0; //added
+  HAL_GPIO_WritePin (LORA_TGL_RELAY_GPIO_Port, LORA_TGL_RELAY_Pin, GPIO_PIN_RESET);//Relay
   HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_RESET);
   HAL_Delay(1000);
+  HAL_GPIO_WritePin (LORA_TGL_RELAY_GPIO_Port, LORA_TGL_RELAY_Pin, GPIO_PIN_SET);//Relay
   HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_SET);
   HAL_Delay(1000);
   HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1); //ultrasonic sensor data receive on lpuart1
@@ -164,12 +166,8 @@ int main(void)
   HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
   HAL_Delay(1000);//added
   connected_test_all();
-<<<<<<< HEAD
-  lora_init();
   ultrasonic_init(); 
-=======
   lora_init(hdma_usart2_tx, huart2);
->>>>>>> 83b061861a4f7e2ee69a7fffebc84da48a79a26d
   HAL_Delay(1000);
   //setup_lora_send_timer(&htim6); //set up lora send data timer
   HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
@@ -735,17 +733,12 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 			}
 		}
 	}
-<<<<<<< HEAD
-  //ADDED FOR ULTRASONIC
-  else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
-    ultrasonic_process_rx(rx_data);
-    HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1);
-  }
-  //
-	else if(huart->Instance == huart1.Instance){ //usb-ttl
-=======
+	//ADDED FOR ULTRASONIC
+	else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
+		ultrasonic_process_rx(rx_data);
+		HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1);
+	}
 	else if(huart->Instance == USART1){ //usb-ttl
->>>>>>> 83b061861a4f7e2ee69a7fffebc84da48a79a26d
 		if(receivefifo_usb_ttl[0] == 0xFF){ //special character to indicate setting RTC
 			//set flag to update rtc
 			//do not activate DMA

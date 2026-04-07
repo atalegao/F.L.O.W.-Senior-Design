@@ -306,6 +306,14 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(USART2_IRQn);
     /* USER CODE BEGIN USART2_MspInit 1 */
+    HAL_NVIC_DisableIRQ (USART2_IRQn);
+    HAL_NVIC_SetPriority(USART2_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(USART2_IRQn);
+
+    //also do for the DMA used with UART (should be the same as USART1)
+    HAL_NVIC_DisableIRQ (DMA1_Channel4_5_IRQn);
+    HAL_NVIC_SetPriority(DMA1_Channel4_5_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(DMA1_Channel4_5_IRQn);
 
     /* USER CODE END USART2_MspInit 1 */
   }
