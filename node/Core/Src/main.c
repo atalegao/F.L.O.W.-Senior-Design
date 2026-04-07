@@ -62,7 +62,7 @@ TIM_HandleTypeDef htim21;
 /* USER CODE BEGIN PV */
 //usart2 is lora
 //uart1 is USB
-//
+//lpuart1 is ultrasonic sensor
 RTC_TimeTypeDef *current_time;
 RTC_DateTypeDef *current_date;
 
