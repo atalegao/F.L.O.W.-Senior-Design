@@ -50,6 +50,7 @@ UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_usart1_tx;
 DMA_HandleTypeDef hdma_usart2_rx;
 DMA_HandleTypeDef hdma_usart2_tx;
 
@@ -343,7 +344,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 57600;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -695,7 +696,7 @@ void connected_test_all(void){
 	send_usb_ttl(message, 4, huart1);
 
 	//wait some time
-	HAL_Delay(100);
+	HAL_Delay(1000);
 
 	HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);//turn off all LEDs
 
