@@ -180,7 +180,7 @@ void lora_write_multiple(uint8_t reg, uint8_t* value, uint8_t length, uint8_t me
     //writes value to the address specified in reg
     //reg is in the LoRa microcontroller
     //length is the number of bytes written
-	//message type: 1: norm, 2: rx, 3: tx
+	//message type: 1: norm, 2: rx, 3: tx, has to be one of them
 	if(message_type == 1){
 		uart_write_normal('W');
 		uart_write_normal(reg | RH_WRITE_MASK);
