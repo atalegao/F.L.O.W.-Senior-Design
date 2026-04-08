@@ -396,25 +396,113 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart1_tx, huart1);
 	return good;
 }
+
+void message_id_init(message_id_history message){
+	//this makes a message_id struct have default values
+	message.this_node_sent = false;
+	message.valid = false;
+	message.message_id[0] = 0;
+	message.message_id[1] = 0;
+	message.message_id[2] = 0;
+	message.message_id[3] = 0;
+}
+
+void message_id_struct_init(){
+	//initalizes 10 message id structs
+	//1 is most recent, 10 is least recent
+	message_id_init(message1);
+	message_id_init(message2);
+	message_id_init(message3);
+	message_id_init(message4);
+	message_id_init(message5);
+	message_id_init(message6);
+	message_id_init(message7);
+	message_id_init(message8);
+	message_id_init(message9);
+	message_id_init(message10);
+
+}
+unit8_t check_message_id_all(uint8_t * message_id, bool match[2]){
+	//checks if the message id is one that this node has received recently (in last 10 messages)
+	int i = 1;
+	bool match = false;
+	while(match == false){
+		unit8_t valid = check_message_id(message1);
+		if(valid == 0){//0 means no match
+			i += 1;
+		}
+		else if(valid == 1){//1 = match, not this node that sent
+			match[0] = true;
+			match[1] = false;
+			return i;
+		}
+		else if(valid == 2){ //2 = match, this node sent it
+			match[0] = true;
+			match[1] = true;
+			return i;
+		}
+	}
+	match[0] = false;
+	return 0;
+}
+void replace_one_message_id_struct(message_id_history changing, message_id_history values){
+	changing.this_node_sent = values.this_node_sent;
+	changing.valid = values.valid;
+	changing.message_id[0] = values.message_id[0];
+	changing.message_id[1] = values.message_id[1];
+	changing.message_id[2] = values.message_id[2];
+	changing.message_id[3] = values.message_id[3];
+}
+
+void shift_all_messages(uint8_t * message_id, bool this_node_sent){
+	//this shifts all messages
+	//10 becomes 9, 9 becomes 8, ...
+	replace_one_message_id_struct(message10, message9);//first is one changing to be the same as the second one
+	replace_one_message_id_struct(message9, message8);
+	replace_one_message_id_struct(message8, message7);
+	replace_one_message_id_struct(message7, message6);
+	replace_one_message_id_struct(message6, message5);
+	replace_one_message_id_struct(message5, message4);
+	replace_one_message_id_struct(message4, message3);
+	replace_one_message_id_struct(message3, message2);
+	replace_one_message_id_struct(message2, message1);
+	message_id_history message0;
+	message0.message_id[0] = message_id[0];
+	message0.message_id[1] = message_id[1];
+	message0.message_id[2] = message_id[2];
+	message0.message_id[3] = message_id[3];
+	message0.this_node_sent = this_node_sent;
+	message0.valid = true;
+	replace_one_message_id_struct(message1, message0);
+}
+
 bool mesh_handle_id_and_message_type(mesh_msg_type * type){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	//read message_id
 	uint8_t message_id [4];
 	lora_read_fifo_all(message_id, 4, hdma_usart_tx, huart);
 
-	TODO: check if message id was already seen
-	: if so, ignore and return false
-	: else continue
-
-	  TODO: check if message id was one this node already sent
-	  	: if so, dont send it again and return false
-	  	: else continue
+	bool match[2]; //0 is match or no match, 1 is true if this node sent it
+	unit8_t message_seen = check_message_id_all(message_id, match);
+	if(match[0] == true){
+		//matched
+		if(match[1] == true){//this node sent the message
+			//TODO: don't send this message again
+			return false;
+		}
+		else{//this node did not send the message
+			return false;
+		}
+	}
+	else{
+		shift_all_messages(message_id, false); //shift all messages, adding new one to top
+	}
 
 	//read message_type
 	uint8_t message_type [1];
 	lora_read_fifo_all(message_type, 1, hdma_usart_tx, huart);
 
-	TODO: will not work since read_fifo currently just resets fifo pointer to 0,
-			it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
+	//TODO: will not work since read_fifo currently just resets fifo pointer to 0,
+	//		it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
 
 	type[0] = (mesh_msg_type) message_type[0]; //might be a typecasting error/warning
 	return true;
@@ -471,7 +559,9 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	}
 	mesh_msg_type type [1];
 	bool id_valid = mesh_handle_id_and_message_type(type);
-	////////////////get sending addr
+
+	uint8_t sending_addr [ADDR_LENGTH];
+	lora_read_fifo_all(sending_addr, (uint8_t)ADDR_LENGTH, hdma_usart_tx, huart);//get sending addr
 
 	if(id_valid == false){
 		return true; //don't have to do anything else, false is either message that this node already sent or a message that has already been seen

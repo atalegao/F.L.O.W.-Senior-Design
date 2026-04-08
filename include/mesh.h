@@ -28,12 +28,20 @@ typedef struct {
     uint32_t last_seen;       
 } mesh_neighbor;  // this struct to detail characteristics for each neighbor in the table.  
 
+//typedef struct{
+//    mesh_msg_type type;
+//    uint8_t [ADDR_LENGTH] src;
+//    uint8_t [ADDR_LENGTH] dest;
+//    unit32_t msg_id;
+//} mesh_header;
+
 typedef struct{
-    mesh_msg_type type;
-    uint8_t [ADDR_LENGTH] src;
-    uint8_t [ADDR_LENGTH] dest;
-    unit32_t msg_id;
-} mesh_header;
+    bool this_node_sent; //true if this node is one that originally sent the message
+    uint8_t [4] message_id;
+    bool valid; //1 if an actual message, 0 if just an initialized default message_id
+} message_id_history;
+
+message_id_history message1, message2, message3, message4, message5, message6, message7, message8, message9. message10;
 
 void mesh_init(bool isHub, uint8_t ownAddress);  //isHub is just a bool which indicates whether a module is a node or hub, since they have different characteristics. 
 void mesh_set_hello_interval(uint32_t seconds);   
