@@ -502,7 +502,7 @@ bool mesh_handle_id_and_message_type(mesh_msg_type * type){//TODO TODO TODO TODO
 	lora_read_fifo_all(message_type, 1, hdma_usart_tx, huart);
 
 	//TODO: will not work since read_fifo currently just resets fifo pointer to 0,
-	//		it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
+	it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
 
 	type[0] = (mesh_msg_type) message_type[0]; //might be a typecasting error/warning
 	return true;
