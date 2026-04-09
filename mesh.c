@@ -4,6 +4,8 @@ extern bool isHub;
 extern uint8_t last_sent_msg_id [4];
 
 extern uint8_t [ADDR_LENGTH] self_addr;
+extern uint8_t [ADDR_LENGTH] addr_any_direction;
+extern uint8_t [ADDR_LENGTH] addr_right_direction;
 
 void mesh_init(bool isHub, uint8_t ownAddress){
     if (isHub) {
@@ -28,35 +30,132 @@ uint32_t random_number_gen(void){
 	return random_number;
 }
 
+//TODO: will not work since read_fifo currently just resets fifo pointer to 0,
+//it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
 
-bool check_addr_correct_dir(uint8_t * sending_addr, mesh_msg_type * type){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-	//TODO: check if addr is in the correct direction, if so return true, else false
+bool check_addr_closer_to_hub(uint8_t * first_addr,uint8_t * second_addr){
+	//returns true if the first addr is closer to the hub than the second addr
+	while(i >= 0){
+		if(abs(first_addr[i]) > abs(second_addr[i])){
+			return false;
+		}
+		i -= 1;
+	}
+}
+
+bool check_addr_farther_from_hub(uint8_t * first_addr,uint8_t * second_addr){
+	//returns true if the first addr is farther from the hub than the second addr
+	while(i >= 0){
+		if(abs(first_addr[i]) < abs(second_addr[i])){
+			return false;
+		}
+		i -= 1;
+	}
+}
+
+bool check_addr_correct_dir(uint8_t * sending_addr, mesh_msg_type * type){
+	//check if addr is in the correct direction, if so return true, else false
+	int i = ADDR_LENGTH;
+	if((type == MESH_MSG_POLL) | (type == MESH_MSG_ACK)){//away from hub
+		return check_addr_farther_from_hub(self_addr, sending_addr);
+	}
+	else{//towards hub: data, dead, add
+		return check_addr_closer_to_hub(self_addr, sending_addr);
+	}
+    //hello is neither
 }
 
 bool check_addr_any_dir(uint8_t * sending_addr, mesh_msg_type * type){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-	//TODO:check if this node knows any nodes in the direction closer to the hub than the sender's addr
+	//check if this node knows any nodes in the direction closer to the hub than the sender's addr
 	//or father from hub than sender's addr
 
+	bool cor_dir = check_addr_correct_dir(sending_addr, type);//check correct direction first
+	if(cor_dir){
+		return true;
+	}
+	//else check if this node knows and node farther in the correct direction than the sending addr
+	bool match1, match2, match3, match4, match5, match6;
+	if((type == MESH_MSG_POLL) | (type == MESH_MSG_ACK)){//away from hub
+		match1 = check_addr_farther_from_hub(, sending_addr); //first value is the addr of the first known node
+		match2 = check_addr_farther_from_hub(, sending_addr);
+		match3 = check_addr_farther_from_hub(, sending_addr);
+		match4 = check_addr_farther_from_hub(, sending_addr);
+		match5 = check_addr_farther_from_hub(, sending_addr);
+		match6 = check_addr_farther_from_hub(, sending_addr);
+		return (match1 | match2 | match3 | match4 | match5 | match6);
+	}
+	else{//towards hub: data, dead, add
+		match1 = check_addr_closer_to_hub(, sending_addr);
+		match2 = check_addr_closer_to_hub(, sending_addr);
+		match3 = check_addr_closer_to_hub(, sending_addr);
+		match4 = check_addr_closer_to_hub(, sending_addr);
+		match5 = check_addr_closer_to_hub(, sending_addr);
+		match6 = check_addr_closer_to_hub(, sending_addr);
+		return (match1 | match2 | match3 | match4 | match5 | match6);
+	}
+	//hello is neither
+
 }
 
-void find_dest_addr_to_hub(uint8_t * dest_addr){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+void find_dest_addr_to_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	//finds dest addr for a message going towards the hub
+	//looks in neighbor node structs
+	if((attempt == 1) | (attempt == 2)){ //farthest towards hub
+		//
+	}
+	else if((attempt == 3) | (attempt == 4)){//2nd farthest towards hub
+		//
+	}
+	else if((attempt == 5) | (attempt == 6)){//3rd farthest towards hub
+		//
+	}
+	else if((attempt == 7) | (attempt == 8)){//correct direction (towards hub)
+		//
+	}
+	else{ //any direction
+		//
+	}
 }
 
-void find_dest_addr_away_hub(uint8_t * dest_addr){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	//finds dest addr for a message going away from the hub
+	//looks in neighbor node structs
+	if((attempt == 1) | (attempt == 2)){ //farthest away from hub
+		//
+	}
+	else if((attempt == 3) | (attempt == 4)){//2nd farthest away from hub
+		//
+	}
+	else if((attempt == 5) | (attempt == 6)){//3rd farthest away from hub
+		//
+	}
+	else if((attempt == 7) | (attempt == 8)){//correct direction (away from hub)
+		//
+	}
+	else{ //any direction
+		//
+	}
 }
 
-void set_self_addr(){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+void set_self_addr(uint8_t * addr){
 	//updates a global uint8_t * called self_addr
+	int i = 0;
+	while (i < ADDR_LENGTH){
+		self_addr[i] = addr[i];
+		i += 1;
+	}
 }
 
-void get_addr_any_direction(uint8_t * addr){
+void define_addr_any_direction(uint8_t * addr){
 	//define a special addr that means any direction
+	addr_any_direction[0] = 0xFF;
+	addr_any_direction[1] = 0x7F; //int max (signed)
 }
 
-void get_addr_right_direction(uint8_t * addr){
+void define_addr_right_direction(uint8_t * addr){
 	//define a special addr that means correct direction
+	addr_right_direction[0] = 0x00;
+	addr_right_direction[1] = 0x80; //int min (signed)
 }
 
 bool mesh_send_hello(uint8_t * battery, uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
@@ -258,9 +357,9 @@ bool mesh_rec_poll(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//get new frequency
 	uint8_t freq_pre [4];
 	lora_read_fifo_all(freq_pre, 4, hdma_usart_tx, huart);
-	//change polling frequency //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 
 	uint32_t new_frequency = {freq_pre[3], freq_pre[2], freq_pre[1], freq_pre[0]};
+	setup_lora_send_timer(TIM_HandleTypeDef * htim, new_frequency);
 
 
 	//send a new polling frequency message
@@ -277,24 +376,9 @@ bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 
 	uint8_t acked_msg_id [4];
 	lora_read_fifo_all(acked_msg_id, 4, hdma_usart_tx, huart);
+	clear_sent_message_struct(acked_msg_id); //this clears the sent data struct if it is a match and does nothing if it is not
 
-	bool same_ack = true;
-	while (i < 4){
-		if(acked_msg_id[i] != last_sent_msg_id[i]){
-			same_ack = false;
-			break;
-		}
-		i += 1;
-	}
-
-	if(same_ack){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-		//own message was acked, so don't send again
-		//change some global variable to not send the message again
-	}
-	else{
-		//not own message that was acked, so ignore
-		return true;
-	}
+	return true;
 }
 
 ////////////////////////message id is the same for the same message through the chain, should not change along chain!!
@@ -408,7 +492,7 @@ void message_id_init(message_id_history message){
 }
 
 void message_id_struct_init(){
-	//initalizes 10 message id structs
+	//Initializes 10 message id structs
 	//1 is most recent, 10 is least recent
 	message_id_init(message1);
 	message_id_init(message2);
@@ -420,6 +504,12 @@ void message_id_struct_init(){
 	message_id_init(message8);
 	message_id_init(message9);
 	message_id_init(message10);
+	//also inits 5 sent messages (the last 5 messages that this node has sent and may still need to send again)
+	message_id_init(sent_message1);
+	message_id_init(sent_message2);
+	message_id_init(sent_message3);
+	message_id_init(sent_message4);
+	message_id_init(sent_message5);
 
 }
 unit8_t check_message_id_all(uint8_t * message_id, bool match[2]){
@@ -476,7 +566,44 @@ void shift_all_messages(uint8_t * message_id, bool this_node_sent){
 	replace_one_message_id_struct(message1, message0);
 }
 
-bool mesh_handle_id_and_message_type(mesh_msg_type * type){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+bool check_message_struct_match(uint8_t * message_id, uint8_t * message_id2){
+	//this checks if the two message ids are equal, returns true if they are
+	int i = 0;
+	while (i < 4){
+		if(message_id[i] != message_id2[i]){
+			return false
+		}
+		i += 1;
+	}
+	return true;
+
+}
+void clear_sent_message_struct(uint8_t * message_id){
+	//this removes the message from a sent_message struct
+	bool match = false;
+	match = check_message_struct_match(message_id, sent_message1.message_id);
+	if(match){
+		sent_message1.valid = false;
+	}
+	match = check_message_struct_match(message_id, sent_message2.message_id);
+	if(match){
+		sent_message2.valid = false;
+	}
+	match = check_message_struct_match(message_id, sent_message3.message_id);
+	if(match){
+		sent_message3.valid = false;
+	}
+	match = check_message_struct_match(message_id, sent_message4.message_id);
+	if(match){
+		sent_message4.valid = false;
+	}
+	match = check_message_struct_match(message_id, sent_message5.message_id);
+	if(match){
+		sent_message5.valid = false;
+	}
+}
+
+bool mesh_handle_id_and_message_type(mesh_msg_type * type){
 	//read message_id
 	uint8_t message_id [4];
 	lora_read_fifo_all(message_id, 4, hdma_usart_tx, huart);
@@ -486,7 +613,7 @@ bool mesh_handle_id_and_message_type(mesh_msg_type * type){//TODO TODO TODO TODO
 	if(match[0] == true){
 		//matched
 		if(match[1] == true){//this node sent the message
-			//TODO: don't send this message again
+			clear_sent_message_struct(message_id);//don't send this message again
 			return false;
 		}
 		else{//this node did not send the message
@@ -500,9 +627,6 @@ bool mesh_handle_id_and_message_type(mesh_msg_type * type){//TODO TODO TODO TODO
 	//read message_type
 	uint8_t message_type [1];
 	lora_read_fifo_all(message_type, 1, hdma_usart_tx, huart);
-
-	//TODO: will not work since read_fifo currently just resets fifo pointer to 0,
-	it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
 
 	type[0] = (mesh_msg_type) message_type[0]; //might be a typecasting error/warning
 	return true;
@@ -550,10 +674,15 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	bool addr_match = true;
 	bool addr_match_right_direction = true;
 	bool addr_match_any_direction = true;
-	while (i < ADDR_LENGTH){//TODO for right and any direction check
+	while (i < ADDR_LENGTH){
 		if(dest_addr[i] != self_addr[i]){
 			addr_match = false;
-			break;
+		}
+		if(dest_addr[i] != addr_right_direction[i]){
+			addr_match_right_direction = false;
+		}
+		if(dest_addr[i] != addr_any_direction[i]){
+			addr_match_any_direction = false;
 		}
 		i += 1;
 	}

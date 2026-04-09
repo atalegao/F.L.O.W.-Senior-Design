@@ -2,6 +2,7 @@
 #define MESH_H
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 
 #define MESH_MAX_NEIGHBORS      7
@@ -42,6 +43,7 @@ typedef struct{
 } message_id_history;
 
 message_id_history message1, message2, message3, message4, message5, message6, message7, message8, message9. message10;
+message_id_history sent_message1, sent_message2, sent_message3, sent_message4, sent_message5;
 
 void mesh_init(bool isHub, uint8_t ownAddress);  //isHub is just a bool which indicates whether a module is a node or hub, since they have different characteristics. 
 void mesh_set_hello_interval(uint32_t seconds);   
