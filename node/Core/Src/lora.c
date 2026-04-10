@@ -756,7 +756,7 @@ void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim){
 	__HAL_TIM_SET_COUNTER(htim, 0); //set counter to 0
 }
 
-void setup_lora_send_timer(TIM_HandleTypeDef * htim){
+void setup_lora_send_timer(TIM_HandleTypeDef * htim, uint32_t lora_send_time){
 	//this is for setting up the lora_send timer
 	uint16_t prescaler;
 	uint16_t period;
@@ -764,11 +764,11 @@ void setup_lora_send_timer(TIM_HandleTypeDef * htim){
 
 	HAL_TIM_Base_DeInit(htim);
 	//input clock is APB2Tim_clock (currently 32 MHz)
-	//use LORA_SEND_TIME (in ms)
+	//use lora_send_time (in ms)
 	//time * (APB2Tim_clock / (Prescaler + 1) / (Period + 1)) = 1
 	// (time * APB2Tim_clock) = ((Prescaler + 1) * (Period + 1))
 
-	val = LORA_SEND_TIME / 100 * 32 * 1000000; // /100 is for ms conversion 10^6 is M
+	val = lora_send_time / 100 * 32 * 1000000; // /100 is for ms conversion 10^6 is M
 	period = 64 * 1000; //64000, almost max value
 	prescaler = val / period;
 

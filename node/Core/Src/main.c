@@ -18,8 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "ultrasonic.h"
-#include "lora.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
@@ -55,6 +54,8 @@ DMA_HandleTypeDef hdma_usart1_tx;
 DMA_HandleTypeDef hdma_usart2_rx;
 DMA_HandleTypeDef hdma_usart2_tx;
 
+RNG_HandleTypeDef hrng;
+
 RTC_HandleTypeDef hrtc;
 
 TIM_HandleTypeDef htim21;
@@ -63,8 +64,8 @@ TIM_HandleTypeDef htim21;
 //usart2 is lora
 //uart1 is USB
 //lpuart1 is ultrasonic sensor
-RTC_TimeTypeDef *current_time;
-RTC_DateTypeDef *current_date;
+RTC_TimeTypeDef current_time;
+RTC_DateTypeDef current_date;
 
 uint8_t usb_buffer_rtc [7];
 bool read_lora_fifo;
@@ -80,6 +81,7 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM21_Init(void);
+static void MX_RNG_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -93,6 +95,7 @@ uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa module
 uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
 uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
 uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
+uint8_t rx_data[1]; //TODO: change to actual size
 int sendfifo_offset_send = 0;
 bool sendfifo_ready_send = true;
 int sendfifo_offset_rec = 0;
@@ -149,6 +152,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_RTC_Init();
   MX_TIM21_Init();
+  MX_RNG_Init();
   /* USER CODE BEGIN 2 */
   HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
   HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
@@ -192,7 +196,6 @@ int main(void)
   {
 	//go_to_sleep();//this should be the final line in the loop
     /* USER CODE END WHILE */
-      ultrasonic_update();  // Handle ultrasonic state machine
 
     /* USER CODE BEGIN 3 */
   }
@@ -243,11 +246,13 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2
-                              |RCC_PERIPHCLK_LPUART1|RCC_PERIPHCLK_RTC;
+                              |RCC_PERIPHCLK_LPUART1|RCC_PERIPHCLK_RTC
+                              |RCC_PERIPHCLK_USB;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
   PeriphClkInit.Lpuart1ClockSelection = RCC_LPUART1CLKSOURCE_PCLK1;
   PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -403,6 +408,32 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * @brief RNG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_RNG_Init(void)
+{
+
+  /* USER CODE BEGIN RNG_Init 0 */
+
+  /* USER CODE END RNG_Init 0 */
+
+  /* USER CODE BEGIN RNG_Init 1 */
+
+  /* USER CODE END RNG_Init 1 */
+  hrng.Instance = RNG;
+  if (HAL_RNG_Init(&hrng) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RNG_Init 2 */
+
+  /* USER CODE END RNG_Init 2 */
 
 }
 

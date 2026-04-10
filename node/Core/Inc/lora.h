@@ -72,5 +72,5 @@ void set_mode_cad(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void sleep_cycle(void);
 void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim);
-void setup_lora_send_timer(TIM_HandleTypeDef * htim);
+void setup_lora_send_timer(TIM_HandleTypeDef * htim, uint32_t lora_send_time);
 int main(void);
