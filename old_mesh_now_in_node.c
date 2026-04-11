@@ -41,6 +41,8 @@ bool check_addr_closer_to_hub(uint8_t * first_addr,uint8_t * second_addr){
 		}
 		i -= 1;
 	}
+	//TODO: abs value handling is wrong, convert to a unit16_t and then do abs once
+	fix
 }
 
 bool check_addr_farther_from_hub(uint8_t * first_addr,uint8_t * second_addr){
@@ -693,6 +695,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	lora_read_fifo_all(sending_addr, (uint8_t)ADDR_LENGTH, hdma_usart_tx, huart);//get sending addr
 
 	if(id_valid == false){
+		send_usb_ttl_message(false, type[0], message_id, 1, huart1);//usb ttl debug print
 		return true; //don't have to do anything else, false is either message that this node already sent or a message that has already been seen
 	}
 
@@ -700,17 +703,21 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 		if(addr_match_right_direction == true){
 			bool valid = check_addr_correct_dir(sending_addr, type);
 			if(valid){
+				send_usb_ttl_message(false, type[0], message_id, 0, huart1);//usb ttl debug print
 				bool good = mesh_message_type_helper(type);//pass on
 				return good;
 			}
+			send_usb_ttl_message(false, type[0], message_id, 2, huart1);//usb ttl debug print
 			return true; //don't pass on
 		}
 		else if(addr_match_any_direction == true){
 			bool good_pre = check_addr_any_dir(sending_addr, type);
 			if(good_pre == true){
+				send_usb_ttl_message(false, type[0], message_id, 0, huart1);//usb ttl debug print
 				bool good = mesh_message_type_helper(type);//pass on
 				return good;
 			}
+			send_usb_ttl_message(false, type[0], message_id, 3, huart1);//usb ttl debug print
 			return true; //don't pass on
 		}
 		else{
@@ -720,6 +727,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	}
 
 	if(addr_match == true){
+		send_usb_ttl_message(false, type[0], message_id, 0, huart1);//usb ttl debug print
 		bool good = mesh_message_type_helper(type);//pass on
 		return good;
 	}
@@ -756,3 +764,69 @@ bool mesh_rec_data(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	}
 }
 
+void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, uint8_t time_or_ignore_reason, UART_HandleTypeDef huart){
+	//this prints a message to the usb-ttl about sent and received messages
+	uint8_t message [64];
+	if(sent){
+		char* str1 ="Sent a message with id: ";
+		memcpy(&message[0], str1, strlen(str1));
+		send_usb_ttl(message, strlen(str1), huart);
+	}
+	else {
+		char* str1 ="Received a message with id: ";
+		memcpy(&message[0], str1, strlen(str1));
+		send_usb_ttl(message, strlen(str1), huart);
+	}
+	send_usb_ttl(message_id, 4, huart);
+	switch(type){
+	case MESH_MSG_DATA:
+		char* str2 =" of type data";
+		break;
+	case MESH_MSG_POLL:
+		char* str2 =" of type poll";
+		break;
+	case MESH_MSG_ACK:
+		char* str2 =" of type ack";
+		break;
+	case MESH_MSG_DEAD:
+		char* str2 =" of type dead";
+		break;
+	case MESH_MSG_HELLO:
+		char* str2 =" of type hello";
+		break;
+	case MESH_MSG_ADD:
+		char* str2 =" of type add";
+		break;
+	}
+	memcpy(&message[0], str2, strlen(str2));
+	send_usb_ttl(message, strlen(str2), huart);
+	if(sent){
+		char* str3 =" for the";
+		memcpy(&message[0], str3, strlen(str3));
+		send_usb_ttl(message, strlen(str3), huart);
+		send_usb_ttl(time_or_ignore_reaso, 1, huart);
+		char* str3 =" time";
+		memcpy(&message[0], str3, strlen(str3));
+		send_usb_ttl(message, strlen(str3), huart);
+	}
+	else{
+		case(time_or_ignore_reason){
+		case 0:
+			char* str4 =" and accepted the message";
+			break;
+		case 1:
+			char* str4 =" and ignored due to invalid id";
+			break;
+		case 2:
+			char* str4 =" and ignored due to right direction fail";
+			break;
+		case 3:
+			char* str4 =" and ignored due to any direction fail";
+			break;
+		}
+		memcpy(&message[0], str4, strlen(str4));
+		send_usb_ttl(message, strlen(str4), huart);
+	}
+}
+
+//TODO: add send_usb_ttl_message(true, type[0], message_id, 1, huart);//usb ttl debug print in functions that call the sending function

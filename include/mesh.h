@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include "stm32l0xx_hal.h"
 
 
 #define MESH_MAX_NEIGHBORS      7
