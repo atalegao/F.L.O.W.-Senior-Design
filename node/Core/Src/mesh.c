@@ -16,6 +16,44 @@ extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim6;
 extern DMA_HandleTypeDef hdma_usart2_tx;
 
+//could make all of these buffers to be able to resend multiple messages of the same type at once
+//could also not accept messages if the buffer (or just the single bool) is full
+extern bool resend_msg_poll;
+extern uint8_t resend_msg_poll_attempt;
+extern uint8_t * resend_msg_poll_dest_addr;
+extern uint8_t * resend_msg_poll_message_id;
+extern uint32_t resend_msg_poll_new_frequency;
+
+extern bool resend_msg_ack;
+extern uint8_t resend_msg_ack_attempt;
+extern uint8_t * resend_msg_ack_dest_addr;
+extern uint32_t resend_msg_ack_acked_msg_id;
+
+extern bool resend_msg_dead;
+extern uint8_t resend_msg_dead_attempt;
+extern uint8_t * resend_msg_dead_dest_addr;
+extern uint8_t * resend_msg_dead_dead_addr;
+extern uint8_t * resend_msg_dead_dead_since;
+extern uint8_t * resend_msg_dead_battery;
+extern uint8_t * resend_msg_dead_message_id;
+
+extern bool resend_msg_data;
+extern uint8_t resend_msg_data_attempt;
+extern uint8_t * resend_msg_data_message_id;
+extern uint8_t * resend_msg_data_dest_addr;
+extern uint8_t* resend_msg_data_water_height;
+extern uint8_t *resend_msg_data_battery_status;
+extern uint8_t * resend_msg_data_node_addr;
+extern uint8_t * resend_msg_data_time;
+
+extern bool resend_msg_add;
+extern uint8_t resend_msg_add_attempt;
+extern uint8_t * resend_msg_add_dest_addr;
+extern uint8_t * resend_msg_add_new_addr;
+extern uint8_t * resend_msg_add_coords;
+extern uint8_t * resend_msg_add_distance;
+extern uint8_t * resend_msg_add_message_id;
+
 void mesh_init(bool isHub, uint8_t ownAddress){
     if (isHub) {
         // Initialize as a hub
@@ -41,6 +79,29 @@ uint32_t random_number_gen(void){
 
 //TODO: will not work since read_fifo currently just resets fifo pointer to 0,
 //it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
+
+//TODO: add send_usb_ttl_message(true, type[0], message_id, 1, huart);//usb ttl debug print in functions that call the sending function
+
+//TODO: need a timer to resend a message that was not received, the timer calls the below function
+void handle_resending(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+	//go through each send type to see if it has a flag to send again
+	if(resend_msg_poll){
+		//dest addr should be found using attempt number declared above (as extern in this file)
+		mesh_send_poll(resend_msg_poll_dest_addr, resend_msg_poll_message_id, resend_msg_poll_new_frequency, hdma_usart_tx, huart);
+	}
+	if(resend_msg_ack){
+		mesh_send_ack(resend_msg_ack_dest_addr, resend_msg_ack_acked_msg_id,hdma_usart_tx, huart);
+	}
+	if(resend_msg_dead){
+		mesh_send_dead(resend_msg_dead_dest_addr, resend_msg_dead_dead_addr, resend_msg_dead_dead_since, resend_msg_dead_battery, resend_msg_dead_message_id , hdma_usart_tx, huart);
+	}
+	if(resend_msg_data){
+		mesh_send_data(resend_msg_data_message_id, resend_msg_data_dest_addr, resend_msg_data_water_height, resend_msg_data_battery_status, resend_msg_data_node_addr, resend_msg_data_time,hdma_usart_tx, huart);
+	}
+	if(resend_msg_add){
+		mesh_send_add(resend_msg_add_dest_addr,resend_msg_add_new_addr,resend_msg_add_coords, resend_msg_add_distance, resend_msg_add_message_id, hdma_usart_tx, huart);
+	}
+}
 
 void init_one_neighbor(mesh_neighbor node){
 	node.addr[0] = 0;
@@ -181,7 +242,7 @@ void find_dest_addr_to_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TOD
 	}
 }
 
-void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){
 	//finds dest addr for a message going away from the hub
 	//looks in neighbor node structs
 	int sum = neighbor_away_hub1.valid + neighbor_away_hub2.valid + neighbor_away_hub3.valid;
@@ -772,7 +833,7 @@ bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id)
 	return true;
 }
 
-bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//this calls the correct sending message
 	bool good;
 	if(type == MESH_MSG_DATA){
@@ -970,5 +1031,3 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		send_usb_ttl(message, strlen(str4), huart);
 	}
 }
-
-//TODO: add send_usb_ttl_message(true, type[0], message_id, 1, huart);//usb ttl debug print in functions that call the sending function
