@@ -58,6 +58,7 @@ RNG_HandleTypeDef hrng;
 
 RTC_HandleTypeDef hrtc;
 
+TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim21;
 
 /* USER CODE BEGIN PV */
@@ -82,6 +83,7 @@ static void MX_USART2_UART_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM21_Init(void);
 static void MX_RNG_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -95,7 +97,7 @@ uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa module
 uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
 uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
 uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
-uint8_t rx_data[1]; //TODO: change to actual size
+extern uint8_t * rx_data;
 int sendfifo_offset_send = 0;
 bool sendfifo_ready_send = true;
 int sendfifo_offset_rec = 0;
@@ -153,6 +155,7 @@ int main(void)
   MX_RTC_Init();
   MX_TIM21_Init();
   MX_RNG_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
   HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
@@ -498,6 +501,44 @@ static void MX_RTC_Init(void)
   /* USER CODE BEGIN RTC_Init 2 */
 
   /* USER CODE END RTC_Init 2 */
+
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 0;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 65535;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
 
 }
 

@@ -1,5 +1,6 @@
 #include "main.h"
 #include "mesh.h"
+#include <string.h>
 
 extern RTC_TimeTypeDef current_time;
 extern RTC_DateTypeDef current_date;
@@ -10,6 +11,10 @@ extern uint8_t self_addr [ADDR_LENGTH];
 extern uint8_t addr_any_direction [ADDR_LENGTH];
 extern uint8_t addr_right_direction [ADDR_LENGTH];
 extern RNG_HandleTypeDef hrng;
+extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
+extern TIM_HandleTypeDef htim6;
+extern DMA_HandleTypeDef hdma_usart2_tx;
 
 void mesh_init(bool isHub, uint8_t ownAddress){
     if (isHub) {
@@ -36,6 +41,23 @@ uint32_t random_number_gen(void){
 
 //TODO: will not work since read_fifo currently just resets fifo pointer to 0,
 //it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
+
+void init_one_neighbor(mesh_neighbor node){
+	node.addr[0] = 0;
+	node.addr[1] = 0;
+	node.battery[0] = 0;
+	node.last_seen = 0;
+	node.valid = false;
+}
+// 1 is closest to this node, 3 is farthest from this node
+void init_neighbors(){
+	init_one_neighbor(neighbor_to_hub1);
+	init_one_neighbor(neighbor_to_hub2);
+	init_one_neighbor(neighbor_to_hub3);
+	init_one_neighbor(neighbor_away_hub1);
+	init_one_neighbor(neighbor_away_hub2);
+	init_one_neighbor(neighbor_away_hub3);
+}
 
 bool check_addr_closer_to_hub(uint8_t * first_addr,uint8_t * second_addr){
 	//returns true if the first addr is closer to the hub than the second addr
@@ -81,66 +103,144 @@ bool check_addr_any_dir(uint8_t * sending_addr, mesh_msg_type * type){ //TODO TO
 		return true;
 	}
 	//else check if this node knows and node farther in the correct direction than the sending addr
-	bool match1, match2, match3, match4, match5, match6;
+	bool match;
 	if((type[0] == MESH_MSG_POLL) | (type[0] == MESH_MSG_ACK)){//away from hub
-		match1 = check_addr_farther_from_hub(, sending_addr); //first value is the addr of the first known node
-		match2 = check_addr_farther_from_hub(, sending_addr);
-		match3 = check_addr_farther_from_hub(, sending_addr);
-		match4 = check_addr_farther_from_hub(, sending_addr);
-		match5 = check_addr_farther_from_hub(, sending_addr);
-		match6 = check_addr_farther_from_hub(, sending_addr);
-		return (match1 | match2 | match3 | match4 | match5 | match6);
+		match = (check_addr_farther_from_hub(neighbor_away_hub3.addr, sending_addr) & neighbor_away_hub3.valid);
+		return (match);
 	}
 	else{//towards hub: data, dead, add
-		match1 = check_addr_closer_to_hub(, sending_addr);
-		match2 = check_addr_closer_to_hub(, sending_addr);
-		match3 = check_addr_closer_to_hub(, sending_addr);
-		match4 = check_addr_closer_to_hub(, sending_addr);
-		match5 = check_addr_closer_to_hub(, sending_addr);
-		match6 = check_addr_closer_to_hub(, sending_addr);
-		return (match1 | match2 | match3 | match4 | match5 | match6);
+		match = (check_addr_closer_to_hub(neighbor_to_hub1.addr, sending_addr) & neighbor_to_hub1.valid);
+		return (match);
 	}
 	//hello is neither
 
 }
+//to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
+
 
 void find_dest_addr_to_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	//finds dest addr for a message going towards the hub
 	//looks in neighbor node structs
+	int sum = neighbor_to_hub1.valid + neighbor_to_hub2.valid + neighbor_to_hub3.valid;
+	if (sum == 0){
+		if(attempt < 7){
+			dest_addr[0] = addr_right_direction[0];
+			dest_addr[1] = addr_right_direction[1];
+			return;
+		}
+		else{
+			dest_addr[0] = addr_any_direction[0];
+			dest_addr[1] = addr_any_direction[1];
+			return;
+		}
+	}
+
 	if((attempt == 1) | (attempt == 2)){ //farthest towards hub
-		//
+		switch(sum){
+		case 3:
+			dest_addr[0] = neighbor_to_hub3.addr[0];
+			dest_addr[1] = neighbor_to_hub3.addr[1];
+			break;
+		case 2:
+			dest_addr[0] = neighbor_to_hub2.addr[0];
+			dest_addr[1] = neighbor_to_hub2.addr[1];
+			break;
+		case 1:
+			dest_addr[0] = neighbor_to_hub1.addr[0];
+			dest_addr[1] = neighbor_to_hub1.addr[1];
+			break;
+		}
 	}
 	else if((attempt == 3) | (attempt == 4)){//2nd farthest towards hub
-		//
+		switch(sum){
+			case 3:
+				dest_addr[0] = neighbor_to_hub2.addr[0];
+				dest_addr[1] = neighbor_to_hub2.addr[1];
+				break;
+			case 2:
+				dest_addr[0] = neighbor_to_hub2.addr[0];
+				dest_addr[1] = neighbor_to_hub2.addr[1];
+				break;
+			case 1:
+				dest_addr[0] = neighbor_to_hub1.addr[0];
+				dest_addr[1] = neighbor_to_hub1.addr[1];
+				break;
+				}
 	}
 	else if((attempt == 5) | (attempt == 6)){//3rd farthest towards hub
-		//
+		dest_addr[0] = neighbor_to_hub1.addr[0];
+		dest_addr[1] = neighbor_to_hub1.addr[1];
 	}
 	else if((attempt == 7) | (attempt == 8)){//correct direction (towards hub)
-		//
+		dest_addr[0] = addr_right_direction[0];
+		dest_addr[1] = addr_right_direction[1];
 	}
 	else{ //any direction
-		//
+		dest_addr[0] = addr_any_direction[0];
+		dest_addr[1] = addr_any_direction[1];
 	}
 }
 
 void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	//finds dest addr for a message going away from the hub
 	//looks in neighbor node structs
+	int sum = neighbor_away_hub1.valid + neighbor_away_hub2.valid + neighbor_away_hub3.valid;
+	if (sum == 0){
+		if(attempt < 7){
+			dest_addr[0] = addr_right_direction[0];
+			dest_addr[1] = addr_right_direction[1];
+			return;
+		}
+		else{
+			dest_addr[0] = addr_any_direction[0];
+			dest_addr[1] = addr_any_direction[1];
+			return;
+		}
+	}
+
 	if((attempt == 1) | (attempt == 2)){ //farthest away from hub
-		//
+		switch(sum){
+		case 3:
+			dest_addr[0] = neighbor_away_hub3.addr[0];
+			dest_addr[1] = neighbor_away_hub3.addr[1];
+			break;
+		case 2:
+			dest_addr[0] = neighbor_away_hub2.addr[0];
+			dest_addr[1] = neighbor_away_hub2.addr[1];
+			break;
+		case 1:
+			dest_addr[0] = neighbor_away_hub1.addr[0];
+			dest_addr[1] = neighbor_away_hub1.addr[1];
+			break;
+		}
 	}
-	else if((attempt == 3) | (attempt == 4)){//2nd farthest away from hub
-		//
+	else if((attempt == 3) | (attempt == 4)){//2nd farthest towards hub
+		switch(sum){
+			case 3:
+				dest_addr[0] = neighbor_away_hub2.addr[0];
+				dest_addr[1] = neighbor_away_hub2.addr[1];
+				break;
+			case 2:
+				dest_addr[0] = neighbor_away_hub2.addr[0];
+				dest_addr[1] = neighbor_away_hub2.addr[1];
+				break;
+			case 1:
+				dest_addr[0] = neighbor_away_hub1.addr[0];
+				dest_addr[1] = neighbor_away_hub1.addr[1];
+				break;
+				}
 	}
-	else if((attempt == 5) | (attempt == 6)){//3rd farthest away from hub
-		//
+	else if((attempt == 5) | (attempt == 6)){//3rd farthest towards hub
+		dest_addr[0] = neighbor_away_hub1.addr[0];
+		dest_addr[1] = neighbor_away_hub1.addr[1];
 	}
-	else if((attempt == 7) | (attempt == 8)){//correct direction (away from hub)
-		//
+	else if((attempt == 7) | (attempt == 8)){//correct direction (towards hub)
+		dest_addr[0] = addr_right_direction[0];
+		dest_addr[1] = addr_right_direction[1];
 	}
 	else{ //any direction
-		//
+		dest_addr[0] = addr_any_direction[0];
+		dest_addr[1] = addr_any_direction[1];
 	}
 }
 
@@ -168,16 +268,27 @@ void define_addr_right_direction(uint8_t * addr){
 bool mesh_send_hello(uint8_t * battery, uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, sending_addr, battery
 
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH];
+
 	//message ID is 32 bit random number
 	uint32_t message_id;
 	message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
+	uint8_t message_id_actual [4];
+	memcpy(message_id_actual, &message_id, sizeof(uint32_t));
 
 	//dest addr is any direction
+	uint8_t dest_addr [2];
+	dest_addr [0] = addr_any_direction[0];
+	dest_addr [1] = addr_any_direction[1];
 
-	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_HELLO);
+	int i = 0;
 
-	//battery is from don't know where: register, call a function?
+	i = mesh_send_add_header(message, message_id_actual, dest_addr, MESH_MSG_HELLO);
 
+	//TODO: get battery
+	bool good;
+	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
+	return good;
 }
 
 bool mesh_rec_hello(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
@@ -193,9 +304,9 @@ bool mesh_rec_hello(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 
 bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
-	//dead since is 4 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
+	//dead since is 6 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + BATTERY_LENGTH * 2];
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2];
 
 	int i = 0;
 	int j = 0;
@@ -212,7 +323,7 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 	}
 	k = i;
 	j = 0;
-	while(i < k+4){ //dead_since
+	while(i < k+6){ //dead_since
 		message[i] = dead_since[j];
 		i += 1;
 		j += 1;
@@ -225,19 +336,19 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 		j += 1;
 	}
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + BATTERY_LENGTH * 2), hdma_usart_tx, huart);
+	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2), hdma_usart_tx, huart);
 	return good;
 }
 //dead since could be the actual time (I think 6 bytes)
 bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
-	//dead since is 4 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
+	//dead since is 6 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
 
 	if(isHub){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 		//update mem
 
 		//dest addr is node in any direction??????
-		 mesh_send_ack(uint8_t * dest_addr, message_id, hdma_usart_tx, huart);//send ack
+		 //mesh_send_ack(uint8_t * dest_addr, message_id, hdma_usart_tx, huart);//send ack
 	}
 	//rest is node
 	//pass on towards hub
@@ -246,16 +357,14 @@ bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 	uint8_t dead_addr [ADDR_LENGTH];
 	lora_read_fifo_all(dead_addr, ADDR_LENGTH, hdma_usart_tx, huart);
 
-	uint8_t dead_since [4];
-	lora_read_fifo_all(dead_since, 4, hdma_usart_tx, huart);//get dead_since
+	uint8_t dead_since [6];
+	lora_read_fifo_all(dead_since, 6, hdma_usart_tx, huart);//get dead_since
 
 	uint8_t battery [BATTERY_LENGTH * 2];
 	lora_read_fifo_all(battery, BATTERY_LENGTH * 2, hdma_usart_tx, huart);//get battery
 
 	uint8_t dest_addr [ADDR_LENGTH];
-	find_dest_addr_to_hub(uint8_t * dest_addr);//find addr closer to hub
-
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + BATTERY_LENGTH * 2];
+	find_dest_addr_to_hub(dest_addr, 1);//find addr closer to hub, 1st attempt
 
 	bool good;
 	good = mesh_send_dead(dest_addr, dead_addr,  dead_since, battery, message_id, hdma_usart_tx, huart);
@@ -312,7 +421,7 @@ bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 
 	//get new node_addr, node coordinates, distance
 	uint8_t dest_addr [ADDR_LENGTH];
-	find_dest_addr_to_hub(uint8_t * dest_addr);
+	find_dest_addr_to_hub(dest_addr, 1);
 
 	//get new node addr
 	uint8_t new_node_addr [ADDR_LENGTH];
@@ -339,8 +448,8 @@ bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_freq
 	int i = 0;
 	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_POLL);
 
-	k = i;
-	j = 0;
+	int k = i;
+	int j = 0;
 	while(i < k + 4){ //new frequency
 		message[i] = (uint8_t) (new_frequency >> (8 * j) );
 		i += 1;
@@ -352,25 +461,26 @@ bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_freq
 	return good;
 }
 
-bool mesh_rec_poll(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//pass on message away from hub
 	if(isHub){
 		return true; //should never happen, but just in case
 	}
 
 	uint8_t dest_addr [ADDR_LENGTH];
-	find_dest_addr_away_hub(uint8_t * dest_addr);
+	find_dest_addr_away_hub(dest_addr, 1);
 
 	//get new frequency
 	uint8_t freq_pre [4];
 	lora_read_fifo_all(freq_pre, 4, hdma_usart_tx, huart);
 
-	uint32_t new_frequency = {freq_pre[3], freq_pre[2], freq_pre[1], freq_pre[0]};
-	setup_lora_send_timer(TIM_HandleTypeDef * htim, new_frequency);
+	uint32_t new_frequency;
+	memcpy(&new_frequency, freq_pre, sizeof(uint32_t));
+	setup_lora_send_timer(&htim6, new_frequency);
 
 
 	//send a new polling frequency message
-	bool good = mesh_send_poll(dest_addr, new_frequency,hdma_usart_tx, huart);
+	bool good = mesh_send_poll(dest_addr, message_id, new_frequency,hdma_usart_tx, huart);
 	return good;
 }
 
@@ -401,8 +511,10 @@ bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, DMA_HandleTypeDef
 	int i = 0;
 	int j = 0;
 	int k = 0;
+	uint8_t message_id_actual [4];
+	memcpy(message_id_actual, &message_id, sizeof(uint32_t));
 
-	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_ACK);
+	i = mesh_send_add_header(message, message_id_actual, dest_addr, MESH_MSG_ACK);
 
 	k = i;
 	j = 0;
@@ -412,13 +524,13 @@ bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, DMA_HandleTypeDef
 		j += 1;
 	}
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + 4), hdma_usart1_tx, huart1);
+	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + 4), hdma_usart_tx, huart);
 	return good;
 }
 
 int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_addr, mesh_msg_type type){
 	//adds dest_addr, message_id, message_type, and sending_node's addr to message
-	int i = 0
+	int i = 0;
 	while(i < ADDR_LENGTH){ //dest_addr
 		message[i] = dest_addr[i];
 		i += 1;
@@ -433,7 +545,7 @@ int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_
 	message[i] = type; //message type
 	i += 1;
 	j = 0;
-	int k = i;
+	k = i;
 	while(i < k + ADDR_LENGTH){ //sending_addr
 		message[i] = self_addr[j];
 		i += 1;
@@ -450,6 +562,7 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH];
 
 	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_DATA);
+	int j = 0;
 	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH){ //addr that took data
 		message[i] = node_addr[j];
 		i += 1;
@@ -484,7 +597,7 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 	}
 
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart1_tx, huart1);
+	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
 	return good;
 }
 
@@ -519,28 +632,47 @@ void message_id_struct_init(){
 	message_id_init(sent_message5);
 
 }
-uint8_t check_message_id_all(uint8_t * message_id, bool match[2]){
-	//checks if the message id is one that this node has received recently (in last 10 messages)
-	int i = 1;
-	bool match = false;
-	while(match == false){
-		unit8_t valid = check_message_id(message1);
-		if(valid == 0){//0 means no match
-			i += 1;
-		}
-		else if(valid == 1){//1 = match, not this node that sent
-			match[0] = true;
-			match[1] = false;
-			return i;
-		}
-		else if(valid == 2){ //2 = match, this node sent it
-			match[0] = true;
-			match[1] = true;
-			return i;
-		}
+
+uint8_t check_message_id(message_id_history past_message, uint8_t * message_id){
+	if(past_message.valid == false){
+		return 0;
 	}
+	bool match = check_message_struct_match(message_id, past_message.message_id);
+	return match;
+}
+
+void check_message_id_all(uint8_t * message_id, bool * match){
+	//checks if the message id is one that this node has received recently (in last 10 messages)
+	bool matchd1, matchd2,  matchd3,  matchd4,  matchd5, matchd6, matchd7,  matchd8,  matchd9,  matchd10;
+	matchd1 = check_message_id(sent_message1, message_id);
+	matchd2 = check_message_id(sent_message2, message_id);
+	matchd3 = check_message_id(sent_message3, message_id);
+	matchd4 = check_message_id(sent_message4, message_id);
+	matchd5 = check_message_id(sent_message5, message_id);
+	if(matchd1 | matchd2| matchd3| matchd4| matchd5){
+		match[0] = true; //it was a match
+		match[1] = true; //this node sent it
+		return;
+	}
+	matchd1 = check_message_id(message1, message_id);
+	matchd2 = check_message_id(message2, message_id);
+	matchd3 = check_message_id(message3, message_id);
+	matchd4 = check_message_id(message4, message_id);
+	matchd5 = check_message_id(message5, message_id);
+	matchd6 = check_message_id(message6, message_id);
+	matchd7 = check_message_id(message7, message_id);
+	matchd8 = check_message_id(message8, message_id);
+	matchd9 = check_message_id(message9, message_id);
+	matchd10 = check_message_id(message10, message_id);
+	if(matchd1 | matchd2| matchd3| matchd4| matchd5 | matchd6 | matchd7| matchd8| matchd9| matchd10){
+		match[0] = true; //it was a match
+		match[1] = false; //this node did not send it
+		return;
+	}
+
 	match[0] = false;
-	return 0;
+	match[1] = false;
+	return;
 }
 void replace_one_message_id_struct(message_id_history changing, message_id_history values){
 	changing.this_node_sent = values.this_node_sent;
@@ -578,7 +710,7 @@ bool check_message_struct_match(uint8_t * message_id, uint8_t * message_id2){
 	int i = 0;
 	while (i < 4){
 		if(message_id[i] != message_id2[i]){
-			return false
+			return false;
 		}
 		i += 1;
 	}
@@ -610,13 +742,14 @@ void clear_sent_message_struct(uint8_t * message_id){
 	}
 }
 
-bool mesh_handle_id_and_message_type(mesh_msg_type * type){
+bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id){
 	//read message_id
-	uint8_t message_id [4];
-	lora_read_fifo_all(message_id, 4, hdma_usart_tx, huart);
+	//uint8_t message_id_pre [4];
+	lora_read_fifo_all(message_id, 4, hdma_usart2_tx, huart2);
+
 
 	bool match[2]; //0 is match or no match, 1 is true if this node sent it
-	unit8_t message_seen = check_message_id_all(message_id, match);
+	check_message_id_all(message_id, match);
 	if(match[0] == true){
 		//matched
 		if(match[1] == true){//this node sent the message
@@ -633,38 +766,39 @@ bool mesh_handle_id_and_message_type(mesh_msg_type * type){
 
 	//read message_type
 	uint8_t message_type [1];
-	lora_read_fifo_all(message_type, 1, hdma_usart_tx, huart);
+	lora_read_fifo_all(message_type, 1, hdma_usart2_tx, huart2);
 
 	type[0] = (mesh_msg_type) message_type[0]; //might be a typecasting error/warning
 	return true;
 }
 
-bool mesh_message_type_helper(mesh_msg_type type){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	//this calls the correct sending message
 	bool good;
 	if(type == MESH_MSG_DATA){
-		good = mesh_send_data();
+		good = mesh_rec_data(message_id, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_POLL){
-		good = mesh_send_poll();
+		good = mesh_rec_poll(message_id, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_ACK){
-		good = mesh_send_ack();
+		good = mesh_rec_ack(hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_DEAD){
-		good = mesh_send_dead();
+		good = mesh_rec_dead(message_id, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_HELLO){
-		good = mesh_send_hello();
+		good = mesh_rec_hello(hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_ADD){
-		good = mesh_send_add();
+		good = mesh_rec_add(message_id, hdma_usart_tx, huart);
 	}
 	else{
 		while(1){
 			//error
 		}
 	}
+	return good;
 }
 
 
@@ -694,7 +828,8 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 		i += 1;
 	}
 	mesh_msg_type type [1];
-	bool id_valid = mesh_handle_id_and_message_type(type);
+	uint8_t message_id [4];
+	bool id_valid = mesh_handle_id_and_message_type(type, message_id);
 
 	uint8_t sending_addr [ADDR_LENGTH];
 	lora_read_fifo_all(sending_addr, (uint8_t)ADDR_LENGTH, hdma_usart_tx, huart);//get sending addr
@@ -709,7 +844,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 			bool valid = check_addr_correct_dir(sending_addr, type);
 			if(valid){
 				send_usb_ttl_message(false, type[0], message_id, 0, huart1);//usb ttl debug print
-				bool good = mesh_message_type_helper(type);//pass on
+				bool good = mesh_message_type_helper(type[0], message_id, hdma_usart_tx, huart);//pass on
 				return good;
 			}
 			send_usb_ttl_message(false, type[0], message_id, 2, huart1);//usb ttl debug print
@@ -719,7 +854,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 			bool good_pre = check_addr_any_dir(sending_addr, type);
 			if(good_pre == true){
 				send_usb_ttl_message(false, type[0], message_id, 0, huart1);//usb ttl debug print
-				bool good = mesh_message_type_helper(type);//pass on
+				bool good = mesh_message_type_helper(type[0], message_id, hdma_usart_tx, huart);//pass on
 				return good;
 			}
 			send_usb_ttl_message(false, type[0], message_id, 3, huart1);//usb ttl debug print
@@ -733,12 +868,12 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 
 	if(addr_match == true){
 		send_usb_ttl_message(false, type[0], message_id, 0, huart1);//usb ttl debug print
-		bool good = mesh_message_type_helper(type);//pass on
+		bool good = mesh_message_type_helper(type[0], message_id, hdma_usart_tx, huart);//pass on
 		return good;
 	}
 }
 
-bool mesh_rec_data(uint8_t message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_rec_data(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//got a node_data message, figure out what to do with it
 
 	if(isHub){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
@@ -783,24 +918,25 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		send_usb_ttl(message, strlen(str1), huart);
 	}
 	send_usb_ttl(message_id, 4, huart);
+	char * str2;
 	switch(type){
 	case MESH_MSG_DATA:
-		char* str2 =" of type data";
+		str2 =" of type data";
 		break;
 	case MESH_MSG_POLL:
-		char* str2 =" of type poll";
+		str2 =" of type poll";
 		break;
 	case MESH_MSG_ACK:
-		char* str2 =" of type ack";
+		str2 =" of type ack";
 		break;
 	case MESH_MSG_DEAD:
-		char* str2 =" of type dead";
+		str2 =" of type dead";
 		break;
 	case MESH_MSG_HELLO:
-		char* str2 =" of type hello";
+		str2 =" of type hello";
 		break;
 	case MESH_MSG_ADD:
-		char* str2 =" of type add";
+		str2 =" of type add";
 		break;
 	}
 	memcpy(&message[0], str2, strlen(str2));
@@ -809,24 +945,25 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		char* str3 =" for the";
 		memcpy(&message[0], str3, strlen(str3));
 		send_usb_ttl(message, strlen(str3), huart);
-		send_usb_ttl(time_or_ignore_reaso, 1, huart);
-		char* str3 =" time";
-		memcpy(&message[0], str3, strlen(str3));
-		send_usb_ttl(message, strlen(str3), huart);
+		send_usb_ttl(time_or_ignore_reason, 1, huart);
+		char* str5 =" time";
+		memcpy(&message[0], str5, strlen(str5));
+		send_usb_ttl(message, strlen(str5), huart);
 	}
 	else{
-		case(time_or_ignore_reason){
+		char* str4;
+		switch(time_or_ignore_reason){
 		case 0:
-			char* str4 =" and accepted the message";
+			str4 =" and accepted the message";
 			break;
 		case 1:
-			char* str4 =" and ignored due to invalid id";
+			str4 =" and ignored due to invalid id";
 			break;
 		case 2:
-			char* str4 =" and ignored due to right direction fail";
+			str4 =" and ignored due to right direction fail";
 			break;
 		case 3:
-			char* str4 =" and ignored due to any direction fail";
+			str4 =" and ignored due to any direction fail";
 			break;
 		}
 		memcpy(&message[0], str4, strlen(str4));

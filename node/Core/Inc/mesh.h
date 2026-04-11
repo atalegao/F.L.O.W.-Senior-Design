@@ -27,8 +27,12 @@ typedef enum {
 typedef struct {
     uint8_t addr [ADDR_LENGTH];
     uint8_t  battery [BATTERY_LENGTH];
-    uint32_t last_seen;       
+    uint64_t last_seen; //seconds, minutes, hours, day, month, year
+    bool valid;
 } mesh_neighbor;  // this struct to detail characteristics for each neighbor in the table.  
+
+mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_away_hub1, neighbor_away_hub2, neighbor_away_hub3;
+//to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
 
 typedef struct{
     bool this_node_sent; //true if this node is one that originally sent the message
@@ -59,22 +63,22 @@ bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint8_t * distance, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_rec_poll(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_addr, mesh_msg_type type);
 bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void message_id_init(message_id_history message);
 void message_id_struct_init();
-uint8_t check_message_id_all(uint8_t * message_id, bool match[2]);
+void check_message_id_all(uint8_t * message_id, bool * match);
 void replace_one_message_id_struct(message_id_history changing, message_id_history values);
 void shift_all_messages(uint8_t * message_id, bool this_node_sent);
 bool check_message_struct_match(uint8_t * message_id, uint8_t * message_id2);
 void clear_sent_message_struct(uint8_t * message_id);
-bool mesh_handle_id_and_message_type(mesh_msg_type * type);
-bool mesh_message_type_helper(mesh_msg_type type);
+bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id);
+bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_rec_data(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_rec_data(uint8_t *message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, uint8_t time_or_ignore_reason, UART_HandleTypeDef huart);
 
 #endif 
