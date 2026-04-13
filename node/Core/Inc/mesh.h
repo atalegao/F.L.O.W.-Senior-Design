@@ -31,8 +31,7 @@ typedef struct {
     bool valid;
 } mesh_neighbor;  // this struct to detail characteristics for each neighbor in the table.  
 
-mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_away_hub1, neighbor_away_hub2, neighbor_away_hub3;
-//to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
+
 
 typedef struct{
     bool this_node_sent; //true if this node is one that originally sent the message
@@ -40,8 +39,6 @@ typedef struct{
     bool valid; //1 if an actual message, 0 if just an initialized default message_id
 } message_id_history;
 
-message_id_history message1, message2, message3, message4, message5, message6, message7, message8, message9, message10;
-message_id_history sent_message1, sent_message2, sent_message3, sent_message4, sent_message5;
 
 void mesh_init(bool isHub, uint8_t ownAddress);  //isHub is just a bool which indicates whether a module is a node or hub, since they have different characteristics. 
 void mesh_set_hello_interval(uint32_t seconds);

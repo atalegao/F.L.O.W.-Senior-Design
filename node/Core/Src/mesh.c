@@ -54,6 +54,12 @@ extern uint8_t * resend_msg_add_coords;
 extern uint8_t * resend_msg_add_distance;
 extern uint8_t * resend_msg_add_message_id;
 
+mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_away_hub1, neighbor_away_hub2, neighbor_away_hub3;
+//to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
+
+message_id_history message1, message2, message3, message4, message5, message6, message7, message8, message9, message10;
+message_id_history sent_message1, sent_message2, sent_message3, sent_message4, sent_message5;
+
 void mesh_init(bool isHub, uint8_t ownAddress){
     if (isHub) {
         // Initialize as a hub
@@ -80,9 +86,26 @@ uint32_t random_number_gen(void){
 //TODO: will not work since read_fifo currently just resets fifo pointer to 0,
 //it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
 
+//only things in fifo are received messages and messages about to be sent
+//make fifo pointer for sent be 0x80 (top half to sending, bottom half to receive)
+//this way send and receive are separate
+//receive should work by not enabling the CAD timer until after the fifo has been read for a received message
+	//a CAD fail sets the mode to sleep, which erases the fifo anyway
+
+//how to handle trying to send multiple things or send and receive something
+
+//data, hello is on a timer, poll, ack is from receive, dead is from main?, add is from receive or usb-ttl command
+
+//all can be from resend (another timer)
+
+//can put all of the processing in the main (not an interrupt) and then call the actual send ( lora_dma_write_send) after a CAD cycle fail (in the same interrupt) (to check if channel is active before sending)
+	//would have to put all the message types into an ordered buffer to decide which one to send, only send one at a time to avoid long delays between CAD cycles
+	//would need to add resending messages as well and would need to immediately do CAD after the send completes to avoid any extra time between CAD cycles
+
 //TODO: add send_usb_ttl_message(true, type[0], message_id, 1, huart);//usb ttl debug print in functions that call the sending function
 
 //TODO: need a timer to resend a message that was not received, the timer calls the below function
+//TODO:could also just use one large buffer with all of the necessary information for one message and put them back to back with a number for where the next byte can go
 void handle_resending(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//go through each send type to see if it has a flag to send again
 	if(resend_msg_poll){

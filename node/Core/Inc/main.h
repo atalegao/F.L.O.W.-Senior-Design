@@ -74,10 +74,6 @@ void Error_Handler(void);
 #define LORA_MOSFET_GPIO_Port GPIOB
 #define LORA_TGL_RELAY_Pin GPIO_PIN_8
 #define LORA_TGL_RELAY_GPIO_Port GPIOC
-#define TP_TX2_Pin GPIO_PIN_11
-#define TP_TX2_GPIO_Port GPIOA
-#define TP_RX2_Pin GPIO_PIN_12
-#define TP_RX2_GPIO_Port GPIOA
 #define TP_TX1_Pin GPIO_PIN_6
 #define TP_TX1_GPIO_Port GPIOB
 #define TP_RX1_Pin GPIO_PIN_7

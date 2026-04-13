@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <RH_RF95.h>
+#include "mesh.h"
 
 /* USER CODE END Includes */
 
@@ -102,10 +103,13 @@ int sendfifo_offset_send = 0;
 bool sendfifo_ready_send = true;
 int sendfifo_offset_rec = 0;
 bool sendfifo_ready_rec = true;
+uint8_t rec_data [MESSAGE_LENGTH];
 
 bool send_normal = false;
 bool send_send = false;
 bool send_rec = false; //great names I know
+
+bool do_send = false;
 
 uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
@@ -132,6 +136,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  HAL_Delay(2000);
   HAL_NVIC_DisableIRQ (SysTick_IRQn);
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(SysTick_IRQn);//while this is added here, it needs to be at the bottom of the main function right before the loop
@@ -197,6 +202,32 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if(read_lora_fifo){ //
+		  // start restart the CAD timer so it doesn't take the entire receive-timout time
+		  HAL_TIM_Base_Stop_IT(&htim21);
+		  change_lora_timer_period(0, &htim21); //0 means sleep time,
+		  HAL_TIM_Base_Start_IT(&htim21);
+		  //end restart the CAD timer so it doesn't take the entire receive-timout time
+		  lora_read_fifo_all(rec_data, 0x2, hdma_usart2_tx, huart2); //second input is length
+		  read_lora_fifo = false;
+		  //
+		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
+		  HAL_Delay(1000);
+		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
+	  }
+	  //send message
+	  if(do_send & (!global_receive_mode_from_cad) & (!read_lora_fifo)){
+		 uint8_t data [2];
+		 data[0] = 0xF0;
+		 data[1] = 0x0F;
+		 uint32_t delay = random_number_gen();//random delay
+		 HAL_Delay(delay & 0xFF);
+		 lora_send(data, 2, hdma_usart2_tx, huart2);
+		 do_send = false;//end send
+		 HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_SET);
+		 HAL_Delay(1000);
+		 HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_RESET);
+	  }
 	//go_to_sleep();//this should be the final line in the loop
     /* USER CODE END WHILE */
 
@@ -632,9 +663,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, TP_TX2_Pin|TP_RX2_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, TP_TX1_Pin|TP_RX1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PC13 PC14 PC15 PC0
@@ -661,9 +689,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pins : Battery_Pin PA1 PA4 PA5
-                           PA8 PA15 */
+                           PA8 PA11 PA12 PA15 */
   GPIO_InitStruct.Pin = Battery_Pin|GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_5
-                          |GPIO_PIN_8|GPIO_PIN_15;
+                          |GPIO_PIN_8|GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -690,13 +718,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : TP_TX2_Pin TP_RX2_Pin */
-  GPIO_InitStruct.Pin = TP_TX2_Pin|TP_RX2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PD2 */
   GPIO_InitStruct.Pin = GPIO_PIN_2;
