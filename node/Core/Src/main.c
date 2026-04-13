@@ -220,13 +220,13 @@ int main(void)
 		 uint8_t data [2];
 		 data[0] = 0xF0;
 		 data[1] = 0x0F;
-		 uint32_t delay = random_number_gen();//random delay
-		 HAL_Delay(delay & 0xFF);
 		 lora_send(data, 2, hdma_usart2_tx, huart2);
 		 do_send = false;//end send
 		 HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_SET);
 		 HAL_Delay(1000);
 		 HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_RESET);
+		 uint32_t delay = random_number_gen();//random delay
+		 HAL_Delay(delay & 0xFF);
 	  }
 	//go_to_sleep();//this should be the final line in the loop
     /* USER CODE END WHILE */
