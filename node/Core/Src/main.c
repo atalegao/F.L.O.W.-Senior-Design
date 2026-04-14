@@ -123,9 +123,9 @@ uint8_t addr_right_direction [ADDR_LENGTH];
 
 bool isHub = false;
 
-#define DO_SEND 0
+#define DO_SEND 1
 
-#define DO_REC 1
+#define DO_REC 0
 
 /* USER CODE END 0 */
 
@@ -207,6 +207,8 @@ int main(void)
   HAL_NVIC_EnableIRQ(SysTick_IRQn);
 
   mesh_init();
+  self_addr[0] = 0x16;
+  self_addr[1] = 0x17;
 
   /* USER CODE END 2 */
 
@@ -243,7 +245,7 @@ int main(void)
 		  message_id[3] = 0x15;
 		  uint8_t dest_addr [ADDR_LENGTH];
 		  dest_addr[0] = 0x16;
-		  dest_addr[0] = 0x17;
+		  dest_addr[1] = 0x17;
 		  uint8_t water_height [WATER_LENGTH];
 		  water_height[0] = 0x18;
 		  uint8_t battery_status [BATTERY_LENGTH];

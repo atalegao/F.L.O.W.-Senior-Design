@@ -700,7 +700,7 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 
 	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_DATA);
 	int j = 0;
-	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH){ //addr that took data
+	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH){ //addr that took data
 		message[i] = node_addr[j];
 		i += 1;
 		j += 1;
@@ -720,21 +720,21 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 	message[i] = time[5];//current_date.Year;
 
 	j = 0;
-	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 6 + WATER_LENGTH){ //water distance
+	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH){ //water distance
 		message[i] = water_height[j];
 		i += 1;
 		j += 1;
 	}
 
 	j = 0;
-	while(i < ADDR_LENGTH + 4 + 1 +  ADDR_LENGTH + 6 + WATER_LENGTH + BATTERY_LENGTH){ //battery status
+	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH){ //battery status
 		message[i] = battery_status[j];
 		i += 1;
 		j += 1;
 	}
 
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
+	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
 	return good;
 }
 
