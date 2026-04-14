@@ -29,7 +29,9 @@ sending_buffer_type sending_buffer;
 uint8_t send_buffer_add_index; //is where to add the next message (counts up)
 uint8_t send_buffer_send_index; //is where the next message to be sent is (counts up)
 
-void mesh_init(bool isHub, uint8_t ownAddress){
+void mesh_init(){
+	define_addr_any_direction();
+	define_addr_right_direction;
     if (isHub) {
         // Initialize as a hub
         // Set up necessary data structures for a hub
@@ -388,13 +390,13 @@ void set_self_addr(uint8_t * addr){
 	}
 }
 
-void define_addr_any_direction(uint8_t * addr){
+void define_addr_any_direction(){
 	//define a special addr that means any direction
 	addr_any_direction[0] = 0xFF;
 	addr_any_direction[1] = 0x7F; //int max (signed)
 }
 
-void define_addr_right_direction(uint8_t * addr){
+void define_addr_right_direction(){
 	//define a special addr that means correct direction
 	addr_right_direction[0] = 0x00;
 	addr_right_direction[1] = 0x80; //int min (signed)

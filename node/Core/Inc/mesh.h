@@ -85,7 +85,7 @@ typedef struct{
 	sending_buffer_entry entry10;
 }sending_buffer_type;
 
-void mesh_init(bool isHub, uint8_t ownAddress);  //isHub is just a bool which indicates whether a module is a node or hub, since they have different characteristics. 
+void mesh_init();  //isHub is just a bool which indicates whether a module is a node or hub, since they have different characteristics.
 void mesh_set_hello_interval(uint32_t seconds);
 uint32_t random_number_gen(void);
 time_t get_time_in_seconds(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
@@ -100,8 +100,8 @@ bool check_addr_any_dir(uint8_t * sending_addr, mesh_msg_type * type);
 void find_dest_addr_to_hub(uint8_t * dest_addr, uint8_t attempt);
 void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt);
 void set_self_addr(uint8_t * addr);
-void define_addr_any_direction(uint8_t * addr);
-void define_addr_right_direction(uint8_t * addr);
+void define_addr_any_direction();
+void define_addr_right_direction();
 bool mesh_send_hello(uint8_t * battery, uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_hello(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_hello(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
