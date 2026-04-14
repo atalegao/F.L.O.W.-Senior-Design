@@ -117,6 +117,10 @@ uint8_t global_receive_mode_from_cad;
 
 uint8_t receivefifo_usb_ttl [0];
 
+#define DO_SEND = 1
+
+#define DO_REC = 1
+
 /* USER CODE END 0 */
 
 /**
@@ -202,32 +206,54 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if(read_lora_fifo){ //
-		  // start restart the CAD timer so it doesn't take the entire receive-timout time
-		  HAL_TIM_Base_Stop_IT(&htim21);
-		  change_lora_timer_period(0, &htim21); //0 means sleep time,
-		  HAL_TIM_Base_Start_IT(&htim21);
-		  //end restart the CAD timer so it doesn't take the entire receive-timout time
-		  lora_read_fifo_all(rec_data, 0x2, hdma_usart2_tx, huart2); //second input is length
-		  read_lora_fifo = false;
-		  //
-		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
-		  HAL_Delay(1000);
-		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
+	  if(DO_REC){
+		  if(read_lora_fifo){ //
+			  // start restart the CAD timer so it doesn't take the entire receive-timout time
+			  HAL_TIM_Base_Stop_IT(&htim21);
+			  change_lora_timer_period(0, &htim21); //0 means sleep time,
+			  HAL_TIM_Base_Start_IT(&htim21);
+			  //end restart the CAD timer so it doesn't take the entire receive-timout time
+			  //lora_read_fifo_all(rec_data, 0x2, hdma_usart2_tx, huart2); //second input is length
+
+			  //added below line (and commented out above line) to handle received message
+			  mesh_main_rec(hdma_usart2_tx, huart2);
+
+			  read_lora_fifo = false;
+			  //
+			  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
+			  HAL_Delay(1000);
+			  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
+		  }
 	  }
-	  //send message
-	  if(do_send & (!global_receive_mode_from_cad) & (!read_lora_fifo)){
-		 uint8_t data [2];
-		 data[0] = 0xF0;
-		 data[1] = 0x0F;
-		 lora_send(data, 2, hdma_usart2_tx, huart2);
-		 do_send = false;//end send
-		 HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_SET);
-		 HAL_Delay(1000);
-		 HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_RESET);
-		 uint32_t delay = random_number_gen();//random delay
-		 HAL_Delay(delay & 0xFF);
+	  if(DO_SEND){
+		  mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, hdma_usart2_tx, huart2);
 	  }
+//	  if(read_lora_fifo){ //
+//		  // start restart the CAD timer so it doesn't take the entire receive-timout time
+//		  HAL_TIM_Base_Stop_IT(&htim21);
+//		  change_lora_timer_period(0, &htim21); //0 means sleep time,
+//		  HAL_TIM_Base_Start_IT(&htim21);
+//		  //end restart the CAD timer so it doesn't take the entire receive-timout time
+//		  lora_read_fifo_all(rec_data, 0x2, hdma_usart2_tx, huart2); //second input is length
+//		  read_lora_fifo = false;
+//		  //
+//		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
+//		  HAL_Delay(1000);
+//		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
+//	  }
+//	  //send message
+//	  if(do_send & (!global_receive_mode_from_cad) & (!read_lora_fifo)){
+//		 uint8_t data [2];
+//		 data[0] = 0xF0;
+//		 data[1] = 0x0F;
+//		 lora_send(data, 2, hdma_usart2_tx, huart2);
+//		 do_send = false;//end send
+//		 HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_SET);
+//		 HAL_Delay(1000);
+//		 HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_RESET);
+//		 uint32_t delay = random_number_gen();//random delay
+//		 HAL_Delay(delay & 0xFF);
+//	  }
 	//go_to_sleep();//this should be the final line in the loop
     /* USER CODE END WHILE */
 

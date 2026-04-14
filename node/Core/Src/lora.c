@@ -384,7 +384,7 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
 //    }
 //    rx_ready = false;
 
-    //HAL_Delay(100);
+    //HAL_Delay(100);dma
     while(rx_ready == false){
     	if((receivefifo[0] == 0x49) & doing_send){ //automatic I response
     		c = receivefifo[0];

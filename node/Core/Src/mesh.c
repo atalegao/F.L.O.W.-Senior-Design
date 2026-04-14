@@ -16,49 +16,18 @@ extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim6;
 extern DMA_HandleTypeDef hdma_usart2_tx;
 
-//could make all of these buffers to be able to resend multiple messages of the same type at once
-//could also not accept messages if the buffer (or just the single bool) is full
-extern bool resend_msg_poll;
-extern uint8_t resend_msg_poll_attempt;
-extern uint8_t * resend_msg_poll_dest_addr;
-extern uint8_t * resend_msg_poll_message_id;
-extern uint32_t resend_msg_poll_new_frequency;
-
-extern bool resend_msg_ack;
-extern uint8_t resend_msg_ack_attempt;
-extern uint8_t * resend_msg_ack_dest_addr;
-extern uint32_t resend_msg_ack_acked_msg_id;
-
-extern bool resend_msg_dead;
-extern uint8_t resend_msg_dead_attempt;
-extern uint8_t * resend_msg_dead_dest_addr;
-extern uint8_t * resend_msg_dead_dead_addr;
-extern uint8_t * resend_msg_dead_dead_since;
-extern uint8_t * resend_msg_dead_battery;
-extern uint8_t * resend_msg_dead_message_id;
-
-extern bool resend_msg_data;
-extern uint8_t resend_msg_data_attempt;
-extern uint8_t * resend_msg_data_message_id;
-extern uint8_t * resend_msg_data_dest_addr;
-extern uint8_t* resend_msg_data_water_height;
-extern uint8_t *resend_msg_data_battery_status;
-extern uint8_t * resend_msg_data_node_addr;
-extern uint8_t * resend_msg_data_time;
-
-extern bool resend_msg_add;
-extern uint8_t resend_msg_add_attempt;
-extern uint8_t * resend_msg_add_dest_addr;
-extern uint8_t * resend_msg_add_new_addr;
-extern uint8_t * resend_msg_add_coords;
-extern uint8_t * resend_msg_add_distance;
-extern uint8_t * resend_msg_add_message_id;
-
 mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_away_hub1, neighbor_away_hub2, neighbor_away_hub3;
 //to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
 
 message_id_history message1, message2, message3, message4, message5, message6, message7, message8, message9, message10;
 message_id_history sent_message1, sent_message2, sent_message3, sent_message4, sent_message5;
+
+sent_message_buffer sent_buffer;
+
+sending_buffer_type sending_buffer;
+
+uint8_t send_buffer_add_index; //is where to add the next message (counts up)
+uint8_t send_buffer_send_index; //is where the next message to be sent is (counts up)
 
 void mesh_init(bool isHub, uint8_t ownAddress){
     if (isHub) {
@@ -73,7 +42,8 @@ void mesh_init(bool isHub, uint8_t ownAddress){
 //void mesh_set_hello_interval(uint32_t seconds){
 //    interval =
 //}
-//random number function, put somewhere else
+
+
 uint32_t random_number_gen(void){
 	uint32_t random_number;
 	if (HAL_RNG_GenerateRandomNumber(&hrng, &random_number) != HAL_OK) {
@@ -83,20 +53,8 @@ uint32_t random_number_gen(void){
 	return random_number;
 }
 
-//TODO: will not work since read_fifo currently just resets fifo pointer to 0,
-//it needs to actually make it go to the correct one, else use a new function that does not modify the fifo pointer and just reads
-
-//only things in fifo are received messages and messages about to be sent
-//make fifo pointer for sent be 0x80 (top half to sending, bottom half to receive)
-//this way send and receive are separate
-//receive should work by not enabling the CAD timer until after the fifo has been read for a received message
-	//a CAD fail sets the mode to sleep, which erases the fifo anyway
-
-//how to handle trying to send multiple things or send and receive something
-
-//data, hello is on a timer, poll, ack is from receive, dead is from main?, add is from receive or usb-ttl command
-
-//all can be from resend (another timer)
+//sent messages will be added to a queue (buffer), buffer should have the actual send data (no processing required, just call send function with the data and length)
+//if CAD does not detect anything, the message at the top of the queue will be sent (only 1 message will ever be sent at a time)
 
 //can put all of the processing in the main (not an interrupt) and then call the actual send ( lora_dma_write_send) after a CAD cycle fail (in the same interrupt) (to check if channel is active before sending)
 	//would have to put all the message types into an ordered buffer to decide which one to send, only send one at a time to avoid long delays between CAD cycles
@@ -104,26 +62,119 @@ uint32_t random_number_gen(void){
 
 //TODO: add send_usb_ttl_message(true, type[0], message_id, 1, huart);//usb ttl debug print in functions that call the sending function
 
+//use the buffer for sent messages and have a timer to add a sent message to the send buffer if the message is still in the sent buffer and is still valid
 //TODO: need a timer to resend a message that was not received, the timer calls the below function
-//TODO:could also just use one large buffer with all of the necessary information for one message and put them back to back with a number for where the next byte can go
 void handle_resending(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
-	//go through each send type to see if it has a flag to send again
-	if(resend_msg_poll){
-		//dest addr should be found using attempt number declared above (as extern in this file)
-		mesh_send_poll(resend_msg_poll_dest_addr, resend_msg_poll_message_id, resend_msg_poll_new_frequency, hdma_usart_tx, huart);
+	//go through each sent message buffer and checks if it is valid and if its time is past the current time plus a threshold
+
+	get_timestamp();//get current time
+	time_t current_time_s = get_time_in_seconds(&current_time, &current_date);
+
+	handle_one_resending(current_time_s, sent_buffer.entry1);
+	handle_one_resending(current_time_s, sent_buffer.entry2);
+	handle_one_resending(current_time_s, sent_buffer.entry3);
+	handle_one_resending(current_time_s, sent_buffer.entry4);
+	handle_one_resending(current_time_s, sent_buffer.entry5);
+	handle_one_resending(current_time_s, sent_buffer.entry6);
+	handle_one_resending(current_time_s, sent_buffer.entry7);
+	handle_one_resending(current_time_s, sent_buffer.entry8);
+	handle_one_resending(current_time_s, sent_buffer.entry9);
+	handle_one_resending(current_time_s, sent_buffer.entry10);
+}
+
+void handle_one_resending(time_t current_time, sent_message_buff_entry sent_message){
+	if(sent_message.valid == false){
+		return;
 	}
-	if(resend_msg_ack){
-		mesh_send_ack(resend_msg_ack_dest_addr, resend_msg_ack_acked_msg_id,hdma_usart_tx, huart);
+
+	bool past_time = decide_if_past_time(current_time, sent_message.last_sent_time);
+	if(past_time){
+		add_one_resend_to_send_buffer(sent_message);
 	}
-	if(resend_msg_dead){
-		mesh_send_dead(resend_msg_dead_dest_addr, resend_msg_dead_dead_addr, resend_msg_dead_dead_since, resend_msg_dead_battery, resend_msg_dead_message_id , hdma_usart_tx, huart);
+}
+
+void add_one_resend_to_send_buffer(sent_message_buff_entry sent_message){
+	//uint8_t send_buffer_add_index; //is where to add the next message (counts up)
+	//uint8_t send_buffer_send_index;
+
+	//check if add_index is free
+	sending_buffer_entry sending_buffer_at_add_index = get_sending_buffer_entry(send_buffer_add_index);
+	if(sending_buffer_at_add_index.valid == true){
+		//issue, buffer overflowed
 	}
-	if(resend_msg_data){
-		mesh_send_data(resend_msg_data_message_id, resend_msg_data_dest_addr, resend_msg_data_water_height, resend_msg_data_battery_status, resend_msg_data_node_addr, resend_msg_data_time,hdma_usart_tx, huart);
+	else{
+		sending_buffer_at_add_index.valid = true;
+		int i = 0;
+		while (i < 20){
+			sending_buffer_at_add_index.message[i] = sent_message.message[i];
+			i += 1;
+		}
+		sending_buffer_at_add_index.length = sent_message.length;
+		sending_buffer_at_add_index.attempt = sent_message.attempt + 1;
+
+
+		send_buffer_add_index += 1;
+		if(send_buffer_add_index > 10){
+			send_buffer_add_index = 0;
+		}
 	}
-	if(resend_msg_add){
-		mesh_send_add(resend_msg_add_dest_addr,resend_msg_add_new_addr,resend_msg_add_coords, resend_msg_add_distance, resend_msg_add_message_id, hdma_usart_tx, huart);
+}
+
+sending_buffer_entry get_sending_buffer_entry(uint8_t index){
+	switch(index){
+		case 10:
+			return sending_buffer.entry10;
+			break;
+		case 9:
+			return sending_buffer.entry9;
+			break;
+		case 8:
+			return sending_buffer.entry8;
+			break;
+		case 7:
+			return sending_buffer.entry7;
+			break;
+		case 6:
+			return sending_buffer.entry6;
+			break;
+		case 5:
+			return sending_buffer.entry5;
+			break;
+		case 4:
+			return sending_buffer.entry4;
+			break;
+		case 3:
+			return sending_buffer.entry3;
+			break;
+		case 2:
+			return sending_buffer.entry2;
+			break;
+		case 1:
+			return sending_buffer.entry1;
+			break;
+		}
+}
+
+bool decide_if_past_time(time_t current_time, time_t stored_time){
+	double diff_seconds = difftime(current_time, stored_time);
+	if(diff_seconds > RESEND_THRESHOLD){
+		return true;
 	}
+	else{
+		return false;
+	}
+}
+time_t get_time_in_seconds(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
+	//gets time in seconds since epoch
+	struct tm tim = {0};
+	tim.tm_sec = time->Seconds;
+	tim.tm_min = time->Minutes;
+	tim.tm_hour = time->Hours;
+	tim.tm_mday = date->Date;
+	tim.tm_mon = date->Month - 1;
+	tim.tm_year = date->Year + 100;
+	tim.tm_isdst = -1;
+	return mktime(&tim);
 }
 
 void init_one_neighbor(mesh_neighbor node){
@@ -919,7 +970,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	lora_read_fifo_all(sending_addr, (uint8_t)ADDR_LENGTH, hdma_usart_tx, huart);//get sending addr
 
 	if(id_valid == false){
-		send_usb_ttl_message(false, type[0], message_id, 1, huart1);//usb ttl debug print
+		send_usb_ttl_message(false, type[0], message_id, 1, sending_addr, huart1);//usb ttl debug print
 		return true; //don't have to do anything else, false is either message that this node already sent or a message that has already been seen
 	}
 
@@ -927,21 +978,21 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 		if(addr_match_right_direction == true){
 			bool valid = check_addr_correct_dir(sending_addr, type);
 			if(valid){
-				send_usb_ttl_message(false, type[0], message_id, 0, huart1);//usb ttl debug print
+				send_usb_ttl_message(false, type[0], message_id, 0, sending_addr, huart1);//usb ttl debug print
 				bool good = mesh_message_type_helper(type[0], message_id, hdma_usart_tx, huart);//pass on
 				return good;
 			}
-			send_usb_ttl_message(false, type[0], message_id, 2, huart1);//usb ttl debug print
+			send_usb_ttl_message(false, type[0], message_id, 2, sending_addr, huart1);//usb ttl debug print
 			return true; //don't pass on
 		}
 		else if(addr_match_any_direction == true){
 			bool good_pre = check_addr_any_dir(sending_addr, type);
 			if(good_pre == true){
-				send_usb_ttl_message(false, type[0], message_id, 0, huart1);//usb ttl debug print
+				send_usb_ttl_message(false, type[0], message_id, 0, sending_addr, huart1);//usb ttl debug print
 				bool good = mesh_message_type_helper(type[0], message_id, hdma_usart_tx, huart);//pass on
 				return good;
 			}
-			send_usb_ttl_message(false, type[0], message_id, 3, huart1);//usb ttl debug print
+			send_usb_ttl_message(false, type[0], message_id, 3, sending_addr, huart1);//usb ttl debug print
 			return true; //don't pass on
 		}
 		else{
@@ -951,7 +1002,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	}
 
 	if(addr_match == true){
-		send_usb_ttl_message(false, type[0], message_id, 0, huart1);//usb ttl debug print
+		send_usb_ttl_message(false, type[0], message_id, 0, sending_addr, huart1);//usb ttl debug print
 		bool good = mesh_message_type_helper(type[0], message_id, hdma_usart_tx, huart);//pass on
 		return good;
 	}
@@ -986,9 +1037,10 @@ bool mesh_rec_data(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 		return good;
 
 	}
+	return false;
 }
 
-void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, uint8_t time_or_ignore_reason, UART_HandleTypeDef huart){
+void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, uint8_t time_or_ignore_reason, uint8_t * send_or_rec_addr, UART_HandleTypeDef huart){
 	//this prints a message to the usb-ttl about sent and received messages
 	uint8_t message [64];
 	if(sent){
@@ -1029,28 +1081,30 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		char* str3 =" for the";
 		memcpy(&message[0], str3, strlen(str3));
 		send_usb_ttl(message, strlen(str3), huart);
-		send_usb_ttl(time_or_ignore_reason, 1, huart);
-		char* str5 =" time";
+		send_usb_ttl(&time_or_ignore_reason, 1, huart);
+		char* str5 =" time, rec addr is";
 		memcpy(&message[0], str5, strlen(str5));
 		send_usb_ttl(message, strlen(str5), huart);
+		send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);
 	}
 	else{
 		char* str4;
 		switch(time_or_ignore_reason){
 		case 0:
-			str4 =" and accepted the message";
+			str4 =" and accepted the message from addr ";
 			break;
 		case 1:
-			str4 =" and ignored due to invalid id";
+			str4 =" and ignored due to invalid id from addr";
 			break;
 		case 2:
-			str4 =" and ignored due to right direction fail";
+			str4 =" and ignored due to right direction fail from addr";
 			break;
 		case 3:
-			str4 =" and ignored due to any direction fail";
+			str4 =" and ignored due to any direction fail from addr";
 			break;
 		}
 		memcpy(&message[0], str4, strlen(str4));
 		send_usb_ttl(message, strlen(str4), huart);
+		send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);
 	}
 }
