@@ -578,7 +578,7 @@ bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 	return good;
 }
 
-bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
+bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
 	//message is dest_addr, message_id, message_type, sending_addr, new_frequency
 
 	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4];
@@ -595,7 +595,8 @@ bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_freq
 	}
 
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + 4), hdma_usart_tx, huart);
+	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4), hdma_usart_tx, huart);
+	send_usb_ttl_message(true, MESH_MSG_POLL, message_id, attempt, dest_addr, huart1);
 	return good;
 }
 
@@ -618,7 +619,7 @@ bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 
 
 	//send a new polling frequency message
-	bool good = mesh_send_poll(dest_addr, message_id, new_frequency,hdma_usart_tx, huart);
+	bool good = mesh_send_poll(dest_addr, message_id, new_frequency, 1, hdma_usart_tx, huart);
 	return good;
 }
 
@@ -662,7 +663,7 @@ bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, 
 		j += 1;
 	}
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + 4), hdma_usart_tx, huart);
+	good = lora_send(message, (ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4), hdma_usart_tx, huart);
 	send_usb_ttl_message(true, MESH_MSG_ACK, message_id_actual, attempt, dest_addr, huart1);
 	return good;
 }

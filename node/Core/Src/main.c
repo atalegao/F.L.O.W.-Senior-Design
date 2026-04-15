@@ -257,33 +257,48 @@ int main(void)
 		  message_id[1] = 0x13;
 		  message_id[2] = 0x14;
 		  message_id[3] = 0x15;
+		  uint32_t new_frequency = 0xFFFFFFFF;
+		  mesh_send_poll(dest_addr,message_id, new_frequency, 1, hdma_usart2_tx, huart2);
+
+		  /* ack
+		  uint8_t dest_addr [ADDR_LENGTH];
+		  dest_addr[0] = 0x16;
+		  dest_addr[1] = 0x17;
+		  uint8_t message_id [4];
+		  message_id[0] = 0x12;
+		  message_id[1] = 0x13;
+		  message_id[2] = 0x14;
+		  message_id[3] = 0x15;
 		  mesh_send_ack(dest_addr, message_id, 1, hdma_usart2_tx, huart2);
-//		  uint8_t message_id [4];
-//		  message_id[0] = 0x12;
-//		  message_id[1] = 0x13;
-//		  message_id[2] = 0x14;
-//		  message_id[3] = 0x15;
-//		  uint8_t dest_addr [ADDR_LENGTH];
-//		  dest_addr[0] = 0x16;
-//		  dest_addr[1] = 0x17;
-//		  uint8_t water_height [WATER_LENGTH];
-//		  water_height[0] = 0x18;
-//		  uint8_t battery_status [BATTERY_LENGTH];
-//		  battery_status[0] = 0x19;
-//		  uint8_t node_addr [ADDR_LENGTH];
-//		  node_addr[0] = 0x20;
-//		  node_addr[1] = 0x21;
-//		  uint8_t time [6];
-//		  time[0] = 0x22;
-//		  time[1] = 0x23;
-//		  time[2] = 0x24;
-//		  time[3] = 0x25;
-//		  time[4] = 0x26;
-//		  time[5] = 0x27;
-//
-//		  self_addr[0] = 0x01;
-//		  self_addr[1] = 0xFF;
-//		  mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time, hdma_usart2_tx, huart2);
+		  */
+		  /*data
+		  uint8_t message_id [4];
+		  message_id[0] = 0x12;
+		  message_id[1] = 0x13;
+		  message_id[2] = 0x14;
+		  message_id[3] = 0x15;
+		  uint8_t dest_addr [ADDR_LENGTH];
+		  dest_addr[0] = 0x16;
+		  dest_addr[1] = 0x17;
+		  uint8_t water_height [WATER_LENGTH];
+		  water_height[0] = 0x18;
+		  uint8_t battery_status [BATTERY_LENGTH];
+		  battery_status[0] = 0x19;
+		  uint8_t node_addr [ADDR_LENGTH];
+		  node_addr[0] = 0x20;
+		  node_addr[1] = 0x21;
+		  uint8_t time [6];
+		  time[0] = 0x22;
+		  time[1] = 0x23;
+		  time[2] = 0x24;
+		  time[3] = 0x25;
+		  time[4] = 0x26;
+		  time[5] = 0x27;
+
+		  self_addr[0] = 0x01;
+		  self_addr[1] = 0xFF;
+		  mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time, hdma_usart2_tx, huart2);
+		  */
 		  HAL_Delay(100);
 		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
 		  HAL_Delay(1000);

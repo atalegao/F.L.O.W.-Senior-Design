@@ -17,14 +17,14 @@
 #define BATTERY_LENGTH 1
 #define WATER_LENGTH 1
 
-#define MESH_MAX_MESSAGE_LENGTH 25 //the size of the largest packet
+#define MESH_MAX_MESSAGE_LENGTH 30 //the size of the largest packet
 
 #define RESEND_THRESHOLD (60 * 1) //1 minute
 
 typedef enum {
-    MESH_MSG_DATA  = 1,
-    MESH_MSG_POLL  = 2,
-    MESH_MSG_ACK   = 3,
+    MESH_MSG_DATA  = 1, //works
+    MESH_MSG_POLL  = 2, //works
+    MESH_MSG_ACK   = 3, //works
     MESH_MSG_DEAD  = 4,
     MESH_MSG_HELLO = 5,
     MESH_MSG_ADD   = 6,
@@ -111,7 +111,7 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint8_t * distance, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
