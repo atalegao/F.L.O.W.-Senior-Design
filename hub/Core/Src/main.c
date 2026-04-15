@@ -1,5 +1,5 @@
 /* USER CODE BEGIN Header */
-/** NEW ONE!!!
+/**
   ******************************************************************************
   * @file           : main.c
   * @brief          : Main program body
@@ -19,16 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-
-#include <Adafruit_RA8875.hpp>
-#include "stdio.h"
-#include "string.h"
-#include "stdbool.h"
-#include "gfxfont.h"
-#include "entryPointCPP.hpp"
-#include "stm32l0xx_it.h"
-#include "ui_def.h"
-/* USER CODE END Incl
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -59,11 +49,8 @@ DMA_HandleTypeDef hdma_usart2_tx;
 RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi1;
-//TIM_HandleTypeDef htim2;
-
 
 /* USER CODE BEGIN PV */
-extern volatile uint8_t touchPending;
 
 /* USER CODE END PV */
 
@@ -76,68 +63,13 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_RTC_Init(void);
-static void MX_TIM2_Init(void);
-void MX_SPI1_ReInit(uint32_t scaler);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-#ifdef REDIRECT_PRINTF
-#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
-#endif
 
-#ifdef REDIRECT_PRINTF
-/**
-  * @brief  Retargets the C library printf function to the USART.
-  * @param  None
-  * @retval None
-  */
-PUTCHAR_PROTOTYPE
-{
-  /* Place your implementation of fputc here */
-  /* e.g. write a character to the USART2 and Loop until the end of transmission */
-  HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
-
-  return ch;
-}
-#endif
-
-//void delay(uint16_t time)
-//{
-//	__HAL_TIM_SET_COUNTER(&htim2, 0); // changed from htim1 to htim2
-//	while (__HAL_TIM_GET_COUNTER (&htim2) < time);
-//}
-void MX_SPI1_ReInit(uint32_t scaler)
-{
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = scaler;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-/* USER CODE END 0 */
-}
 /* USER CODE END 0 */
 
 /**
@@ -175,18 +107,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_SPI1_Init();
   MX_RTC_Init();
-  //MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  //HAL_TIM_Base_Start(&htim2);   // ADDED
 
-    initTest(&hspi1);             // ADDED (screen init)
-
-    HAL_Delay(1000);
-
-    MX_SPI1_ReInit(SPI_BAUDRATEPRESCALER_32);   // ADDED (speed up SPI)
-
-    HAL_Delay(500);
-          setup();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -449,7 +371,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256; //ADDED 2 -> 256
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -512,40 +434,41 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : LORA_TGL_Pin RA8875_CS_Pin WIFI_RST_Pin */
   GPIO_InitStruct.Pin = LORA_TGL_Pin|WIFI_RST_Pin; //REMOVED CS PIN
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  //ADDED
-  GPIO_InitStruct.Pin = RA8875_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(RA8875_CS_GPIO_Port, &GPIO_InitStruct);
-  //ADDED
-
-
-  /*Configure GPIO pins : LCD_RESET_Pin LCD_WAIT_Pin PA15_LED_Pin */
-  GPIO_InitStruct.Pin = LCD_WAIT_Pin|PA15_LED_Pin; //REMOVED RESET PIN
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  GPIO_InitStruct.Pin = LCD_RESET_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(LCD_RESET_GPIO_Port, &GPIO_InitStruct);
+    //ADDED
+    GPIO_InitStruct.Pin = RA8875_CS_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(RA8875_CS_GPIO_Port, &GPIO_InitStruct);
+    //ADDED
 
 
+    /*Configure GPIO pins : LCD_RESET_Pin LCD_WAIT_Pin PA15_LED_Pin */
+    GPIO_InitStruct.Pin = LCD_WAIT_Pin|PA15_LED_Pin; //REMOVED RESET PIN
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LCD_INT_Pin */
-  GPIO_InitStruct.Pin = LCD_INT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING; //CHANGED FROM RISING TO FALLING
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(LCD_INT_GPIO_Port, &GPIO_InitStruct);
+    GPIO_InitStruct.Pin = LCD_RESET_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    HAL_GPIO_Init(LCD_RESET_GPIO_Port, &GPIO_InitStruct);
+
+
+
+    /*Configure GPIO pin : LCD_INT_Pin */
+    GPIO_InitStruct.Pin = LCD_INT_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING; //CHANGED FROM RISING TO FALLING
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(LCD_INT_GPIO_Port, &GPIO_InitStruct);
+
 
   /*Configure GPIO pin : DBG_BTN1_Pin */
   GPIO_InitStruct.Pin = DBG_BTN1_Pin;
@@ -573,66 +496,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(PB15_LED_GPIO_Port, &GPIO_InitStruct);
 
-  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI2_3_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(EXTI2_3_IRQn);
+  HAL_NVIC_EnableIRQ(EXTI2_3_IRQn);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-//static void MX_TIM2_Init(void)
-//{
-//
-//  /* USER CODE BEGIN TIM2_Init 0 */
-//
-//  /* USER CODE END TIM2_Init 0 */
-//
-//  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-//  TIM_MasterConfigTypeDef sMasterConfig = {0};
-//  TIM_OC_InitTypeDef sConfigOC = {0};
-//
-//  /* USER CODE BEGIN TIM2_Init 1 */
-//
-//  /* USER CODE END TIM2_Init 1 */
-//  htim2.Instance = TIM2;
-//  htim2.Init.Prescaler = 180-1;
-//  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-//  htim2.Init.Period = 65535;
-//  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-//  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-//  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-//  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-//  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-//  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-//  sConfigOC.Pulse = 0;
-//  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-//  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-//  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  /* USER CODE BEGIN TIM2_Init 2 */
-//
-//  /* USER CODE END TIM2_Init 2 */
-//  HAL_TIM_MspPostInit(&htim2);
-//
-//}
+
 /* USER CODE END 4 */
 
 /**

@@ -67,6 +67,7 @@ void Error_Handler(void);
 #define LCD_WAIT_GPIO_Port GPIOB
 #define LCD_INT_Pin GPIO_PIN_2
 #define LCD_INT_GPIO_Port GPIOB
+#define LCD_INT_EXTI_IRQn EXTI2_3_IRQn
 #define WIFI_RST_Pin GPIO_PIN_8
 #define WIFI_RST_GPIO_Port GPIOA
 #define DBG_BTN1_Pin GPIO_PIN_15
@@ -83,7 +84,8 @@ void Error_Handler(void);
 #define PA15_LED_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-
+#define CS_DISABLE GPIO_PIN_SET //Pin set and reset for CS
+#define CS_ENABLE GPIO_PIN_RESET
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

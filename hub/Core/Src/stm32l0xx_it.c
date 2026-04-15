@@ -31,6 +31,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+volatile uint8_t touchPending = 0;
 
 /* USER CODE END PD */
 
@@ -141,6 +142,21 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32l0xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles EXTI line 2 and line 3 interrupts.
+  */
+void EXTI2_3_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI2_3_IRQn 0 */
+
+  /* USER CODE END EXTI2_3_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(LCD_INT_Pin);
+  /* USER CODE BEGIN EXTI2_3_IRQn 1 */
+  touchPending = 1;
+  //update_on_touch();
+  /* USER CODE END EXTI2_3_IRQn 1 */
+}
 
 /**
   * @brief This function handles DMA1 channel 4, channel 5, channel 6 and channel 7 interrupts.
