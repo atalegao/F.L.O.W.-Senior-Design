@@ -440,7 +440,7 @@ bool mesh_rec_hello(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//update mem
 }
 
-bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
 	//dead since is 6 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
 
@@ -474,7 +474,8 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 		j += 1;
 	}
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2), hdma_usart_tx, huart);
+	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2), hdma_usart_tx, huart);
+	send_usb_ttl_message(true, MESH_MSG_DEAD, message_id, attempt, dest_addr, huart1);
 	return good;
 }
 //dead since could be the actual time (I think 6 bytes)
@@ -505,7 +506,7 @@ bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 	find_dest_addr_to_hub(dest_addr, 1);//find addr closer to hub, 1st attempt
 
 	bool good;
-	good = mesh_send_dead(dest_addr, dead_addr,  dead_since, battery, message_id, hdma_usart_tx, huart);
+	good = mesh_send_dead(dest_addr, dead_addr,  dead_since, battery, message_id, 1, hdma_usart_tx, huart);
 	return good;//send towards hub
 }
 

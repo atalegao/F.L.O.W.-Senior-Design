@@ -111,6 +111,7 @@ bool send_send = false;
 bool send_rec = false; //great names I know
 
 bool do_send = false;
+bool in_send = false;
 
 uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
@@ -245,10 +246,35 @@ int main(void)
 			  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
 		  }
 	  }
-	  if(DO_SEND){
+	  if(DO_SEND & (!global_receive_mode_from_cad) & (!read_lora_fifo)){
+		  in_send = true;
 		  HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
 		  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
 
+		  uint8_t dest_addr [ADDR_LENGTH];
+		  dest_addr[0] = 0x16;
+		  dest_addr[1] = 0x17;
+		  uint8_t dead_addr [ADDR_LENGTH];
+		  dead_addr[0] = 0x18;
+		  dead_addr[1] = 0x19;
+		  uint8_t message_id [4];
+		  message_id[0] = 0x12;
+		  message_id[1] = 0x13;
+		  message_id[2] = 0x14;
+		  message_id[3] = 0x15;
+		  uint8_t dead_since [6];
+		  dead_since[0] = 0x20;
+		  dead_since[1] = 0x21;
+		  dead_since[2] = 0x22;
+		  dead_since[3] = 0x23;
+		  dead_since[4] = 0x24;
+		  dead_since[5] = 0x25;
+		  uint8_t battery[2];
+		  battery[0] = 0x26;
+		  battery[1] = 0x27;
+		  mesh_send_dead(dest_addr, dead_addr, dead_since, battery, message_id, 1, hdma_usart2_tx, huart2);
+
+		  /*poll
 		  uint8_t dest_addr [ADDR_LENGTH];
 		  dest_addr[0] = 0x16;
 		  dest_addr[1] = 0x17;
@@ -259,6 +285,7 @@ int main(void)
 		  message_id[3] = 0x15;
 		  uint32_t new_frequency = 0xFFFFFFFF;
 		  mesh_send_poll(dest_addr,message_id, new_frequency, 1, hdma_usart2_tx, huart2);
+		  */
 
 		  /* ack
 		  uint8_t dest_addr [ADDR_LENGTH];
@@ -299,6 +326,7 @@ int main(void)
 		  self_addr[1] = 0xFF;
 		  mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time, hdma_usart2_tx, huart2);
 		  */
+		  in_send = false;
 		  HAL_Delay(100);
 		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
 		  HAL_Delay(1000);
@@ -932,7 +960,7 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 				//HAL_NVIC_SetPendingIRQ(1);//above line is called in this interrupt to deal with interrupt priorities
 				int value;
 				value = uart_read(); //dummy read to get rid of the I response
-				if(in_read_lora_fifo == false){
+				if((in_read_lora_fifo == false) & (in_send == false)){
 					read_lora_fifo = true;
 				}
 				else{
