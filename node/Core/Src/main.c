@@ -251,6 +251,13 @@ int main(void)
 		  HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
 		  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
 
+
+		  uint8_t battery[1];
+		  battery[0] = 0x20;
+
+		  mesh_send_hello(battery, hdma_usart2_tx, huart2);
+
+		  /*add
 		  uint8_t dest_addr [ADDR_LENGTH];
 		  dest_addr[0] = 0x16;
 		  dest_addr[1] = 0x17;
@@ -272,6 +279,7 @@ int main(void)
 		  distance[1] = 0x25;
 
 		  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, hdma_usart2_tx, huart2);
+		  */
 
 		  /*dead
 		  uint8_t dest_addr [ADDR_LENGTH];

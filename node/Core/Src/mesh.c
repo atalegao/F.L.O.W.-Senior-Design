@@ -32,7 +32,7 @@ uint8_t send_buffer_send_index; //is where the next message to be sent is (count
 
 void mesh_init(){
 	define_addr_any_direction();
-	define_addr_right_direction;
+	define_addr_right_direction();
     if (isHub) {
         // Initialize as a hub
         // Set up necessary data structures for a hub
@@ -63,7 +63,9 @@ uint32_t random_number_gen(void){
 	//would have to put all the message types into an ordered buffer to decide which one to send, only send one at a time to avoid long delays between CAD cycles
 	//would need to add resending messages as well and would need to immediately do CAD after the send completes to avoid any extra time between CAD cycles
 
-//TODO: add send_usb_ttl_message(true, type[0], message_id, 1, huart);//usb ttl debug print in functions that call the sending function
+//TODO: need a timer to send hello
+
+//TODO: need a timer to send own data (could be the same one to do ultrasonic)
 
 //use the buffer for sent messages and have a timer to add a sent message to the send buffer if the message is still in the sent buffer and is still valid
 //TODO: need a timer to resend a message that was not received, the timer calls the below function
@@ -403,7 +405,7 @@ void define_addr_right_direction(){
 	addr_right_direction[1] = 0x80; //int min (signed)
 }
 
-bool mesh_send_hello(uint8_t * battery, uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_send_hello(uint8_t * battery, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, sending_addr, battery
 
 	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH];
@@ -423,21 +425,33 @@ bool mesh_send_hello(uint8_t * battery, uint8_t * sending_addr, DMA_HandleTypeDe
 
 	i = mesh_send_add_header(message, message_id_actual, dest_addr, MESH_MSG_HELLO);
 
-	//TODO: get battery
+	int k = i;
+	int j = 0;
+	while(i < k+BATTERY_LENGTH){
+		message[i] = battery[j];
+		i += 1;
+		j += 1;
+	}
+
 	bool good;
 	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
+	send_usb_ttl_message(true, MESH_MSG_HELLO, message_id_actual, 1, dest_addr, huart1);
 	return good;
 }
 
-bool mesh_rec_hello(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_rec_hello(uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//update node addr list if needed
 	//message is dest_addr, message_id, message_type, sending_addr, battery
+
+	uint8_t battery [BATTERY_LENGTH];
+	lora_read_fifo_all(battery, BATTERY_LENGTH, false, hdma_usart_tx, huart);
 	if(isHub){
 		//update mem
 	}
 	//rest is node
 
 	//update mem
+	return true;
 }
 
 bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
@@ -915,7 +929,7 @@ bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id)
 	return true;
 }
 
-bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, uint8_t * sending_addr,DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//this calls the correct sending message
 	bool good;
 	if(type == MESH_MSG_DATA){
@@ -931,7 +945,7 @@ bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, DMA_Hand
 		good = mesh_rec_dead(message_id, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_HELLO){
-		good = mesh_rec_hello(hdma_usart_tx, huart);
+		good = mesh_rec_hello(sending_addr, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_ADD){
 		good = mesh_rec_add(message_id, hdma_usart_tx, huart);
@@ -987,7 +1001,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 			bool valid = check_addr_correct_dir(sending_addr, type);
 			if(valid){
 				send_usb_ttl_message(false, type[0], message_id, 0, sending_addr, huart1);//usb ttl debug print
-				bool good = mesh_message_type_helper(type[0], message_id, hdma_usart_tx, huart);//pass on
+				bool good = mesh_message_type_helper(type[0], message_id, sending_addr,hdma_usart_tx, huart);//pass on
 				return good;
 			}
 			send_usb_ttl_message(false, type[0], message_id, 2, sending_addr, huart1);//usb ttl debug print
@@ -997,7 +1011,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 			bool good_pre = check_addr_any_dir(sending_addr, type);
 			if(good_pre == true){
 				send_usb_ttl_message(false, type[0], message_id, 0, sending_addr, huart1);//usb ttl debug print
-				bool good = mesh_message_type_helper(type[0], message_id, hdma_usart_tx, huart);//pass on
+				bool good = mesh_message_type_helper(type[0], message_id, sending_addr,hdma_usart_tx, huart);//pass on
 				return good;
 			}
 			send_usb_ttl_message(false, type[0], message_id, 3, sending_addr, huart1);//usb ttl debug print
@@ -1011,7 +1025,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 
 	if(addr_match == true){
 		send_usb_ttl_message(false, type[0], message_id, 0, sending_addr, huart1);//usb ttl debug print
-		bool good = mesh_message_type_helper(type[0], message_id, hdma_usart_tx, huart);//pass on
+		bool good = mesh_message_type_helper(type[0], message_id, sending_addr,hdma_usart_tx, huart);//pass on
 		return good;
 	}
 }
