@@ -511,14 +511,14 @@ bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 }
 
 
-bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint8_t * distance, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//done
+bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint8_t * distance, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//done
 	//forget what distance was supposed to be, for node data, are we sending actual water height or just the measured distance?
 	//message is dest_addr, message_id, message_type, new node_addr, node coordinates (4 bytes), distance (2)
 
 	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2];
 
 	int i = 0;
-	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_ACK);
+	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_ADD);
 
 	int k = i;
 	int j = 0;
@@ -545,7 +545,8 @@ bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint
 	}
 
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + 2), hdma_usart_tx, huart);
+	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2), hdma_usart_tx, huart);
+	send_usb_ttl_message(true, MESH_MSG_ADD, message_id, attempt, dest_addr, huart1);
 	return good;
 }
 
@@ -575,7 +576,7 @@ bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 	lora_read_fifo_all(distance, 2, false, hdma_usart_tx, huart);
 
 	//pass on message
-	bool good = mesh_send_add(dest_addr, new_node_addr, node_coordinates, distance, message_id, hdma_usart_tx, huart);
+	bool good = mesh_send_add(dest_addr, new_node_addr, node_coordinates, distance, message_id, 1, hdma_usart_tx, huart);
 	return good;
 }
 

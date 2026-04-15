@@ -254,6 +254,29 @@ int main(void)
 		  uint8_t dest_addr [ADDR_LENGTH];
 		  dest_addr[0] = 0x16;
 		  dest_addr[1] = 0x17;
+		  uint8_t new_addr [ADDR_LENGTH];
+		  new_addr[0] = 0x18;
+		  new_addr[1] = 0x19;
+		  uint8_t message_id [4];
+		  message_id[0] = 0x12;
+		  message_id[1] = 0x13;
+		  message_id[2] = 0x14;
+		  message_id[3] = 0x15;
+		  uint8_t coords [4];
+		  coords[0] = 0x20;
+		  coords[1] = 0x21;
+		  coords[2] = 0x22;
+		  coords[3] = 0x23;
+		  uint8_t distance [2];
+		  distance[0] = 0x24;
+		  distance[1] = 0x25;
+
+		  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, hdma_usart2_tx, huart2);
+
+		  /*dead
+		  uint8_t dest_addr [ADDR_LENGTH];
+		  dest_addr[0] = 0x16;
+		  dest_addr[1] = 0x17;
 		  uint8_t dead_addr [ADDR_LENGTH];
 		  dead_addr[0] = 0x18;
 		  dead_addr[1] = 0x19;
@@ -273,6 +296,7 @@ int main(void)
 		  battery[0] = 0x26;
 		  battery[1] = 0x27;
 		  mesh_send_dead(dest_addr, dead_addr, dead_since, battery, message_id, 1, hdma_usart2_tx, huart2);
+		  */
 
 		  /*poll
 		  uint8_t dest_addr [ADDR_LENGTH];
