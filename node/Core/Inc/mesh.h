@@ -17,6 +17,8 @@
 #define BATTERY_LENGTH 1
 #define WATER_LENGTH 1
 
+#define MESH_MAX_MESSAGE_LENGTH 25 //the size of the largest packet
+
 #define RESEND_THRESHOLD (60 * 1) //1 minute
 
 typedef enum {

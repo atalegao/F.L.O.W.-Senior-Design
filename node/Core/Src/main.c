@@ -122,10 +122,12 @@ uint8_t addr_any_direction [ADDR_LENGTH];
 uint8_t addr_right_direction [ADDR_LENGTH];
 
 bool isHub = false;
+bool usb_ttl_done = true;
+bool in_read_lora_fifo = false;
 
-#define DO_SEND 1
+#define DO_SEND 0
 
-#define DO_REC 0
+#define DO_REC 1
 
 /* USER CODE END 0 */
 
@@ -218,18 +220,26 @@ int main(void)
   {
 	  if(DO_REC){
 		  if(read_lora_fifo){ //
+			  in_read_lora_fifo = true;
+			  // stop the CAD timer since it will make the module go into sleep mode->this clears the FIFO, also stop send timer since need to receive first
+			  HAL_NVIC_DisableIRQ(TIM21_IRQn);
+			  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
+
+			  //lora_read_fifo_all(sendfifo_rec_message, 20, true, hdma_usart2_tx, huart2); //second input is length
+
+			  //added below line (and commented out above line) to handle received message
+			  read_lora_fifo = false;
+			  mesh_main_rec(hdma_usart2_tx, huart2);
+
 			  // start restart the CAD timer so it doesn't take the entire receive-timout time
 			  HAL_TIM_Base_Stop_IT(&htim21);
 			  change_lora_timer_period(0, &htim21); //0 means sleep time,
 			  HAL_TIM_Base_Start_IT(&htim21);
+			  in_read_lora_fifo = false;
 			  //end restart the CAD timer so it doesn't take the entire receive-timout time
-			  //lora_read_fifo_all(rec_data, 0x2, hdma_usart2_tx, huart2); //second input is length
+			  HAL_NVIC_EnableIRQ(TIM21_IRQn);
+			  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
 
-			  //added below line (and commented out above line) to handle received message
-			  mesh_main_rec(hdma_usart2_tx, huart2);
-
-			  read_lora_fifo = false;
-			  //
 			  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
 			  HAL_Delay(1000);
 			  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
@@ -842,7 +852,15 @@ void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
 }
 
 void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef huart){
-	HAL_UART_Transmit_DMA(&huart, message, length);
+	while (usb_ttl_done == false){
+		//do nothing
+	}
+	usb_ttl_done = false;
+	if(HAL_UART_Transmit_DMA(&huart, message, length) != HAL_OK){
+		while(1){
+			//error
+		}
+	}
 }
 
 
@@ -889,7 +907,14 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 				//HAL_NVIC_SetPendingIRQ(1);//above line is called in this interrupt to deal with interrupt priorities
 				int value;
 				value = uart_read(); //dummy read to get rid of the I response
-				read_lora_fifo = true;
+				if(in_read_lora_fifo == false){
+					read_lora_fifo = true;
+				}
+				else{
+//					while(1){
+//
+//					}
+				}
 			}
 		}
 	}
@@ -946,6 +971,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	}
 	else if(huart->Instance == USART1){//usb-ttl
 		//do nothing
+		usb_ttl_done = true;
 	}
 
 }

@@ -5,6 +5,7 @@
 extern RTC_TimeTypeDef current_time;
 extern RTC_DateTypeDef current_date;
 extern bool isHub;
+extern bool usb_ttl_done;
 extern uint8_t last_sent_msg_id [4];
 
 extern uint8_t self_addr [ADDR_LENGTH];
@@ -492,13 +493,13 @@ bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 
 	//get dead_addr
 	uint8_t dead_addr [ADDR_LENGTH];
-	lora_read_fifo_all(dead_addr, ADDR_LENGTH, hdma_usart_tx, huart);
+	lora_read_fifo_all(dead_addr, ADDR_LENGTH, false, hdma_usart_tx, huart);
 
 	uint8_t dead_since [6];
-	lora_read_fifo_all(dead_since, 6, hdma_usart_tx, huart);//get dead_since
+	lora_read_fifo_all(dead_since, 6, false, hdma_usart_tx, huart);//get dead_since
 
 	uint8_t battery [BATTERY_LENGTH * 2];
-	lora_read_fifo_all(battery, BATTERY_LENGTH * 2, hdma_usart_tx, huart);//get battery
+	lora_read_fifo_all(battery, BATTERY_LENGTH * 2, false, hdma_usart_tx, huart);//get battery
 
 	uint8_t dest_addr [ADDR_LENGTH];
 	find_dest_addr_to_hub(dest_addr, 1);//find addr closer to hub, 1st attempt
@@ -562,15 +563,15 @@ bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 
 	//get new node addr
 	uint8_t new_node_addr [ADDR_LENGTH];
-	lora_read_fifo_all(new_node_addr, ADDR_LENGTH, hdma_usart_tx, huart);
+	lora_read_fifo_all(new_node_addr, ADDR_LENGTH, false, hdma_usart_tx, huart);
 
 	//get node_coordinates
 	uint8_t node_coordinates [4];
-	lora_read_fifo_all(node_coordinates, 4, hdma_usart_tx, huart);
+	lora_read_fifo_all(node_coordinates, 4, false, hdma_usart_tx, huart);
 
 	//get distance
 	uint8_t distance [2];
-	lora_read_fifo_all(distance, 2, hdma_usart_tx, huart);
+	lora_read_fifo_all(distance, 2, false, hdma_usart_tx, huart);
 
 	//pass on message
 	bool good = mesh_send_add(dest_addr, new_node_addr, node_coordinates, distance, message_id, hdma_usart_tx, huart);
@@ -609,7 +610,7 @@ bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 
 	//get new frequency
 	uint8_t freq_pre [4];
-	lora_read_fifo_all(freq_pre, 4, hdma_usart_tx, huart);
+	lora_read_fifo_all(freq_pre, 4, false, hdma_usart_tx, huart);
 
 	uint32_t new_frequency;
 	memcpy(&new_frequency, freq_pre, sizeof(uint32_t));
@@ -629,7 +630,7 @@ bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	}
 
 	uint8_t acked_msg_id [4];
-	lora_read_fifo_all(acked_msg_id, 4, hdma_usart_tx, huart);
+	lora_read_fifo_all(acked_msg_id, 4, false, hdma_usart_tx, huart);
 	clear_sent_message_struct(acked_msg_id); //this clears the sent data struct if it is a match and does nothing if it is not
 
 	return true;
@@ -718,6 +719,7 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 	message[i] = time[4];//current_date.Date;
 	i += 1;
 	message[i] = time[5];//current_date.Year;
+	i += 1;
 
 	j = 0;
 	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH){ //water distance
@@ -882,7 +884,7 @@ void clear_sent_message_struct(uint8_t * message_id){
 bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id){
 	//read message_id
 	//uint8_t message_id_pre [4];
-	lora_read_fifo_all(message_id, 4, hdma_usart2_tx, huart2);
+	lora_read_fifo_all(message_id, 4, false, hdma_usart2_tx, huart2);
 
 
 	bool match[2]; //0 is match or no match, 1 is true if this node sent it
@@ -903,7 +905,7 @@ bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id)
 
 	//read message_type
 	uint8_t message_type [1];
-	lora_read_fifo_all(message_type, 1, hdma_usart2_tx, huart2);
+	lora_read_fifo_all(message_type, 1, false, hdma_usart2_tx, huart2);
 
 	type[0] = (mesh_msg_type) message_type[0]; //might be a typecasting error/warning
 	return true;
@@ -946,7 +948,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 
 	//read buffer to get dest_addr
 	uint8_t dest_addr [ADDR_LENGTH];
-	lora_read_fifo_all(dest_addr, (uint8_t)ADDR_LENGTH, hdma_usart_tx, huart);
+	lora_read_fifo_all(dest_addr, (uint8_t)ADDR_LENGTH, true, hdma_usart_tx, huart);
 
 	int i = 0;
 	bool addr_match = true;
@@ -969,7 +971,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	bool id_valid = mesh_handle_id_and_message_type(type, message_id);
 
 	uint8_t sending_addr [ADDR_LENGTH];
-	lora_read_fifo_all(sending_addr, (uint8_t)ADDR_LENGTH, hdma_usart_tx, huart);//get sending addr
+	lora_read_fifo_all(sending_addr, (uint8_t)ADDR_LENGTH, false, hdma_usart_tx, huart);//get sending addr
 
 	if(id_valid == false){
 		send_usb_ttl_message(false, type[0], message_id, 1, sending_addr, huart1);//usb ttl debug print
@@ -1023,19 +1025,20 @@ bool mesh_rec_data(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 
 		//get water height, battery_status, and node_addr
 		uint8_t node_addr [ADDR_LENGTH];
-		lora_read_fifo_all(node_addr, ADDR_LENGTH, hdma_usart_tx, huart);
+		lora_read_fifo_all(node_addr, ADDR_LENGTH, false, hdma_usart_tx, huart);
 
 		uint8_t time [6];
-		lora_read_fifo_all(time, 6, hdma_usart_tx, huart);
+		lora_read_fifo_all(time, 6, false, hdma_usart_tx, huart);
 
 		uint8_t water_height [WATER_LENGTH];
-		lora_read_fifo_all(water_height, WATER_LENGTH, hdma_usart_tx, huart);
+		lora_read_fifo_all(water_height, WATER_LENGTH, false, hdma_usart_tx, huart);
 
 		uint8_t battery_status [BATTERY_LENGTH];
-		lora_read_fifo_all(battery_status, BATTERY_LENGTH, hdma_usart_tx, huart);
+		lora_read_fifo_all(battery_status, BATTERY_LENGTH, false, hdma_usart_tx, huart);
 
 		//pass on data
 		bool good = mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time,hdma_usart_tx, huart);
+		send_usb_ttl_message(true, MESH_MSG_DATA, message_id, 1, dest_addr, huart1);
 		return good;
 
 	}
@@ -1046,12 +1049,14 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 	//this prints a message to the usb-ttl about sent and received messages
 	uint8_t message [64];
 	if(sent){
-		char* str1 ="Sent a message with id: ";
+		char* str1 ="\r\n\r\nSent a message with id: ";
+		while(usb_ttl_done == false);
 		memcpy(&message[0], str1, strlen(str1));
 		send_usb_ttl(message, strlen(str1), huart);
 	}
 	else {
-		char* str1 ="Received a message with id: ";
+		char* str1 ="\r\n\r\nReceived a message with id: ";
+		while(usb_ttl_done == false);
 		memcpy(&message[0], str1, strlen(str1));
 		send_usb_ttl(message, strlen(str1), huart);
 	}
@@ -1059,32 +1064,35 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 	char * str2;
 	switch(type){
 	case MESH_MSG_DATA:
-		str2 =" of type data";
+		str2 ="\r\nof type data";
 		break;
 	case MESH_MSG_POLL:
-		str2 =" of type poll";
+		str2 ="\r\nof type poll";
 		break;
 	case MESH_MSG_ACK:
-		str2 =" of type ack";
+		str2 ="\r\nof type ack";
 		break;
 	case MESH_MSG_DEAD:
-		str2 =" of type dead";
+		str2 ="\r\nof type dead";
 		break;
 	case MESH_MSG_HELLO:
-		str2 =" of type hello";
+		str2 ="\r\nof type hello";
 		break;
 	case MESH_MSG_ADD:
-		str2 =" of type add";
+		str2 ="\r\nof type add";
 		break;
 	}
+	while(usb_ttl_done == false);
 	memcpy(&message[0], str2, strlen(str2));
 	send_usb_ttl(message, strlen(str2), huart);
 	if(sent){
 		char* str3 =" for the";
+		while(usb_ttl_done == false);
 		memcpy(&message[0], str3, strlen(str3));
 		send_usb_ttl(message, strlen(str3), huart);
 		send_usb_ttl(&time_or_ignore_reason, 1, huart);
 		char* str5 =" time, rec addr is";
+		while(usb_ttl_done == false);
 		memcpy(&message[0], str5, strlen(str5));
 		send_usb_ttl(message, strlen(str5), huart);
 		send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);
@@ -1105,6 +1113,7 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 			str4 =" and ignored due to any direction fail from addr";
 			break;
 		}
+		while(usb_ttl_done == false);
 		memcpy(&message[0], str4, strlen(str4));
 		send_usb_ttl(message, strlen(str4), huart);
 		send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);

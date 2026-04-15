@@ -20,9 +20,9 @@
 
 
 #define FIFOSIZE_RX 1 //number of bytes in a received message (always 1)
-#define FIFOSIZE_TX_NORM 100 //max number of bytes in a sent message (generic reads and writes)
-#define FIFOSIZE_TX_SEND 100 //max number of bytes in a sent message (not just one write, but an actual sent LoRa message)
-#define FIFOSIZE_TX_REC 50 //max number of bytes in a messaage to read the FIFO buffer
+#define FIFOSIZE_TX_NORM 150 //max number of bytes in a sent message (generic reads and writes)
+#define FIFOSIZE_TX_SEND 150 //max number of bytes in a sent message (not just one write, but an actual sent LoRa message)
+#define FIFOSIZE_TX_REC 150 //max number of bytes in a messaage to read the FIFO buffer
 
 #define LORA_SEND_TIME 2000 //this is the time in ms between each node data send, was 1000
 
@@ -52,7 +52,7 @@ void enable_tty_interrupt_send(void);
 bool lora_init();
 void set_mode_sleep(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-void lora_read_fifo_all(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+void lora_read_fifo_all(uint8_t* data, uint8_t length, bool clear_header, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 uint8_t lora_read_fifo_single(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void set_mode_continuous_receive();
 void lora_write_multiple(uint8_t reg, uint8_t* value, uint8_t length, uint8_t message_type);

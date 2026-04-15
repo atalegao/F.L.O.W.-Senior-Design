@@ -1,4 +1,5 @@
 #include <lora.h>
+#include <mesh.h>
 extern bool sendfifo_ready_norm;
 extern int sendfifo_offset_norm;
 extern bool rx_ready;
@@ -77,7 +78,9 @@ bool doing_send = false;
         lora_write_single(RH_RF95_REG_1D_MODEM_CONFIG1, 0x70 | 0x08 | 0x01, 1); // 57 9D 01 79 updated for implicit header
         lora_write_single(RH_RF95_REG_1E_MODEM_CONFIG2, 0xC0  | 0x04, 1); //last 57 9E 01 C4
         //end
-        lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, 6, 1); //57 A2 01 06      update regpayload length (for implicit header mode only)
+        lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, MESH_MAX_MESSAGE_LENGTH, 1); //57 A2 01 06      update regpayload length (for implicit header mode only)
+//        change the above line to the max length, it should be fine if it is longer than the actual message length since
+//		the sending one will just send garbage and the rec one just won't read it'
         lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1, 1); //norm
         return true;
         #endif
@@ -296,19 +299,22 @@ bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *cr
     return true;
 }
 
-void lora_read_fifo_all(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//done, not tested
+void lora_read_fifo_all(uint8_t* data, uint8_t length, bool clear_header, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//done, not tested
     //THIS IS FOR READING THE ENTIRE LORA MESSAGE, NO HEADERS
     //LENGTH IS WITHOUT HEADERS
     uint8_t start_addr = 0;
     uint8_t datab = 0;
     //start_addr = lora_read_single(0x10);//read start addr of last packet received
     //for some reason 0x10 does not have the correct addr, receive correct values when this is commented out
-    lora_write_single(0x0D, start_addr, 2);//set FIFO pointer to addr of last packet received
-    lora_dma_write_send(sendfifo_offset_rec, hdma_usart_tx, huart, 2, 1); //rec only
     datab = 0;
 
-    for (int i = 0; i < 4; i ++) {
-        datab = lora_read_fifo_single(hdma_usart_tx, huart); //read the headers, but don't store them
+    if(clear_header){
+    	lora_write_single(0x0D, start_addr, 2);//set FIFO pointer to addr of last packet received
+    	lora_dma_write_send(sendfifo_offset_rec, hdma_usart_tx, huart, 2, 1); //rec only
+
+    	for (int i = 0; i < 4; i ++) {
+    		datab = lora_read_fifo_single(hdma_usart_tx, huart); //read the headers, but don't store them
+    	}
     }
 
     for (int i = 0; i < length; i ++) {
@@ -596,7 +602,7 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     //     value = lora_read_single(0x0E);
     // }
 
-
+    //this apparently doesn't do anything/////////////////////////////////////////////////////////////////////////////////////////////TODO
     lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, (length + 4),3); //57 , A2, 01, 06//tx
     // while(value != (length + 4)){
     //     value = lora_read_single(RH_RF95_REG_22_PAYLOAD_LENGTH);
