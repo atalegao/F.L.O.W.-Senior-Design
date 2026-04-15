@@ -114,7 +114,7 @@ bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_addr, mesh_msg_type type);
 bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void message_id_init(message_id_history message);

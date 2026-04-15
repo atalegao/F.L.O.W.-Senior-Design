@@ -638,7 +638,7 @@ bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 
 ////////////////////////message id is the same for the same message through the chain, should not change along chain!!
 
-bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
+bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
 	//message is dest_addr, message_id, message_type, sending_addr, Message ID that it is acking
 	uint8_t message [ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4];
 
@@ -663,6 +663,7 @@ bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, DMA_HandleTypeDef
 	}
 	bool good;
 	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + 4), hdma_usart_tx, huart);
+	send_usb_ttl_message(true, MESH_MSG_ACK, message_id_actual, attempt, dest_addr, huart1);
 	return good;
 }
 
@@ -1060,6 +1061,7 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		memcpy(&message[0], str1, strlen(str1));
 		send_usb_ttl(message, strlen(str1), huart);
 	}
+	while(usb_ttl_done == false);
 	send_usb_ttl(message_id, 4, huart);
 	char * str2;
 	switch(type){
@@ -1090,11 +1092,13 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		while(usb_ttl_done == false);
 		memcpy(&message[0], str3, strlen(str3));
 		send_usb_ttl(message, strlen(str3), huart);
+		while(usb_ttl_done == false);
 		send_usb_ttl(&time_or_ignore_reason, 1, huart);
 		char* str5 =" time, rec addr is";
 		while(usb_ttl_done == false);
 		memcpy(&message[0], str5, strlen(str5));
 		send_usb_ttl(message, strlen(str5), huart);
+		while(usb_ttl_done == false);
 		send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);
 	}
 	else{
@@ -1116,6 +1120,7 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		while(usb_ttl_done == false);
 		memcpy(&message[0], str4, strlen(str4));
 		send_usb_ttl(message, strlen(str4), huart);
+		while(usb_ttl_done == false);
 		send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);
 	}
 }
