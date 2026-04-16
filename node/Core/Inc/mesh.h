@@ -32,7 +32,7 @@ typedef enum {
 
 typedef struct {
     uint8_t addr [ADDR_LENGTH];
-    uint8_t  battery [BATTERY_LENGTH];
+    uint8_t  battery [BATTERY_LENGTH * 2];
     uint64_t last_seen; //seconds, minutes, hours, day, month, year
     bool valid;
 } mesh_neighbor;  // this struct to detail characteristics for each neighbor in the table.  
@@ -46,12 +46,17 @@ typedef struct{
 } message_id_history;
 
 typedef struct{
-	uint8_t message [20]; //max length, not the actual length
+	uint8_t message [MESH_MAX_MESSAGE_LENGTH];
+	uint8_t length;
 	uint8_t attempt;
 	bool valid;
-	uint8_t message_id [4];
+	mesh_msg_type type;
+} sending_buffer_entry;
+
+typedef struct{
+	sending_buffer_entry entry;
 	time_t last_sent_time;
-	uint8_t length; //actual length of message, depends on message type
+
 }sent_message_buff_entry;
 
 typedef struct{
@@ -66,13 +71,6 @@ typedef struct{
 	sent_message_buff_entry entry9;
 	sent_message_buff_entry entry10;
 }sent_message_buffer;
-
-typedef struct{
-	uint8_t message [20];
-	uint8_t length;
-	uint8_t attempt;
-	bool valid;
-} sending_buffer_entry;
 
 typedef struct{
 	sending_buffer_entry entry1;
@@ -91,9 +89,15 @@ void mesh_init();  //isHub is just a bool which indicates whether a module is a 
 void mesh_set_hello_interval(uint32_t seconds);
 uint32_t random_number_gen(void);
 time_t get_time_in_seconds(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
-sending_buffer_entry get_sending_buffer_entry(uint8_t index);
-void add_one_resend_to_send_buffer(sent_message_buff_entry sent_message);
+bool send_item_off_send_buffer(void);
+bool add_new_neighbor_node(uint8_t * sending_addr, uint8_t * battery);
+bool update_neighbor_nodes(uint8_t * sending_addr, uint8_t * battery);
+void replace_neighbor_node(mesh_neighbor * replaced,mesh_neighbor * replacing);
+bool check_and_handle_neighbor_match(uint8_t * addr, uint8_t * battery, mesh_neighbor * neighbor);
+sending_buffer_entry * get_sending_buffer_entry(uint8_t index);
+bool add_one_send_to_sending_buffer(sending_buffer_entry new_entry);
 void handle_one_resending(time_t current_time, sent_message_buff_entry sent_message);
+sending_buffer_entry make_sending_buffer_entry(uint8_t * message, uint8_t attempt, uint8_t length, mesh_msg_type type);
 bool decide_if_past_time(time_t current_time, time_t stored_time);
 bool check_addr_closer_to_hub(uint8_t * first_addr,uint8_t * second_addr);
 bool check_addr_farther_from_hub(uint8_t * first_addr,uint8_t * second_addr);
@@ -115,7 +119,7 @@ bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_addr, mesh_msg_type type);
-bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void message_id_init(message_id_history message);
 void message_id_struct_init();
 void check_message_id_all(uint8_t * message_id, bool * match);

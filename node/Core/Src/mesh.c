@@ -27,8 +27,8 @@ sent_message_buffer sent_buffer;
 
 sending_buffer_type sending_buffer;
 
-uint8_t send_buffer_add_index; //is where to add the next message (counts up)
-uint8_t send_buffer_send_index; //is where the next message to be sent is (counts up)
+uint8_t send_buffer_add_index = 1; //is where to add the next message (counts up)
+uint8_t send_buffer_send_index = 1; //is where the next message to be sent is (counts up)
 
 void mesh_init(){
 	define_addr_any_direction();
@@ -56,8 +56,39 @@ uint32_t random_number_gen(void){
 	return random_number;
 }
 
-//sent messages will be added to a queue (buffer), buffer should have the actual send data (no processing required, just call send function with the data and length)
+//TODO: 1st: sent messages will be added to a queue (buffer), buffer should have the actual send data (no processing required, just call send function with the data and length)
 //if CAD does not detect anything, the message at the top of the queue will be sent (only 1 message will ever be sent at a time)
+
+bool send_item_off_send_buffer(void){
+	//send_buffer_send_index
+	sending_buffer_entry * entry = get_sending_buffer_entry(send_buffer_send_index);
+	if(entry->valid == false){
+		return false;
+	}
+	uint8_t id [4];
+	uint8_t dest_addr [ADDR_LENGTH];
+	int i = 0;
+	while(i < ADDR_LENGTH){
+		dest_addr[i] = entry->message[i];
+		i += 1;
+	}
+	int j = 0;
+	int k = i;
+	while(i < k + 4){ //message_id
+		id[j] = entry->message[i];
+		i += 1;
+		j += 1;
+		}
+	bool good;
+	good = lora_send(entry->message, entry->length, hdma_usart2_tx, huart2);
+	send_usb_ttl_message(true, entry->type, id, entry->attempt, dest_addr, huart1);
+	send_buffer_send_index += 1;
+	entry->valid = false;
+	if(send_buffer_send_index > 10){
+		send_buffer_send_index = 0;
+	}
+	return good;
+}
 
 //can put all of the processing in the main (not an interrupt) and then call the actual send ( lora_dma_write_send) after a CAD cycle fail (in the same interrupt) (to check if channel is active before sending)
 	//would have to put all the message types into an ordered buffer to decide which one to send, only send one at a time to avoid long delays between CAD cycles
@@ -88,76 +119,81 @@ void handle_resending(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart)
 }
 
 void handle_one_resending(time_t current_time, sent_message_buff_entry sent_message){
-	if(sent_message.valid == false){
+	if(sent_message.entry.valid == false){
 		return;
 	}
 
 	bool past_time = decide_if_past_time(current_time, sent_message.last_sent_time);
 	if(past_time){
-		add_one_resend_to_send_buffer(sent_message);
+		add_one_send_to_sending_buffer(sent_message.entry);
 	}
 }
 
-void add_one_resend_to_send_buffer(sent_message_buff_entry sent_message){
+bool add_one_send_to_sending_buffer(sending_buffer_entry new_entry){
 	//uint8_t send_buffer_add_index; //is where to add the next message (counts up)
 	//uint8_t send_buffer_send_index;
 
 	//check if add_index is free
-	sending_buffer_entry sending_buffer_at_add_index = get_sending_buffer_entry(send_buffer_add_index);
-	if(sending_buffer_at_add_index.valid == true){
+	sending_buffer_entry * sending_buffer_at_add_index = get_sending_buffer_entry(send_buffer_add_index);
+	if(sending_buffer_at_add_index->valid == true){
 		//issue, buffer overflowed
+		return false;
 	}
 	else{
-		sending_buffer_at_add_index.valid = true;
+		sending_buffer_at_add_index->valid = true;
 		int i = 0;
-		while (i < 20){
-			sending_buffer_at_add_index.message[i] = sent_message.message[i];
+		while (i < MESH_MAX_MESSAGE_LENGTH){
+			sending_buffer_at_add_index->message[i] = new_entry.message[i];
 			i += 1;
 		}
-		sending_buffer_at_add_index.length = sent_message.length;
-		sending_buffer_at_add_index.attempt = sent_message.attempt + 1;
+		sending_buffer_at_add_index->length = new_entry.length;
+		sending_buffer_at_add_index->attempt = new_entry.attempt;
+		sending_buffer_at_add_index->type = new_entry.type;
 
 
 		send_buffer_add_index += 1;
 		if(send_buffer_add_index > 10){
 			send_buffer_add_index = 0;
 		}
+		return true;
 	}
+	return false;
 }
 
-sending_buffer_entry get_sending_buffer_entry(uint8_t index){
+sending_buffer_entry * get_sending_buffer_entry(uint8_t index){
 	switch(index){
 		case 10:
-			return sending_buffer.entry10;
+			return &sending_buffer.entry10;
 			break;
 		case 9:
-			return sending_buffer.entry9;
+			return &sending_buffer.entry9;
 			break;
 		case 8:
-			return sending_buffer.entry8;
+			return &sending_buffer.entry8;
 			break;
 		case 7:
-			return sending_buffer.entry7;
+			return &sending_buffer.entry7;
 			break;
 		case 6:
-			return sending_buffer.entry6;
+			return &sending_buffer.entry6;
 			break;
 		case 5:
-			return sending_buffer.entry5;
+			return &sending_buffer.entry5;
 			break;
 		case 4:
-			return sending_buffer.entry4;
+			return &sending_buffer.entry4;
 			break;
 		case 3:
-			return sending_buffer.entry3;
+			return &sending_buffer.entry3;
 			break;
 		case 2:
-			return sending_buffer.entry2;
+			return &sending_buffer.entry2;
 			break;
 		case 1:
-			return sending_buffer.entry1;
+			return &sending_buffer.entry1;
 			break;
 		}
+	return &sending_buffer.entry10;
 }
 
 bool decide_if_past_time(time_t current_time, time_t stored_time){
@@ -405,6 +441,21 @@ void define_addr_right_direction(){
 	addr_right_direction[1] = 0x80; //int min (signed)
 }
 
+
+sending_buffer_entry make_sending_buffer_entry(uint8_t * message, uint8_t attempt, uint8_t length, mesh_msg_type type){
+	sending_buffer_entry entry;
+	entry.valid = true;
+	entry.length = length;
+	entry.attempt = attempt;
+	entry.type = type;
+	int i = 0;
+	while (i < MESH_MAX_MESSAGE_LENGTH){
+		entry.message[i] = message[i];
+		i += 1;
+	}
+	return entry;
+}
+
 bool mesh_send_hello(uint8_t * battery, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, sending_addr, battery
 
@@ -434,9 +485,255 @@ bool mesh_send_hello(uint8_t * battery, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 	}
 
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
-	send_usb_ttl_message(true, MESH_MSG_HELLO, message_id_actual, 1, dest_addr, huart1);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, 1, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH), MESH_MSG_HELLO);
+	good = add_one_send_to_sending_buffer(entry);
+	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
+	//send_usb_ttl_message(true, MESH_MSG_HELLO, message_id_actual, 1, dest_addr, huart1);
 	return good;
+}
+
+bool check_and_handle_neighbor_match(uint8_t * addr, uint8_t * battery, mesh_neighbor * neighbor){
+	int i = 0;
+	while(i < ADDR_LENGTH){
+		if(addr[i] != neighbor->addr[i]){
+			return false;
+		}
+		i += 1;
+	}
+	//got this far means a match to an existing addr, so just update battery, first battery is most recent, 2nd is least recent
+	i = 0;
+	while(i < BATTERY_LENGTH){
+		neighbor->battery[i + ADDR_LENGTH] = neighbor->battery[i];
+		i += 1;
+	}
+	i = 0;
+	while(i < BATTERY_LENGTH){
+		neighbor->battery[i] = battery[i];
+		i += 1;
+	}
+	//update last seen
+	get_timestamp();//updates current time and date
+	neighbor->last_seen = 0;
+	neighbor->last_seen |= (uint64_t) current_time.Seconds;
+	neighbor->last_seen |= (uint64_t) current_time.Minutes << (8*1);
+	neighbor->last_seen |= (uint64_t) current_time.Hours << (8*2);
+	neighbor->last_seen |= (uint64_t) current_date.Date << (8*3);
+	neighbor->last_seen |= (uint64_t) current_date.Month << (8*4);
+	neighbor->last_seen |= (uint64_t) current_date.Year << (8*5);
+	return true;
+}
+
+void replace_neighbor_node(mesh_neighbor * replaced,mesh_neighbor * replacing){
+	replaced->valid = replacing->valid;
+	replaced->last_seen = replacing->last_seen;
+	int i = 0;
+	while(i < ADDR_LENGTH){
+		replaced->addr[i] = replacing->addr[i];
+		i += 1;
+	}
+	i = 0;
+	while(i < BATTERY_LENGTH * 2){
+		replaced->battery[i] = replacing->battery[i];
+		i += 1;
+	}
+}
+
+bool add_new_neighbor_node(uint8_t * sending_addr, uint8_t * battery){
+	//figure out direction
+	bool closer_to_hub = check_addr_closer_to_hub(sending_addr,self_addr);
+	uint8_t addr1 [ADDR_LENGTH];
+	uint8_t addr2 [ADDR_LENGTH];
+	uint8_t addr3 [ADDR_LENGTH];
+	bool addr1_valid;
+	bool addr2_valid;
+	bool addr3_valid;
+
+	mesh_neighbor new[1]; //make new mesh_neighbor struct
+	new->valid = true;
+	int i = 0;
+	while(i < ADDR_LENGTH){
+		new->addr[i] = sending_addr[i];
+		i += 1;
+	}
+	i = 0;
+	while(i < BATTERY_LENGTH * 2){
+		new->battery[i] = battery[i];
+		i += 1;
+	}
+	get_timestamp();//updates current time and date
+	new->last_seen = 0;
+	new->last_seen |= (uint64_t) current_time.Seconds;
+	new->last_seen |= (uint64_t) current_time.Minutes << (8*1);
+	new->last_seen |= (uint64_t) current_time.Hours << (8*2);
+	new->last_seen |= (uint64_t) current_date.Date << (8*3);
+	new->last_seen |= (uint64_t) current_date.Month << (8*4);
+	new->last_seen |= (uint64_t) current_date.Year << (8*5);//end make new mesh_neighbor struct
+
+	i = 0;
+	if(closer_to_hub){//handle if closer to hub
+		while(i < ADDR_LENGTH){
+			addr1[i] = neighbor_to_hub1.addr[i];
+			i += 1;
+		}
+		addr1_valid = neighbor_to_hub1.valid;
+		i = 0;
+		while(i < ADDR_LENGTH){
+			addr2[i] = neighbor_to_hub2.addr[i];
+			i += 1;
+		}
+		addr2_valid = neighbor_to_hub2.valid;
+		i = 0;
+		while(i < ADDR_LENGTH){
+			addr3[i] = neighbor_to_hub3.addr[i];
+			i += 1;
+		}
+		addr3_valid = neighbor_to_hub3.valid;
+		uint8_t num_valid = addr3_valid + addr1_valid + addr2_valid;
+		if(num_valid == 0){//replace 1
+			replace_neighbor_node(&neighbor_to_hub1,new);
+			return true;
+		}
+		else if(num_valid == 1){//figure out whether to place at 1 or 2
+			if(check_addr_closer_to_hub(new->addr, addr1)){//if new is closer to hub than neighbor_to_hub1, place at 2
+				replace_neighbor_node(&neighbor_to_hub2,new);//place in 2nd spot
+				return true;
+			}//was not closer to hub (so closer to node), move 1st to 2nd
+			replace_neighbor_node(&neighbor_to_hub2,&neighbor_to_hub1);//move 1st spot to 2nd
+			replace_neighbor_node(&neighbor_to_hub1,new);//move new to 1st
+			return true;
+
+		}
+		else if(num_valid == 2){//figure out whether to place at 1 or 2 or 3
+			if(!check_addr_closer_to_hub(new->addr, addr1)){//if new is not closer to hub than neighbor_to_hub1, place at 1 and shift
+				replace_neighbor_node(&neighbor_to_hub3,&neighbor_to_hub2);
+				replace_neighbor_node(&neighbor_to_hub2,&neighbor_to_hub1);
+				replace_neighbor_node(&neighbor_to_hub1,new);
+				return true;
+			}
+			else if(!check_addr_closer_to_hub(new->addr, addr2)){//new is not closer to hub than 2, so shift and place at 2
+				replace_neighbor_node(&neighbor_to_hub3,&neighbor_to_hub2);
+				replace_neighbor_node(&neighbor_to_hub2,new);
+				return true;
+			}
+			else{
+				replace_neighbor_node(&neighbor_to_hub3,new);//place in 3rd spot
+				return true;
+			}
+		}
+		else{//all 3 valid
+			if(check_addr_closer_to_hub(new->addr, addr3)){//if new is closer to hub than 3, so shift all and place at 3
+				replace_neighbor_node(&neighbor_to_hub1,&neighbor_to_hub2);//move 2nd to 1st
+				replace_neighbor_node(&neighbor_to_hub2,&neighbor_to_hub3);//move 3rd to 2nd
+				replace_neighbor_node(&neighbor_to_hub3,new);//move new to 3
+				return true;
+			}
+			else if(check_addr_closer_to_hub(new->addr, addr2)){//if new is closer to hub than 2, so shift and place at 2
+				replace_neighbor_node(&neighbor_to_hub1,&neighbor_to_hub2);//move 2nd to 1st
+				replace_neighbor_node(&neighbor_to_hub2,new);//move new to 2
+				return true;
+			}
+			else if(check_addr_closer_to_hub(new->addr, addr1)){//if new is closer to hub than 1, place at 1
+				replace_neighbor_node(&neighbor_to_hub1,new);//move new to 1
+				return true;
+			}
+			else{//closest to node, so don't add
+				return true;
+			}
+		}
+	}
+	else{//handle if farther from hub
+		while(i < ADDR_LENGTH){
+			addr1[i] = neighbor_away_hub1.addr[i];
+			i += 1;
+		}
+		addr1_valid = neighbor_away_hub1.valid;
+		i = 0;
+		while(i < ADDR_LENGTH){
+			addr2[i] = neighbor_away_hub2.addr[i];
+			i += 1;
+		}
+		addr2_valid = neighbor_away_hub2.valid;
+		i = 0;
+		while(i < ADDR_LENGTH){
+			addr3[i] = neighbor_away_hub3.addr[i];
+			i += 1;
+		}
+		addr3_valid = neighbor_away_hub3.valid;
+		uint8_t num_valid = addr3_valid + addr3_valid + addr3_valid;
+		if(num_valid == 0){//replace 1
+			replace_neighbor_node(&neighbor_away_hub1,new);
+			return true;
+		}
+		else if(num_valid == 1){//figure out whether to place at 1 or 2
+			if(check_addr_farther_from_hub(new->addr, addr1)){//if new is closer to hub than neighbor_to_hub1, place at 2
+				replace_neighbor_node(&neighbor_away_hub2,new);//place in 2nd spot
+				return true;
+			}//was not closer to hub (so closer to node), move 1st to 2nd
+			replace_neighbor_node(&neighbor_away_hub2,&neighbor_away_hub1);//move 1st spot to 2nd
+			replace_neighbor_node(&neighbor_away_hub1,new);//move new to 1st
+			return true;
+
+		}
+		else if(num_valid == 2){//figure out whether to place at 1 or 2 or 3
+			if(!check_addr_farther_from_hub(new->addr, addr1)){//if new is not closer to hub than neighbor_to_hub1, place at 1 and shift
+				replace_neighbor_node(&neighbor_away_hub3,&neighbor_away_hub2);
+				replace_neighbor_node(&neighbor_away_hub2,&neighbor_away_hub1);
+				replace_neighbor_node(&neighbor_away_hub1,new);
+				return true;
+			}
+			else if(!check_addr_farther_from_hub(new->addr, addr2)){//new is not closer to hub than 2, so shift and place at 2
+				replace_neighbor_node(&neighbor_away_hub3,&neighbor_away_hub2);
+				replace_neighbor_node(&neighbor_away_hub2,new);
+				return true;
+			}
+			else{
+				replace_neighbor_node(&neighbor_away_hub3,new);//place in 3rd spot
+				return true;
+			}
+		}
+		else{//all 3 valid
+			if(check_addr_farther_from_hub(new->addr, addr3)){//if new is closer to hub than 3, so shift all and place at 3
+				replace_neighbor_node(&neighbor_away_hub1,&neighbor_away_hub2);//move 2nd to 1st
+				replace_neighbor_node(&neighbor_away_hub2,&neighbor_away_hub3);//move 3rd to 2nd
+				replace_neighbor_node(&neighbor_away_hub3,new);//move new to 3
+				return true;
+			}
+			else if(check_addr_farther_from_hub(new->addr, addr2)){//if new is closer to hub than 2, so shift and place at 2
+				replace_neighbor_node(&neighbor_away_hub1,&neighbor_away_hub2);//move 2nd to 1st
+				replace_neighbor_node(&neighbor_away_hub2,new);//move new to 2
+				return true;
+			}
+			else if(check_addr_farther_from_hub(new->addr, addr1)){//if new is closer to hub than 1, place at 1
+				replace_neighbor_node(&neighbor_away_hub1,new);//move new to 1
+				return true;
+			}
+			else{//closest to node, so don't add
+				return true;
+			}
+		}
+	}
+	return false; ///error, should not go here
+}
+
+
+bool update_neighbor_nodes(uint8_t * sending_addr, uint8_t * battery){
+	//update neighbor node list
+	//mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_away_hub1, neighbor_away_hub2, neighbor_away_hub3;
+	//to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
+	bool good1 = check_and_handle_neighbor_match(sending_addr, battery, &neighbor_to_hub1);
+	bool good2 = check_and_handle_neighbor_match(sending_addr, battery, &neighbor_to_hub2);
+	bool good3 = check_and_handle_neighbor_match(sending_addr, battery, &neighbor_to_hub3);
+	bool good4 = check_and_handle_neighbor_match(sending_addr, battery, &neighbor_away_hub1);
+	bool good5 = check_and_handle_neighbor_match(sending_addr, battery, &neighbor_away_hub2);
+	bool good6 = check_and_handle_neighbor_match(sending_addr, battery, &neighbor_away_hub3);
+	//if all are false, go back and add the new neighbor node
+	if(!(good1 | good2 | good3 | good4 | good5 | good6)){
+		bool good = add_new_neighbor_node(sending_addr, battery);
+		return good;
+	}
+	else{
+		return true;
+	}
 }
 
 bool mesh_rec_hello(uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
@@ -445,13 +742,14 @@ bool mesh_rec_hello(uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UAR
 
 	uint8_t battery [BATTERY_LENGTH];
 	lora_read_fifo_all(battery, BATTERY_LENGTH, false, hdma_usart_tx, huart);
+	bool good = update_neighbor_nodes(sending_addr, battery);
 	if(isHub){
 		//update mem
 	}
 	//rest is node
 
 	//update mem
-	return true;
+	return  good;
 }
 
 bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
@@ -488,8 +786,10 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 		j += 1;
 	}
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2), hdma_usart_tx, huart);
-	send_usb_ttl_message(true, MESH_MSG_DEAD, message_id, attempt, dest_addr, huart1);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2), MESH_MSG_DEAD);
+	good = add_one_send_to_sending_buffer(entry);
+	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2), hdma_usart_tx, huart);
+	//send_usb_ttl_message(true, MESH_MSG_DEAD, message_id, attempt, dest_addr, huart1);
 	return good;
 }
 //dead since could be the actual time (I think 6 bytes)
@@ -559,8 +859,10 @@ bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint
 	}
 
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2), hdma_usart_tx, huart);
-	send_usb_ttl_message(true, MESH_MSG_ADD, message_id, attempt, dest_addr, huart1);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2), MESH_MSG_ADD);
+	good = add_one_send_to_sending_buffer(entry);
+	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2), hdma_usart_tx, huart);
+	//send_usb_ttl_message(true, MESH_MSG_ADD, message_id, attempt, dest_addr, huart1);
 	return good;
 }
 
@@ -611,8 +913,10 @@ bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_freq
 	}
 
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4), hdma_usart_tx, huart);
-	send_usb_ttl_message(true, MESH_MSG_POLL, message_id, attempt, dest_addr, huart1);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4), MESH_MSG_POLL);
+	good = add_one_send_to_sending_buffer(entry);
+	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4), hdma_usart_tx, huart);
+	//send_usb_ttl_message(true, MESH_MSG_POLL, message_id, attempt, dest_addr, huart1);
 	return good;
 }
 
@@ -679,8 +983,10 @@ bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, 
 		j += 1;
 	}
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4), hdma_usart_tx, huart);
-	send_usb_ttl_message(true, MESH_MSG_ACK, message_id_actual, attempt, dest_addr, huart1);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4), MESH_MSG_ACK);
+	good = add_one_send_to_sending_buffer(entry);
+	//good = lora_send(message, (ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4), hdma_usart_tx, huart);
+	//send_usb_ttl_message(true, MESH_MSG_ACK, message_id_actual, attempt, dest_addr, huart1);
 	return good;
 }
 
@@ -710,7 +1016,7 @@ int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_
 
 	return i;
 }
-bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
+bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
 	//sending time, water distance, node addr that took data, battery level/status
 
 	//message is dest_addr, message_id, message_type, sending_addr, node addr that took data, time, water distance, battery status/level
@@ -754,7 +1060,9 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 	}
 
 	bool good;
-	good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), MESH_MSG_DATA);
+	good = add_one_send_to_sending_buffer(entry);
+	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
 	return good;
 }
 
@@ -1028,6 +1336,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 		bool good = mesh_message_type_helper(type[0], message_id, sending_addr,hdma_usart_tx, huart);//pass on
 		return good;
 	}
+	return false;//should never reach here
 }
 
 bool mesh_rec_data(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
@@ -1055,7 +1364,7 @@ bool mesh_rec_data(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 		lora_read_fifo_all(battery_status, BATTERY_LENGTH, false, hdma_usart_tx, huart);
 
 		//pass on data
-		bool good = mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time,hdma_usart_tx, huart);
+		bool good = mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time,1, hdma_usart_tx, huart);
 		send_usb_ttl_message(true, MESH_MSG_DATA, message_id, 1, dest_addr, huart1);
 		return good;
 
