@@ -27,7 +27,8 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
-
+	extern TIM_HandleTypeDef htim6;
+	extern bool usb_ttl_done;
 /* USER CODE END TD */
 
 /* Private define ------------------------------------------------------------*/
@@ -262,5 +263,15 @@ void USART2_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+void TIM6_DAC_IRQHandler(void)
+{
+  uint8_t message [64];
+  char* str3 ="\r\n\r\n polling timer went off";
+  while(usb_ttl_done == false);
+  memcpy(&message[0], str3, strlen(str3));
+  send_usb_ttl(message, strlen(str3), huart1);
+  HAL_TIM_IRQHandler(&htim6);
+
+}
 
 /* USER CODE END 1 */

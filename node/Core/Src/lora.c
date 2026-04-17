@@ -757,6 +757,7 @@ void setup_lora_send_timer(TIM_HandleTypeDef * htim, uint32_t lora_send_time){
 	uint16_t period;
 	uint32_t val;
 
+	HAL_TIM_Base_Stop_IT(htim);
 	HAL_TIM_Base_DeInit(htim);
 	//input clock is APB2Tim_clock (currently 32 MHz)
 	//use lora_send_time (in ms)
@@ -773,4 +774,5 @@ void setup_lora_send_timer(TIM_HandleTypeDef * htim, uint32_t lora_send_time){
 	htim->Instance->EGR |= TIM_EGR_UG; //manually trigger update event (loads new Prescaler and ARR values)
 	__HAL_TIM_CLEAR_IT(htim, TIM_IT_UPDATE); //clears interrupt flag, htim.Instance->CR1 |= TIM_CR1_URS; // Interrupts only on overflow
 	__HAL_TIM_SET_COUNTER(htim, 0); //set counter to 0
+	HAL_TIM_Base_Start_IT(htim);
 }

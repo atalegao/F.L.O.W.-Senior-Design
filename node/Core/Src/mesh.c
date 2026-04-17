@@ -940,6 +940,8 @@ bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 
 	//send a new polling frequency message
 	bool good = mesh_send_poll(dest_addr, message_id, new_frequency, 1, hdma_usart_tx, huart);
+	//update own polling frequency
+	setup_lora_send_timer(&htim6, new_frequency);
 	return good;
 }
 

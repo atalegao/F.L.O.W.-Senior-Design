@@ -126,9 +126,11 @@ bool isHub = false;
 bool usb_ttl_done = true;
 bool in_read_lora_fifo = false;
 
-#define DO_SEND 1
+#define DO_SEND 0
 
-#define DO_REC 0
+#define DO_REC 1
+
+#define DO_BOTH 0
 
 /* USER CODE END 0 */
 
@@ -203,7 +205,7 @@ int main(void)
   //send_data[0] = 0xF0;
   //send_data[1] = 0x0F;
   HAL_TIM_Base_Start_IT(&htim21);
-  //HAL_TIM_Base_Start_IT(&htim6);
+  HAL_TIM_Base_Start_IT(&htim6);
 
   HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
@@ -213,13 +215,21 @@ int main(void)
   self_addr[0] = 0x16;
   self_addr[1] = 0x17;
 
+  setup_lora_send_timer(&htim6, 0x000004FF);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if(DO_REC){
+//	  if(DO_BOTH){
+//		  while(1){//this is what the lora code in the main should be
+//			  //if rec...
+//			  //if send...
+//		  }
+//	  }
+	  if(DO_REC & !DO_BOTH){
 		  if(read_lora_fifo){ //
 			  in_read_lora_fifo = true;
 			  // stop the CAD timer since it will make the module go into sleep mode->this clears the FIFO, also stop send timer since need to receive first
@@ -246,12 +256,13 @@ int main(void)
 			  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
 		  }
 	  }
-	  if(DO_SEND & (!global_receive_mode_from_cad) & (!read_lora_fifo)){
+	  if(DO_SEND & (!global_receive_mode_from_cad) & (!read_lora_fifo) & !DO_BOTH){
 		  in_send = true;
 		  HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
 		  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
 
 		  send_item_off_send_buffer();
+
 		  /*hello
 		  uint8_t battery[1];
 		  battery[0] = 0x20;
@@ -260,6 +271,7 @@ int main(void)
 		  */
 
 		  //add
+		  /*
 		  uint8_t dest_addr [ADDR_LENGTH];
 		  dest_addr[0] = 0x16;
 		  dest_addr[1] = 0x17;
@@ -281,6 +293,7 @@ int main(void)
 		  distance[1] = 0x25;
 
 		  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, hdma_usart2_tx, huart2);
+		  */
 
 
 		  /*dead
@@ -308,7 +321,7 @@ int main(void)
 		  mesh_send_dead(dest_addr, dead_addr, dead_since, battery, message_id, 1, hdma_usart2_tx, huart2);
 		  */
 
-		  /*poll
+		  //poll
 		  uint8_t dest_addr [ADDR_LENGTH];
 		  dest_addr[0] = 0x16;
 		  dest_addr[1] = 0x17;
@@ -317,9 +330,9 @@ int main(void)
 		  message_id[1] = 0x13;
 		  message_id[2] = 0x14;
 		  message_id[3] = 0x15;
-		  uint32_t new_frequency = 0xFFFFFFFF;
+		  uint32_t new_frequency = 0x000000FF;
 		  mesh_send_poll(dest_addr,message_id, new_frequency, 1, hdma_usart2_tx, huart2);
-		  */
+		  //*/
 
 		  /* ack
 		  uint8_t dest_addr [ADDR_LENGTH];
