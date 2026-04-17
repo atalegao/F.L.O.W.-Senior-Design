@@ -56,8 +56,6 @@ uint32_t random_number_gen(void){
 	return random_number;
 }
 
-//TODO: 1st: sent messages will be added to a queue (buffer), buffer should have the actual send data (no processing required, just call send function with the data and length)
-//if CAD does not detect anything, the message at the top of the queue will be sent (only 1 message will ever be sent at a time)
 
 bool send_item_off_send_buffer(void){
 	//send_buffer_send_index
@@ -90,12 +88,11 @@ bool send_item_off_send_buffer(void){
 	return good;
 }
 
-//can put all of the processing in the main (not an interrupt) and then call the actual send ( lora_dma_write_send) after a CAD cycle fail (in the same interrupt) (to check if channel is active before sending)
-	//would have to put all the message types into an ordered buffer to decide which one to send, only send one at a time to avoid long delays between CAD cycles
-	//would need to add resending messages as well and would need to immediately do CAD after the send completes to avoid any extra time between CAD cycles
+//TODO: handle message ID (most functions made, just implement)
+//TODO: check resending
 
 //TODO: need a timer to send hello
-
+//TODO:need a timer to handle resending
 //TODO: need a timer to send own data (could be the same one to do ultrasonic)
 
 //use the buffer for sent messages and have a timer to add a sent message to the send buffer if the message is still in the sent buffer and is still valid
@@ -659,7 +656,7 @@ bool add_new_neighbor_node(uint8_t * sending_addr, uint8_t * battery){
 			i += 1;
 		}
 		addr3_valid = neighbor_away_hub3.valid;
-		uint8_t num_valid = addr3_valid + addr3_valid + addr3_valid;
+		uint8_t num_valid = addr1_valid + addr2_valid + addr3_valid;
 		if(num_valid == 0){//replace 1
 			replace_neighbor_node(&neighbor_away_hub1,new);
 			return true;

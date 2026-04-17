@@ -211,7 +211,7 @@ int main(void)
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(SysTick_IRQn);
 
-  mesh_init();
+  mesh_init();//16,17         then 18,17        then 19,17
   self_addr[0] = 0x16;
   self_addr[1] = 0x17;
 
@@ -263,12 +263,12 @@ int main(void)
 
 		  send_item_off_send_buffer();
 
-		  /*hello
+		  ///*hello
 		  uint8_t battery[1];
 		  battery[0] = 0x20;
 
 		  mesh_send_hello(battery, hdma_usart2_tx, huart2);
-		  */
+		  //*/
 
 		  //add
 		  /*
@@ -322,6 +322,7 @@ int main(void)
 		  */
 
 		  //poll
+		  /*
 		  uint8_t dest_addr [ADDR_LENGTH];
 		  dest_addr[0] = 0x16;
 		  dest_addr[1] = 0x17;
@@ -332,7 +333,7 @@ int main(void)
 		  message_id[3] = 0x15;
 		  uint32_t new_frequency = 0x000000FF;
 		  mesh_send_poll(dest_addr,message_id, new_frequency, 1, hdma_usart2_tx, huart2);
-		  //*/
+		  */
 
 		  /* ack
 		  uint8_t dest_addr [ADDR_LENGTH];
