@@ -4,12 +4,14 @@
  *  Created on: Mar 6, 2026
  *      Author: aditi
  */
+/*
+ * ui_def.cpp
+ */
 #include "ui_def.h"
 #include <string.h>
 
 ScreenState currentScreen;
 
-/* Data storage */
 Node nodes[MAX_NODES];
 uint16_t nodeCount = 0;
 
@@ -21,13 +23,11 @@ uint8_t keypadIndex = 0;
 
 Node* activeNode = NULL;
 
-/* Buttons */
 Button nodeMenu = {100, 200, 220, 80, "Nodes", RA8875_BLUE};
 Button phoneMenu = {420, 200, 220, 80, "Phones", RA8875_GREEN};
 Button backBtn  = {20, 20, 150, 60, "BACK", RA8875_YELLOW};
 Button addPhoneBtn = {300, 380, 200, 80, "Add Phone", RA8875_GREEN};
 
-/* ---------- Helpers ---------- */
 
 void draw_button(Button b) {
     tft->fillRectArea(b.x, b.y, b.w, b.h, b.color);
@@ -90,9 +90,13 @@ void drawNodeDetail(Node* n) {
     tft->textMode();
     tft->textSetCursor(50, 50);
     tft->textEnlarge(2);
+    tft->textTransparent(RA8875_WHITE);
+
     tft->textWrite(n->name);
 
     tft->textSetCursor(50, 150);
+    tft->textTransparent(RA8875_WHITE);
+
     tft->textWrite(n->status);
 
     tft->graphicsMode();
@@ -149,7 +153,6 @@ void drawKeypad(void) {
     draw_button(backBtn);
 }
 
-/* ---------- Logic ---------- */
 
 void uiHandleTouch(uint16_t x, uint16_t y) {
     if (x == 0 && y == 0) return;
@@ -204,7 +207,6 @@ void uiHandleTouch(uint16_t x, uint16_t y) {
     }
 }
 
-/* ---------- Data ---------- */
 
 void addNode(uint8_t id, const char* name, const char* status) {
     if (nodeCount >= MAX_NODES) return;
@@ -222,7 +224,6 @@ void addPhone(const char* number) {
     phoneCount++;
 }
 
-/* ---------- Init ---------- */
 
 void uiInit(Adafruit_RA8875* display) {
     tft = display;
