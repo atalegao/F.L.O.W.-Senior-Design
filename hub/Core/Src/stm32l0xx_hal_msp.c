@@ -306,6 +306,14 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(USART2_IRQn);
     /* USER CODE BEGIN USART2_MspInit 1 */
+    HAL_NVIC_DisableIRQ (USART2_IRQn);
+    HAL_NVIC_SetPriority(USART2_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(USART2_IRQn);
+
+    //also do for the DMA used with UART (should be the same as USART1)
+    HAL_NVIC_DisableIRQ (DMA1_Channel4_5_IRQn);
+    HAL_NVIC_SetPriority(DMA1_Channel4_5_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(DMA1_Channel4_5_IRQn);
 
     /* USER CODE END USART2_MspInit 1 */
   }
@@ -566,6 +574,9 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
     HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
     /* USER CODE BEGIN TIM6_MspInit 1 */
+    HAL_NVIC_DisableIRQ (TIM6_DAC_IRQn);
+    HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
 
     /* USER CODE END TIM6_MspInit 1 */
   }
@@ -580,6 +591,9 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
     HAL_NVIC_SetPriority(TIM21_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(TIM21_IRQn);
     /* USER CODE BEGIN TIM21_MspInit 1 */
+    HAL_NVIC_DisableIRQ (TIM21_IRQn);
+    HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(TIM21_IRQn);
 
     /* USER CODE END TIM21_MspInit 1 */
   }
