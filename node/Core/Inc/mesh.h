@@ -40,7 +40,6 @@ typedef struct {
 
 
 typedef struct{
-    bool this_node_sent; //true if this node is one that originally sent the message
     uint8_t message_id [4];
     bool valid; //1 if an actual message, 0 if just an initialized default message_id
 } message_id_history;
@@ -96,7 +95,9 @@ void replace_neighbor_node(mesh_neighbor * replaced,mesh_neighbor * replacing);
 bool check_and_handle_neighbor_match(uint8_t * addr, uint8_t * battery, mesh_neighbor * neighbor);
 sending_buffer_entry * get_sending_buffer_entry(uint8_t index);
 bool add_one_send_to_sending_buffer(sending_buffer_entry new_entry);
-void handle_one_resending(time_t current_time, sent_message_buff_entry sent_message);
+void handle_one_resending(time_t current_time, sent_message_buff_entry * sent_message);
+//void add_to_sent_message_ids(uint8_t * message_id, uint8_t attempt);
+//uint8_t check_message_id_sent(message_id_history_sent past_message, uint8_t * message_id);
 sending_buffer_entry make_sending_buffer_entry(uint8_t * message, uint8_t attempt, uint8_t length, mesh_msg_type type);
 bool decide_if_past_time(time_t current_time, time_t stored_time);
 bool check_addr_closer_to_hub(uint8_t * first_addr,uint8_t * second_addr);
@@ -120,10 +121,15 @@ bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_addr, mesh_msg_type type);
 bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-void message_id_init(message_id_history message);
+uint8_t check_message_id(message_id_history past_message, uint8_t * message_id);
+//void message_id_init_sent(message_id_history_sent message);
+void replace_one_sent_buffer_entry(sending_buffer_entry * new_entry, sent_message_buff_entry * old_entry);
+void add_to_sent_message_buffer(sending_buffer_entry * entry);
 void message_id_struct_init();
 void check_message_id_all(uint8_t * message_id, bool * match);
 void replace_one_message_id_struct(message_id_history changing, message_id_history values);
+//void replace_one_message_id_struct_sent(message_id_history_sent changing, message_id_history_sent values);
+void clear_sent_message_buffer(uint8_t * message_id);
 void shift_all_messages(uint8_t * message_id, bool this_node_sent);
 bool check_message_struct_match(uint8_t * message_id, uint8_t * message_id2);
 void clear_sent_message_struct(uint8_t * message_id);

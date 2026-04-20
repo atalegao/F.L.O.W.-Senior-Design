@@ -21,7 +21,6 @@ mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_awa
 //to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
 
 message_id_history message1, message2, message3, message4, message5, message6, message7, message8, message9, message10;
-message_id_history sent_message1, sent_message2, sent_message3, sent_message4, sent_message5;
 
 sent_message_buffer sent_buffer;
 
@@ -85,11 +84,95 @@ bool send_item_off_send_buffer(void){
 	if(send_buffer_send_index > 10){
 		send_buffer_send_index = 0;
 	}
+	//add to sent message buffer
+	if((entry->type != MESH_MSG_ACK) & (entry->type != MESH_MSG_HELLO)){
+		add_to_sent_message_buffer(entry);
+	}
 	return good;
 }
 
-//TODO: handle message ID (most functions made, just implement)
+void add_to_sent_message_buffer(sending_buffer_entry * entry){
+	//find empty buffer slot
+	if(sent_buffer.entry1.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry1);
+	}
+	else if(sent_buffer.entry2.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry2);
+	}
+	else if(sent_buffer.entry3.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry3);
+	}
+	else if(sent_buffer.entry4.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry4);
+	}
+	else if(sent_buffer.entry5.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry5);
+	}
+	else if(sent_buffer.entry6.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry6);
+	}
+	else if(sent_buffer.entry7.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry7);
+	}
+	else if(sent_buffer.entry8.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry8);
+	}
+	else if(sent_buffer.entry9.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry9);
+	}
+	else if(sent_buffer.entry10.entry.valid == false){
+		replace_one_sent_buffer_entry(entry, &sent_buffer.entry10);
+	}
+}
+
+void replace_one_sent_buffer_entry(sending_buffer_entry * new_entry, sent_message_buff_entry * old_entry){
+	old_entry->entry.valid = true;
+	old_entry->entry.type = new_entry->type;
+	old_entry->entry.attempt = new_entry->attempt;
+	old_entry->entry.length = new_entry->length;
+	int i = 0;
+	while(i < MESH_MAX_MESSAGE_LENGTH){
+		old_entry->entry.message[i] = new_entry->message[i];
+		i += 1;
+	}
+	time_t current_time_s = get_time_in_seconds(&current_time, &current_date);
+	old_entry->last_sent_time = current_time_s;
+}
+//
+//void add_to_sent_message_ids(uint8_t * message_id, uint8_t attempt){
+//	message_id_history_sent values;
+//	values.attempt = attempt;
+//	values.valid = true;
+//	int i = 0;
+//	while(i < 4){
+//		values.message_id[i] = message_id[i];
+//		i += 1;
+//	}
+//	if(sent_message1.valid == false){
+//		replace_one_message_id_struct_sent(sent_message1, values);//replace with new message
+//	}
+//	else if(sent_message2.valid == false){
+//		replace_one_message_id_struct_sent(sent_message2, values);//replace with new message
+//	}
+//	else if(sent_message3.valid == false){
+//		replace_one_message_id_struct_sent(sent_message3, values);//replace with new message
+//	}
+//	else if(sent_message4.valid == false){
+//		replace_one_message_id_struct_sent(sent_message4, values);//replace with new message
+//	}
+//	else if(sent_message5.valid == false){
+//		replace_one_message_id_struct_sent(sent_message5, values);//replace with new message
+//	}
+//	else{
+//
+//	}
+//}
+
+//TODO: handle message ID
 //TODO: check resending
+//TODO: if a message is received that the node has already seen, ack it to stop the sending one from sending over and over again
+//hub handles this, just need for nodes
+//what if it is sent to a different addr?, ack anyway: yes
 
 //TODO: need a timer to send hello
 //TODO:need a timer to handle resending
@@ -103,26 +186,41 @@ void handle_resending(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart)
 	get_timestamp();//get current time
 	time_t current_time_s = get_time_in_seconds(&current_time, &current_date);
 
-	handle_one_resending(current_time_s, sent_buffer.entry1);
-	handle_one_resending(current_time_s, sent_buffer.entry2);
-	handle_one_resending(current_time_s, sent_buffer.entry3);
-	handle_one_resending(current_time_s, sent_buffer.entry4);
-	handle_one_resending(current_time_s, sent_buffer.entry5);
-	handle_one_resending(current_time_s, sent_buffer.entry6);
-	handle_one_resending(current_time_s, sent_buffer.entry7);
-	handle_one_resending(current_time_s, sent_buffer.entry8);
-	handle_one_resending(current_time_s, sent_buffer.entry9);
-	handle_one_resending(current_time_s, sent_buffer.entry10);
+	handle_one_resending(current_time_s, &sent_buffer.entry1);
+	handle_one_resending(current_time_s, &sent_buffer.entry2);
+	handle_one_resending(current_time_s, &sent_buffer.entry3);
+	handle_one_resending(current_time_s, &sent_buffer.entry4);
+	handle_one_resending(current_time_s, &sent_buffer.entry5);
+	handle_one_resending(current_time_s, &sent_buffer.entry6);
+	handle_one_resending(current_time_s, &sent_buffer.entry7);
+	handle_one_resending(current_time_s, &sent_buffer.entry8);
+	handle_one_resending(current_time_s, &sent_buffer.entry9);
+	handle_one_resending(current_time_s, &sent_buffer.entry10);
 }
 
-void handle_one_resending(time_t current_time, sent_message_buff_entry sent_message){
-	if(sent_message.entry.valid == false){
+void handle_one_resending(time_t current_time, sent_message_buff_entry * sent_message){
+	if(sent_message->entry.valid == false){
 		return;
 	}
 
-	bool past_time = decide_if_past_time(current_time, sent_message.last_sent_time);
+	bool past_time = decide_if_past_time(current_time, sent_message->last_sent_time);
 	if(past_time){
-		add_one_send_to_sending_buffer(sent_message.entry);
+		sent_message->entry.attempt = sent_message->entry.attempt + 1;
+		//update addr
+		uint8_t dest_addr [ADDR_LENGTH];
+		if(sent_message->entry.type == MESH_MSG_POLL){//only one that goes away from hub (besides ack, but that doesn't count)
+			find_dest_addr_away_hub(dest_addr, sent_message->entry.attempt);
+		}
+		else{
+			find_dest_addr_to_hub(dest_addr, sent_message->entry.attempt);
+		}
+		int i = 0;
+		while(i < ADDR_LENGTH){
+			sent_message->entry.message[i] = dest_addr[i]; //since dest addr is always the first bytes
+			i += 1;
+		}
+		add_one_send_to_sending_buffer(sent_message->entry);
+		sent_message->entry.valid = false;
 	}
 }
 
@@ -951,7 +1049,7 @@ bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 
 	uint8_t acked_msg_id [4];
 	lora_read_fifo_all(acked_msg_id, 4, false, hdma_usart_tx, huart);
-	clear_sent_message_struct(acked_msg_id); //this clears the sent data struct if it is a match and does nothing if it is not
+	clear_sent_message_buffer(acked_msg_id); //this clears the sent data struct if it is a match and does nothing if it is not
 
 	return true;
 }
@@ -1067,13 +1165,14 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 
 void message_id_init(message_id_history message){
 	//this makes a message_id struct have default values
-	message.this_node_sent = false;
 	message.valid = false;
 	message.message_id[0] = 0;
 	message.message_id[1] = 0;
 	message.message_id[2] = 0;
 	message.message_id[3] = 0;
 }
+
+
 
 void message_id_struct_init(){
 	//Initializes 10 message id structs
@@ -1089,11 +1188,11 @@ void message_id_struct_init(){
 	message_id_init(message9);
 	message_id_init(message10);
 	//also inits 5 sent messages (the last 5 messages that this node has sent and may still need to send again)
-	message_id_init(sent_message1);
-	message_id_init(sent_message2);
-	message_id_init(sent_message3);
-	message_id_init(sent_message4);
-	message_id_init(sent_message5);
+//	message_id_init_sent(sent_message1);
+//	message_id_init_sent(sent_message2);
+//	message_id_init_sent(sent_message3);
+//	message_id_init_sent(sent_message4);
+//	message_id_init_sent(sent_message5);
 
 }
 
@@ -1105,19 +1204,21 @@ uint8_t check_message_id(message_id_history past_message, uint8_t * message_id){
 	return match;
 }
 
+
 void check_message_id_all(uint8_t * message_id, bool * match){
 	//checks if the message id is one that this node has received recently (in last 10 messages)
 	bool matchd1, matchd2,  matchd3,  matchd4,  matchd5, matchd6, matchd7,  matchd8,  matchd9,  matchd10;
-	matchd1 = check_message_id(sent_message1, message_id);
-	matchd2 = check_message_id(sent_message2, message_id);
-	matchd3 = check_message_id(sent_message3, message_id);
-	matchd4 = check_message_id(sent_message4, message_id);
-	matchd5 = check_message_id(sent_message5, message_id);
-	if(matchd1 | matchd2| matchd3| matchd4| matchd5){
-		match[0] = true; //it was a match
-		match[1] = true; //this node sent it
-		return;
-	}
+//	matchd1 = check_message_id_sent(sent_message1, message_id);
+//	matchd2 = check_message_id_sent(sent_message2, message_id);
+//	matchd3 = check_message_id_sent(sent_message3, message_id);
+//	matchd4 = check_message_id_sent(sent_message4, message_id);
+//	matchd5 = check_message_id_sent(sent_message5, message_id);
+//	if(matchd1 | matchd2| matchd3| matchd4| matchd5){
+//		match[0] = true; //it was a match
+//		match[1] = true; //this node sent it
+//		return;
+//	}
+	update to actually check if this node sent the message
 	matchd1 = check_message_id(message1, message_id);
 	matchd2 = check_message_id(message2, message_id);
 	matchd3 = check_message_id(message3, message_id);
@@ -1139,13 +1240,13 @@ void check_message_id_all(uint8_t * message_id, bool * match){
 	return;
 }
 void replace_one_message_id_struct(message_id_history changing, message_id_history values){
-	changing.this_node_sent = values.this_node_sent;
 	changing.valid = values.valid;
 	changing.message_id[0] = values.message_id[0];
 	changing.message_id[1] = values.message_id[1];
 	changing.message_id[2] = values.message_id[2];
 	changing.message_id[3] = values.message_id[3];
 }
+
 
 void shift_all_messages(uint8_t * message_id, bool this_node_sent){
 	//this shifts all messages
@@ -1164,7 +1265,6 @@ void shift_all_messages(uint8_t * message_id, bool this_node_sent){
 	message0.message_id[1] = message_id[1];
 	message0.message_id[2] = message_id[2];
 	message0.message_id[3] = message_id[3];
-	message0.this_node_sent = this_node_sent;
 	message0.valid = true;
 	replace_one_message_id_struct(message1, message0);
 }
@@ -1181,29 +1281,37 @@ bool check_message_struct_match(uint8_t * message_id, uint8_t * message_id2){
 	return true;
 
 }
-void clear_sent_message_struct(uint8_t * message_id){
+
+bool sent_message_buffer_clear(uint8_t * message_id, sent_message_buff_entry * entry){
+	if(entry->entry.valid == false){
+		return false;
+	}
+	bool id_match = true;
+	int i = 0;
+	int k = ADDR_LENGTH;//since message_id is not the first couple bytes
+	while(i < 4){
+		if(entry->entry.message[k] != message_id[i]){
+			id_match = false;
+			return false;
+		}
+		i += 1;
+	}
+	entry->entry.valid = false;
+	return true;
+}
+
+void clear_sent_message_buffer(uint8_t * message_id){
 	//this removes the message from a sent_message struct
-	bool match = false;
-	match = check_message_struct_match(message_id, sent_message1.message_id);
-	if(match){
-		sent_message1.valid = false;
-	}
-	match = check_message_struct_match(message_id, sent_message2.message_id);
-	if(match){
-		sent_message2.valid = false;
-	}
-	match = check_message_struct_match(message_id, sent_message3.message_id);
-	if(match){
-		sent_message3.valid = false;
-	}
-	match = check_message_struct_match(message_id, sent_message4.message_id);
-	if(match){
-		sent_message4.valid = false;
-	}
-	match = check_message_struct_match(message_id, sent_message5.message_id);
-	if(match){
-		sent_message5.valid = false;
-	}
+	sent_message_buffer_clear(message_id, &sent_buffer.entry1);
+	sent_message_buffer_clear(message_id, &sent_buffer.entry2);
+	sent_message_buffer_clear(message_id, &sent_buffer.entry3);
+	sent_message_buffer_clear(message_id, &sent_buffer.entry4);
+	sent_message_buffer_clear(message_id, &sent_buffer.entry5);
+	sent_message_buffer_clear(message_id, &sent_buffer.entry6);
+	sent_message_buffer_clear(message_id, &sent_buffer.entry7);
+	sent_message_buffer_clear(message_id, &sent_buffer.entry8);
+	sent_message_buffer_clear(message_id, &sent_buffer.entry9);
+	sent_message_buffer_clear(message_id, &sent_buffer.entry10);
 }
 
 bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id){
@@ -1217,7 +1325,7 @@ bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id)
 	if(match[0] == true){
 		//matched
 		if(match[1] == true){//this node sent the message
-			clear_sent_message_struct(message_id);//don't send this message again
+			clear_sent_message_buffer(message_id);//don't send this message again
 			return false;
 		}
 		else{//this node did not send the message
@@ -1266,6 +1374,8 @@ bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, uint8_t 
 }
 
 
+
+
 bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//////////////////////////done
 	//this is the function that is called whenever a receive is successful in CAD mode
 	//this figure out what to do with the message
@@ -1298,8 +1408,9 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	uint8_t sending_addr [ADDR_LENGTH];
 	lora_read_fifo_all(sending_addr, (uint8_t)ADDR_LENGTH, false, hdma_usart_tx, huart);//get sending addr
 
-	if(id_valid == false){
+	if(id_valid == false){//this means received a message with the same id as previously seen, send an ack to stop the node from sending it again
 		send_usb_ttl_message(false, type[0], message_id, 1, sending_addr, huart1);//usb ttl debug print
+		mesh_send_ack(sending_addr, message_id, 1, hdma_usart_tx, huart);
 		return true; //don't have to do anything else, false is either message that this node already sent or a message that has already been seen
 	}
 

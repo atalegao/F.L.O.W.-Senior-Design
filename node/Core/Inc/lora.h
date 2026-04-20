@@ -49,7 +49,7 @@ void lora_uart_init();
 bool connected_test(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void enable_tty_interrupt(void);
 void enable_tty_interrupt_send(void);
-bool lora_init();
+bool lora_init(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void set_mode_sleep(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void lora_read_fifo_all(uint8_t* data, uint8_t length, bool clear_header, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);

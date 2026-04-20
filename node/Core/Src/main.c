@@ -61,6 +61,7 @@ RTC_HandleTypeDef hrtc;
 
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim21;
+TIM_HandleTypeDef htim22;
 
 /* USER CODE BEGIN PV */
 //usart2 is lora
@@ -85,6 +86,7 @@ static void MX_RTC_Init(void);
 static void MX_TIM21_Init(void);
 static void MX_RNG_Init(void);
 static void MX_TIM6_Init(void);
+static void MX_TIM22_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -176,9 +178,11 @@ int main(void)
   MX_TIM21_Init();
   MX_RNG_Init();
   MX_TIM6_Init();
+  MX_TIM22_Init();
   /* USER CODE BEGIN 2 */
   HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
   HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
+  HAL_NVIC_DisableIRQ(TIM22_IRQn);
   read_lora_fifo = false;
   receivefifo[0] = 0; //added
   HAL_GPIO_WritePin (LORA_TGL_RELAY_GPIO_Port, LORA_TGL_RELAY_Pin, GPIO_PIN_RESET);//Relay
@@ -187,7 +191,7 @@ int main(void)
   HAL_GPIO_WritePin (LORA_TGL_RELAY_GPIO_Port, LORA_TGL_RELAY_Pin, GPIO_PIN_SET);//Relay
   HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_SET);
   HAL_Delay(1000);
-  HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1); //ultrasonic sensor data receive on lpuart1
+  HAL_UART_Receive_IT(&hlpuart1, rx_data, 1); //ultrasonic sensor data receive on lpuart1
 
   HAL_UART_Receive_DMA(&huart2, receivefifo, 1); //lora
   HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
@@ -201,10 +205,13 @@ int main(void)
   HAL_NVIC_EnableIRQ(TIM21_IRQn);
   HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
   HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+  HAL_NVIC_SetPriority(TIM22_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(TIM22_IRQn);
 
   //send_data[0] = 0xF0;
   //send_data[1] = 0x0F;
   HAL_TIM_Base_Start_IT(&htim21);
+  HAL_TIM_Base_Start_IT(&htim22);
   HAL_TIM_Base_Start_IT(&htim6);
 
   HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
@@ -255,6 +262,7 @@ int main(void)
 			  HAL_Delay(1000);
 			  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
 		  }
+		  send_item_off_send_buffer();
 	  }
 	  if(DO_SEND & (!global_receive_mode_from_cad) & (!read_lora_fifo) & !DO_BOTH){
 		  in_send = true;
@@ -263,15 +271,15 @@ int main(void)
 
 		  send_item_off_send_buffer();
 
-		  ///*hello
+		  /*hello
 		  uint8_t battery[1];
 		  battery[0] = 0x20;
 
 		  mesh_send_hello(battery, hdma_usart2_tx, huart2);
-		  //*/
+		  */
 
 		  //add
-		  /*
+		  ///*
 		  uint8_t dest_addr [ADDR_LENGTH];
 		  dest_addr[0] = 0x16;
 		  dest_addr[1] = 0x17;
@@ -293,7 +301,7 @@ int main(void)
 		  distance[1] = 0x25;
 
 		  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, hdma_usart2_tx, huart2);
-		  */
+		  //*/
 
 
 		  /*dead
@@ -379,6 +387,10 @@ int main(void)
 		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
 		  HAL_Delay(1000);
 		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
+		  //
+		  while(1){
+			  send_item_off_send_buffer();
+		  }
 	  }
 //	  if(read_lora_fifo){ //
 //		  // start restart the CAD timer so it doesn't take the entire receive-timout time
@@ -797,6 +809,51 @@ static void MX_TIM21_Init(void)
 }
 
 /**
+  * @brief TIM22 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM22_Init(void)
+{
+
+  /* USER CODE BEGIN TIM22_Init 0 */
+
+  /* USER CODE END TIM22_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM22_Init 1 */
+
+  /* USER CODE END TIM22_Init 1 */
+  htim22.Instance = TIM22;
+  htim22.Init.Prescaler = 6399;
+  htim22.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim22.Init.Period = 9999;
+  htim22.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim22.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim22) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim22, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim22, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM22_Init 2 */
+
+  /* USER CODE END TIM22_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -1022,7 +1079,7 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 	//ADDED FOR ULTRASONIC
 	else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
 		ultrasonic_process_rx(rx_data);
-		HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1);
+		HAL_UART_Receive_IT(&hlpuart1, rx_data, 1);
 	}
 	else if(huart->Instance == USART1){ //usb-ttl
 		if(receivefifo_usb_ttl[0] == 0xFF){ //special character to indicate setting RTC

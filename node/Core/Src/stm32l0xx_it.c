@@ -64,6 +64,7 @@ extern DMA_HandleTypeDef hdma_usart2_tx;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim21;
+extern TIM_HandleTypeDef htim22;
 /* USER CODE BEGIN EV */
 extern uint8_t global_receive_mode_from_cad;
 extern uint8_t rec_data [MESSAGE_LENGTH];
@@ -232,6 +233,21 @@ void TIM21_IRQHandler(void)
   /* USER CODE BEGIN TIM21_IRQn 1 */
 
   /* USER CODE END TIM21_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM22 global interrupt.
+  */
+void TIM22_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM22_IRQn 0 */
+	handle_resending(hdma_usart2_tx, huart2);
+
+  /* USER CODE END TIM22_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim22);
+  /* USER CODE BEGIN TIM22_IRQn 1 */
+
+  /* USER CODE END TIM22_IRQn 1 */
 }
 
 /**
