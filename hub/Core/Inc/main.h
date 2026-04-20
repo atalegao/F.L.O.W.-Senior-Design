@@ -28,6 +28,9 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32l0xx_hal.h"
+#include "lora.h"
+#include "mesh.h"
+
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -86,6 +89,17 @@ void Error_Handler(void);
 /* USER CODE BEGIN Private defines */
 #define CS_DISABLE GPIO_PIN_SET //Pin set and reset for CS
 #define CS_ENABLE GPIO_PIN_RESET
+void connected_test_all(void);
+void go_to_sleep(void);
+void get_timestamp(void);
+void uart_set_rtc(void);
+void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
+void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef huart);
+void connected_test_all(void);
+void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart);
+void HAL_UART_TxCpltCallback (UART_HandleTypeDef *huart);
+
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
