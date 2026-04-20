@@ -595,17 +595,20 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     lora_write_single(RH_RF95_REG_00_FIFO, HEADERFLAGS,3); // 57, 80, 01, 00//tx
 
     //lora_write_multiple(RH_RF95_REG_00_FIFO, data, length); //57, 80, 02, F0, 0F //sends F0 0F
-    for (int i = 0; i < length; i ++) {//was length
+    for (int i = 0; i < 16; i ++) {//was length
         lora_write_single(RH_RF95_REG_00_FIFO, data[i], 3);//tx
     }
-
+    lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3, 0); //send, added in case 16 byte send buffer was overflowing causing 17th byte to be wrong
+    for (int i = 16; i < MESH_MAX_MESSAGE_LENGTH; i ++) {//was length
+    	lora_write_single(RH_RF95_REG_00_FIFO, data[i], 3);//tx
+    }
 
     // while(value != 99){
     //     value = lora_read_single(0x0E);
     // }
 
     //this apparently doesn't do anything/////////////////////////////////////////////////////////////////////////////////////////////TODO
-    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, (length + 4),3); //57 , A2, 01, 06//tx  //was length + 4
+    //lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, (length + 5),3); //57 , A2, 01, 06//tx  //was length + 4
     // while(value != (length + 4)){
     //     value = lora_read_single(RH_RF95_REG_22_PAYLOAD_LENGTH);
     // }
