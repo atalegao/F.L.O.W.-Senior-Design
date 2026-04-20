@@ -565,7 +565,7 @@ void update_on_touch()
 
 	  /* Make sure this is really a touch event */
 	  //this is used to make each touch only count once (will not count multiple times unless pressed for a while)
-	  //HAL_Delay(100);
+	  HAL_Delay(100);
 	  ///////////////////////////////
 	  if (tft->touched())
 	  {

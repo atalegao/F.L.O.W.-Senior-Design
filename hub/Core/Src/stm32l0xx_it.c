@@ -20,18 +20,25 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32l0xx_it.h"
+#include <stdbool.h>
+
+#include "mesh.h"
+//#include "lora.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
-
+extern TIM_HandleTypeDef htim6;
+extern bool usb_ttl_done;
 /* USER CODE END TD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
 volatile uint8_t touchPending = 0;
+volatile uint8_t touchActive = 0;
 
 /* USER CODE END PD */
 
@@ -56,11 +63,20 @@ volatile uint8_t touchPending = 0;
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern DMA_HandleTypeDef hdma_usart1_rx;
+extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart2_rx;
 extern DMA_HandleTypeDef hdma_usart2_tx;
+extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
+extern TIM_HandleTypeDef htim6;
+extern TIM_HandleTypeDef htim21;
 /* USER CODE BEGIN EV */
-
+extern uint8_t global_receive_mode_from_cad;
+//extern uint8_t rec_data [MESSAGE_LENGTH];
+extern uint8_t rec_data [2];
+extern bool read_lora_fifo;
+extern bool do_send;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -153,12 +169,28 @@ void EXTI2_3_IRQHandler(void)
   /* USER CODE END EXTI2_3_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(LCD_INT_Pin);
   /* USER CODE BEGIN EXTI2_3_IRQn 1 */
+
   touchPending = 1;
   //update_on_touch();
   /* USER CODE END EXTI2_3_IRQn 1 */
 }
 
 /**
+  * @brief This function handles DMA1 channel 2 and channel 3 interrupts.
+  */
+void DMA1_Channel2_3_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel2_3_IRQn 0 */
+
+  /* USER CODE END DMA1_Channel2_3_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart1_tx);
+  HAL_DMA_IRQHandler(&hdma_usart1_rx);
+  /* USER CODE BEGIN DMA1_Channel2_3_IRQn 1 */
+
+  /* USER CODE END DMA1_Channel2_3_IRQn 1 */
+}
+
+/**b
   * @brief This function handles DMA1 channel 4, channel 5, channel 6 and channel 7 interrupts.
   */
 void DMA1_Channel4_5_6_7_IRQHandler(void)
@@ -171,6 +203,90 @@ void DMA1_Channel4_5_6_7_IRQHandler(void)
   /* USER CODE BEGIN DMA1_Channel4_5_6_7_IRQn 1 */
 
   /* USER CODE END DMA1_Channel4_5_6_7_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM6 global interrupt and DAC1/DAC2 underrun error interrupts.
+  */
+void TIM6_DAC_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM6_DAC_IRQn 0 */
+	uint8_t message [64];
+	  char* str3 ="\r\n\r\n polling timer went off";
+	  //while(usb_ttl_done == false);
+	  memcpy(&message[0], str3, strlen(str3));
+	  //send_usb_ttl(message, strlen(str3), huart1);
+	  HAL_TIM_IRQHandler(&htim6);
+  /* USER CODE END TIM6_DAC_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim6);
+  /* USER CODE BEGIN TIM6_DAC_IRQn 1 */
+
+  /* USER CODE END TIM6_DAC_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM21 global interrupt.
+  */
+void TIM21_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM21_IRQn 0 */
+	if(read_lora_fifo == false){
+				HAL_TIM_Base_Stop_IT(&htim21);
+				if(global_receive_mode_from_cad){ //went to receive mode from CAD, but did not receive anything
+					set_mode_sleep(hdma_usart2_tx, huart2);//set mode to sleep
+					change_lora_timer_period(0, &htim21); //0 means sleep time
+					global_receive_mode_from_cad = 0;
+				}
+				else{ //switch to CAD
+					bool detect;
+					detect = cad_cycle(hdma_usart2_tx, huart2);
+					if(detect){
+						//go to continuous receive
+						set_mode_continuous_receive();
+
+						//check that mode is receive
+						//lora_read_single(0x01, hdma_usart1_tx, huart1, 1);
+
+						global_receive_mode_from_cad = 1;
+						change_lora_timer_period(1, &htim21); //1 means receive got nothing time
+						//start timer again (when the timer goes off this time, did not actually receive anything, so quit and go to sleep mode
+						//need to disable and reset the timer in the I response
+						//use a timer to quit (did not actually receive anything)
+						//and use the interrupt from the I response to check FIFO if a message was received (might need to use a global variable)
+					}
+					else{
+						set_mode_sleep(hdma_usart2_tx, huart2);//set mode to sleep
+						change_lora_timer_period(0, &htim21); //0 means sleep time
+						global_receive_mode_from_cad = 0;
+						//send message
+						do_send = true;
+						//end send
+					}
+				}
+				HAL_TIM_Base_Start_IT(&htim21);
+			}
+			else{
+				//do nothing
+			}
+  /* USER CODE END TIM21_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim21);
+  /* USER CODE BEGIN TIM21_IRQn 1 */
+
+  /* USER CODE END TIM21_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART1 global interrupt / USART1 wake-up interrupt through EXTI line 25.
+  */
+void USART1_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART1_IRQn 0 */
+
+  /* USER CODE END USART1_IRQn 0 */
+  HAL_UART_IRQHandler(&huart1);
+  /* USER CODE BEGIN USART1_IRQn 1 */
+
+  /* USER CODE END USART1_IRQn 1 */
 }
 
 /**
