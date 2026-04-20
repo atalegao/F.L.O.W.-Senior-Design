@@ -122,6 +122,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 
 	HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable all interrupts that could use the Lora DMA
+	HAL_NVIC_DisableIRQ(TIM22_IRQn);
 	HAL_NVIC_DisableIRQ(USART2_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_StatusTypeDef status;
 
@@ -167,6 +168,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 	HAL_NVIC_EnableIRQ(USART2_IRQn); //enable all interrupts that could use the Lora DMA
 	if(re_enable){
 		HAL_NVIC_EnableIRQ(TIM21_IRQn); //enable all interrupts that could use the Lora DMA
+		HAL_NVIC_EnableIRQ(TIM22_IRQn); //enable all interrupts that could use the Lora DMA
 		HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn); //enable all interrupts that could use the Lora DMA
 	}
 }
@@ -383,7 +385,7 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
 //    if(rx_ready == true){
 //    	c = receivefifo[0];
 //    	receivefifo[0] = 0;
-//    }
+//    }l
 //    else{
 //    	rx_ready = false;
 //    	//
@@ -565,7 +567,7 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
 
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY, 3); //new 57, 81, 01, 01 //tx
     //added
-    lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3, 1); //send
+    lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3, 0); //send //last was a one to enable interrupts
     //HAL_Delay(100);
     //end added
     //value = lora_read_single(RH_RF95_REG_01_OP_MODE);
@@ -593,7 +595,7 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     lora_write_single(RH_RF95_REG_00_FIFO, HEADERFLAGS,3); // 57, 80, 01, 00//tx
 
     //lora_write_multiple(RH_RF95_REG_00_FIFO, data, length); //57, 80, 02, F0, 0F //sends F0 0F
-    for (int i = 0; i < length; i ++) {
+    for (int i = 0; i < length; i ++) {//was length
         lora_write_single(RH_RF95_REG_00_FIFO, data[i], 3);//tx
     }
 
@@ -603,7 +605,7 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     // }
 
     //this apparently doesn't do anything/////////////////////////////////////////////////////////////////////////////////////////////TODO
-    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, (length + 4),3); //57 , A2, 01, 06//tx
+    lora_write_single(RH_RF95_REG_22_PAYLOAD_LENGTH, (length + 4),3); //57 , A2, 01, 06//tx  //was length + 4
     // while(value != (length + 4)){
     //     value = lora_read_single(RH_RF95_REG_22_PAYLOAD_LENGTH);
     // }
@@ -627,6 +629,7 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     }
     HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable all interrupts that could use the Lora DMA
     HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable all interrupts that could use the Lora DMA
+    HAL_NVIC_DisableIRQ(TIM22_IRQn);
 
     lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3, 0); //send
 

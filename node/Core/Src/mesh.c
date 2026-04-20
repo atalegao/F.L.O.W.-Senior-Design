@@ -1204,21 +1204,38 @@ uint8_t check_message_id(message_id_history past_message, uint8_t * message_id){
 	return match;
 }
 
+bool check_message_id_sent(sent_message_buff_entry entry,uint8_t * message_id){
+	uint8_t message_id_entry [4];
+	int i = 0;
+	int k = ADDR_LENGTH;
+	while (i < 4){
+		message_id_entry[i] = entry.entry.message[k];
+		i += 1;
+		k += 1;
+	}
+	return (check_message_struct_match(message_id_entry, message_id));//& entry.entry.valid, adding valid does not work since the message could be invalid, but in the sending buffer
+}
+
 
 void check_message_id_all(uint8_t * message_id, bool * match){
 	//checks if the message id is one that this node has received recently (in last 10 messages)
 	bool matchd1, matchd2,  matchd3,  matchd4,  matchd5, matchd6, matchd7,  matchd8,  matchd9,  matchd10;
-//	matchd1 = check_message_id_sent(sent_message1, message_id);
-//	matchd2 = check_message_id_sent(sent_message2, message_id);
-//	matchd3 = check_message_id_sent(sent_message3, message_id);
-//	matchd4 = check_message_id_sent(sent_message4, message_id);
-//	matchd5 = check_message_id_sent(sent_message5, message_id);
-//	if(matchd1 | matchd2| matchd3| matchd4| matchd5){
-//		match[0] = true; //it was a match
-//		match[1] = true; //this node sent it
-//		return;
-//	}
-	update to actually check if this node sent the message
+	matchd1 = check_message_id_sent(sent_buffer.entry1, message_id);
+	matchd2 = check_message_id_sent(sent_buffer.entry2, message_id);
+	matchd3 = check_message_id_sent(sent_buffer.entry3, message_id);
+	matchd4 = check_message_id_sent(sent_buffer.entry4, message_id);
+	matchd5 = check_message_id_sent(sent_buffer.entry5, message_id);
+	matchd6 = check_message_id_sent(sent_buffer.entry6, message_id);
+	matchd7 = check_message_id_sent(sent_buffer.entry7, message_id);
+	matchd8 = check_message_id_sent(sent_buffer.entry8, message_id);
+	matchd9 = check_message_id_sent(sent_buffer.entry9, message_id);
+	matchd10 = check_message_id_sent(sent_buffer.entry10, message_id);
+	if(matchd1 | matchd2| matchd3| matchd4| matchd5 | matchd6 | matchd7| matchd8| matchd9| matchd10){
+		match[0] = true; //it was a match
+		match[1] = true; //this node sent it
+		return;
+	}
+
 	matchd1 = check_message_id(message1, message_id);
 	matchd2 = check_message_id(message2, message_id);
 	matchd3 = check_message_id(message3, message_id);
@@ -1316,12 +1333,17 @@ void clear_sent_message_buffer(uint8_t * message_id){
 
 bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id){
 	//read message_id
-	//uint8_t message_id_pre [4];
-	lora_read_fifo_all(message_id, 4, false, hdma_usart2_tx, huart2);
+	uint8_t message_id_pre [4];
+	lora_read_fifo_all(message_id_pre, 4, false, hdma_usart2_tx, huart2);
 
 
 	bool match[2]; //0 is match or no match, 1 is true if this node sent it
-	check_message_id_all(message_id, match);
+	check_message_id_all(message_id_pre, match);
+	int i = 0;
+	while(i < 4){
+		message_id[i] = message_id_pre[i];
+		i += 1;
+	}
 	if(match[0] == true){
 		//matched
 		if(match[1] == true){//this node sent the message
@@ -1410,7 +1432,9 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 
 	if(id_valid == false){//this means received a message with the same id as previously seen, send an ack to stop the node from sending it again
 		send_usb_ttl_message(false, type[0], message_id, 1, sending_addr, huart1);//usb ttl debug print
-		mesh_send_ack(sending_addr, message_id, 1, hdma_usart_tx, huart);
+		uint32_t new_message_id;
+		memcpy(&new_message_id, message_id, sizeof(uint32_t));
+		mesh_send_ack(sending_addr, new_message_id, 1, hdma_usart_tx, huart);
 		return true; //don't have to do anything else, false is either message that this node already sent or a message that has already been seen
 	}
 

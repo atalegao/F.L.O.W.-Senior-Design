@@ -97,7 +97,7 @@ sending_buffer_entry * get_sending_buffer_entry(uint8_t index);
 bool add_one_send_to_sending_buffer(sending_buffer_entry new_entry);
 void handle_one_resending(time_t current_time, sent_message_buff_entry * sent_message);
 //void add_to_sent_message_ids(uint8_t * message_id, uint8_t attempt);
-//uint8_t check_message_id_sent(message_id_history_sent past_message, uint8_t * message_id);
+bool check_message_id_sent(sent_message_buff_entry entry,uint8_t * message_id);
 sending_buffer_entry make_sending_buffer_entry(uint8_t * message, uint8_t attempt, uint8_t length, mesh_msg_type type);
 bool decide_if_past_time(time_t current_time, time_t stored_time);
 bool check_addr_closer_to_hub(uint8_t * first_addr,uint8_t * second_addr);

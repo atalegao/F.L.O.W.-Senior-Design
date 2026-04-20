@@ -124,15 +124,16 @@ uint8_t receivefifo_usb_ttl [0];
 uint8_t addr_any_direction [ADDR_LENGTH];
 uint8_t addr_right_direction [ADDR_LENGTH];
 
+uint8_t complete_pass = 0;
+
 bool isHub = false;
 bool usb_ttl_done = true;
 bool in_read_lora_fifo = false;
 
 #define DO_SEND 0
+#define DO_REC 0
 
-#define DO_REC 1
-
-#define DO_BOTH 0
+#define DO_BOTH 1
 
 /* USER CODE END 0 */
 
@@ -230,12 +231,89 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-//	  if(DO_BOTH){
-//		  while(1){//this is what the lora code in the main should be
-//			  //if rec...
-//			  //if send...
-//		  }
-//	  }
+	  if(DO_BOTH){
+		  //here to while 1 is just for testing, remove
+		  if(DO_SEND){
+			  uint8_t dest_addr [ADDR_LENGTH];
+			  dest_addr[0] = 0x16;
+			  dest_addr[1] = 0x17;
+			  uint8_t new_addr [ADDR_LENGTH];
+			  new_addr[0] = 0x18;
+			  new_addr[1] = 0x19;
+			  uint8_t message_id [4];
+			  message_id[0] = 0x12;
+			  message_id[1] = 0x13;
+			  message_id[2] = 0x14;
+			  message_id[3] = 0x15;
+			  uint8_t coords [4];
+			  coords[0] = 0x20;
+			  coords[1] = 0x21;
+			  coords[2] = 0x22;
+			  coords[3] = 0x23;
+			  uint8_t distance [2];
+			  distance[0] = 0x24;
+			  distance[1] = 0x25;
+			  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, hdma_usart2_tx, huart2);
+		  }
+		  while(1){//this is what the lora code in the main should be
+			  if(read_lora_fifo){ //
+				  in_read_lora_fifo = true;
+				  complete_pass = 0;
+				  // stop the CAD timer since it will make the module go into sleep mode->this clears the FIFO, also stop send timer since need to receive first
+				  HAL_NVIC_DisableIRQ(TIM21_IRQn);
+				  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
+				  HAL_NVIC_DisableIRQ(TIM22_IRQn);
+
+				  read_lora_fifo = false;
+				  //mesh_main_rec(hdma_usart2_tx, huart2);
+				  uint8_t buff [30];
+				  lora_read_fifo_all(buff, 30, true, hdma_usart2_tx, huart2); //second input is length
+
+				  // start restart the CAD timer so it doesn't take the entire receive-timout time
+				  HAL_TIM_Base_Stop_IT(&htim21);
+				  change_lora_timer_period(0, &htim21); //0 means sleep time,
+				  HAL_TIM_Base_Start_IT(&htim21);
+				  in_read_lora_fifo = false;
+				  //end restart the CAD timer so it doesn't take the entire receive-timout time
+				  HAL_NVIC_EnableIRQ(TIM21_IRQn);
+				  HAL_NVIC_EnableIRQ(TIM22_IRQn);
+				  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+
+//				  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
+//				  HAL_Delay(1000);
+//				  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
+			  }
+			  if(do_send & (!global_receive_mode_from_cad) & (!read_lora_fifo)){
+				  in_send = true;
+				  complete_pass = 0;
+				  HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
+				  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
+				  HAL_NVIC_DisableIRQ(TIM22_IRQn);
+
+				  send_item_off_send_buffer();
+				  in_send = false;
+				  do_send = false;
+
+				  HAL_NVIC_EnableIRQ(TIM21_IRQn);
+				  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+				  HAL_NVIC_EnableIRQ(TIM22_IRQn);
+				  uint32_t delay = random_number_gen();//random delay
+				  HAL_Delay(delay & 0x0F);
+//				  HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_SET);
+//				  HAL_Delay(1000);
+//				  HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_RESET);
+			  }
+			  if(complete_pass > 0){
+				  complete_pass = 0;
+				  HAL_Delay(1000);
+				  //go_to_sleep();//this should be the final line in the loop
+				  //NOTE: DEBUGGER DISCONNECTS AND DOES NOT RECONNECT WHEN GO_TO_SLEEP IS CALLED
+			  }
+			  else{
+				  complete_pass += 1;
+			  }
+		  }
+	  }
 	  if(DO_REC & !DO_BOTH){
 		  if(read_lora_fifo){ //
 			  in_read_lora_fifo = true;
