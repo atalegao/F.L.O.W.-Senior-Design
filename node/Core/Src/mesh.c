@@ -55,6 +55,31 @@ uint32_t random_number_gen(void){
 	return random_number;
 }
 
+bool calc_crc(uint8_t * data, uint8_t length){
+	int i = 0; //length is in bytes
+	sum = 0;
+	while( i < length){
+		int j = 0;
+		while(j < 8){
+			sum += data[i] & (0x1 << j);
+			j += 1;
+		}
+		i += 1;
+	}
+	return ((sum % 2) == 0);
+}
+
+bool calc_even_with_crc(uint8_t * data, uint8_t length, uint8_t crc_bit){
+	bool even = calc_crc(data, length);
+	bool out;
+	if(crc_bit){
+		out = !even;
+	}
+	else{
+		out = even;
+	}
+	return out;
+}
 void handle_sending_own_data(void){
 	uint8_t dest_addr[ADDR_LENGTH];
 	find_dest_addr_to_hub(dest_addr, 1);
@@ -637,7 +662,7 @@ sending_buffer_entry make_sending_buffer_entry(uint8_t * message, uint8_t attemp
 bool mesh_send_hello(uint8_t * battery, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, sending_addr, battery
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH];
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH]; //10
 
 	//message ID is 32 bit random number
 	uint32_t message_id;
@@ -934,7 +959,7 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
 	//dead since is 6 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2];
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2]; //19
 
 	int i = 0;
 	int j = 0;
@@ -1007,15 +1032,20 @@ bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint
 	//forget what distance was supposed to be, for node data, are we sending actual water height or just the measured distance?
 	//message is dest_addr, message_id, message_type, new node_addr, node coordinates (4 bytes), distance (2)
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2];
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2 + 1]; //17 + 1 for CRC
 
 	int i = 0;
 	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_ADD);
+
+	uint8_t crc_byte = 0;
+	bool even;
 
 	int k = i;
 	int j = 0;
 	while(i < k + ADDR_LENGTH){ //new_node_addr
 		message[i] = new_addr[j];
+		even = calc_crc(&new_addr[j], 1);
+		crc_byte |= (!even) << j;
 		i += 1;
 		j += 1;
 	}
@@ -1024,6 +1054,8 @@ bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint
 	j = 0;
 	while(i < k + 4){ //coords
 		message[i] = coords[j];
+		even = calc_crc(&coords[j], 1);
+		crc_byte |= (!even) << (j + 2);
 		i += 1;
 		j += 1;
 	}
@@ -1032,19 +1064,25 @@ bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint
 	j = 0;
 	while(i < k + 2){ //distance
 		message[i] = distance[j];
+		even = calc_crc(&distance[j], 1);
+		crc_byte |= (!even) << (j + 6);
 		i += 1;
 		j += 1;
 	}
 
+	//calc crc and add to message, use even, so bits should sum up to an even number
+	//8 bit crc, first 2 are new node addr, next 4 are for coords, last 2 are for distance
+	message[i] = crc_byte;
+
 	bool good;
-	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2), MESH_MSG_ADD);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2 + 1), MESH_MSG_ADD);
 	good = add_one_send_to_sending_buffer(entry);
 	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2), hdma_usart_tx, huart);
 	//send_usb_ttl_message(true, MESH_MSG_ADD, message_id, attempt, dest_addr, huart1);
 	return good;
 }
 
-bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_rec_add(uint8_t * message_id, uint8_t * send_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//forget what distance was supposed to be, for node data, are we sending actual water height or just the measured distance?
 
 	if(isHub){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
@@ -1069,6 +1107,23 @@ bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 	uint8_t distance [2];
 	lora_read_fifo_all(distance, 2, false, hdma_usart_tx, huart);
 
+	uint8_t crc [1];
+	lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);
+	//check crc
+
+	bool good1 = calc_even_with_crc(&new_node_addr[0], 1, (crc & (0x1 << 0)));
+	bool good2 = calc_even_with_crc(&new_node_addr[1], 1, (crc & (0x1 << 1)));
+	bool good3 = calc_even_with_crc(&node_coordinates[0], 1, (crc & (0x1 << 2)));
+	bool good4 = calc_even_with_crc(&node_coordinates[1], 1, (crc & (0x1 << 3)));
+	bool good5 = calc_even_with_crc(&node_coordinates[2], 1, (crc & (0x1 << 4)));
+	bool good6 = calc_even_with_crc(&node_coordinates[3], 1, (crc & (0x1 << 5)));
+	bool good7 = calc_even_with_crc(&distance[0], 1, (crc & (0x1 << 6)));
+	bool good8 = calc_even_with_crc(&distance[1], 1, (crc & (0x1 << 7)));
+	if(!(good1 | good2 | good3 | good4 | good5 | good6 | good7 | good8 )){
+		//crc error, send a special ack: attempt = 0
+		mesh_send_ack(send_addr, message_id, 0, hdma_usart_tx, huart);
+	}
+
 	//pass on message
 	bool good = mesh_send_add(dest_addr, new_node_addr, node_coordinates, distance, message_id, 1, hdma_usart_tx, huart);
 	return good;
@@ -1077,7 +1132,7 @@ bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
 	//message is dest_addr, message_id, message_type, sending_addr, new_frequency
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4];
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4]; //13
 
 	int i = 0;
 	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_POLL);
@@ -1141,7 +1196,7 @@ bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 
 bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
 	//message is dest_addr, message_id, message_type, sending_addr, Message ID that it is acking
-	uint8_t message [ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4];
+	uint8_t message [ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4];//13
 
 	//message ID is 32 bit random number
 	uint32_t message_id;
@@ -1201,7 +1256,7 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 
 	//message is dest_addr, message_id, message_type, sending_addr, node addr that took data, time, water distance, battery status/level
 	int i = 0;
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH];
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH]; //19
 
 	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_DATA);
 	int j = 0;
@@ -1468,7 +1523,7 @@ bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, uint8_t 
 		good = mesh_rec_hello(sending_addr, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_ADD){
-		good = mesh_rec_add(message_id, hdma_usart_tx, huart);
+		good = mesh_rec_add(message_id, sending_addr, hdma_usart_tx, huart);
 	}
 	else{
 		while(1){

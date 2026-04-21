@@ -123,6 +123,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 	HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_NVIC_DisableIRQ(TIM22_IRQn);
+	HAL_NVIC_DisableIRQ(TIM2_IRQn);
 	HAL_NVIC_DisableIRQ(USART2_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_StatusTypeDef status;
 
@@ -168,6 +169,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 	HAL_NVIC_EnableIRQ(USART2_IRQn); //enable all interrupts that could use the Lora DMA
 	if(re_enable){
 		HAL_NVIC_EnableIRQ(TIM21_IRQn); //enable all interrupts that could use the Lora DMA
+		HAL_NVIC_EnableIRQ(TIM2_IRQn); //enable all interrupts that could use the Lora DMA
 		HAL_NVIC_EnableIRQ(TIM22_IRQn); //enable all interrupts that could use the Lora DMA
 		HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn); //enable all interrupts that could use the Lora DMA
 	}
@@ -633,6 +635,7 @@ bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, U
     HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable all interrupts that could use the Lora DMA
     HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable all interrupts that could use the Lora DMA
     HAL_NVIC_DisableIRQ(TIM22_IRQn);
+    HAL_NVIC_DisableIRQ(TIM2_IRQn);
 
     lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3, 0); //send
 

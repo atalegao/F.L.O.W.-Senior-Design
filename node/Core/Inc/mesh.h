@@ -29,7 +29,7 @@ typedef enum {
     MESH_MSG_ACK   = 3, //works
     MESH_MSG_DEAD  = 4, //works
     MESH_MSG_HELLO = 5, //works
-    MESH_MSG_ADD   = 6, //works
+    MESH_MSG_ADD   = 6, //works, updated for crc
 } mesh_msg_type;  // using this to enumerate the different message types. Currently, we have 6 types. 
 
 typedef struct {
@@ -94,6 +94,7 @@ bool send_item_off_send_buffer(void);
 void handle_node_dead_send(mesh_neighbor neighbor);
 void convert_time_t_to_dead_since(time_t time, uint8_t *dead_since);
 void handle_send_hello(void);
+bool calc_crc(uint8_t * data, uint8_t length);
 void check_node_deads(time_t current_time_s);
 bool add_new_neighbor_node(uint8_t * sending_addr, uint8_t * battery);
 bool update_neighbor_nodes(uint8_t * sending_addr, uint8_t * battery);
@@ -120,7 +121,7 @@ bool mesh_rec_hello(uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UAR
 bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint8_t * distance, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_rec_add(uint8_t * message_id, uint8_t * send_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);

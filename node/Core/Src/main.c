@@ -187,6 +187,7 @@ int main(void)
   HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
   HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
   HAL_NVIC_DisableIRQ(TIM22_IRQn);
+  HAL_NVIC_DisableIRQ(TIM2_IRQn);
   read_lora_fifo = false;
   receivefifo[0] = 0; //added
   HAL_GPIO_WritePin (LORA_TGL_RELAY_GPIO_Port, LORA_TGL_RELAY_Pin, GPIO_PIN_RESET);//Relay
@@ -211,12 +212,15 @@ int main(void)
   HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
   HAL_NVIC_SetPriority(TIM22_IRQn, 2, 0);
   HAL_NVIC_EnableIRQ(TIM22_IRQn);
+  HAL_NVIC_SetPriority(TIM2_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
   //send_data[0] = 0xF0;
   //send_data[1] = 0x0F;
   HAL_TIM_Base_Start_IT(&htim21);
   HAL_TIM_Base_Start_IT(&htim22);
   HAL_TIM_Base_Start_IT(&htim6);
+  HAL_TIM_Base_Start_IT(&htim2);
 
   HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
@@ -227,6 +231,7 @@ int main(void)
   self_addr[1] = 0x17;
 
   setup_lora_send_timer(&htim6, 0x000004FF);
+  setup_lora_send_timer(&htim2, 0x000004FF);//actually sets up hello timer
 
   /* USER CODE END 2 */
 
@@ -266,6 +271,7 @@ int main(void)
 				  HAL_NVIC_DisableIRQ(TIM21_IRQn);
 				  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
 				  HAL_NVIC_DisableIRQ(TIM22_IRQn);
+				  HAL_NVIC_DisableIRQ(TIM2_IRQn);
 
 				  read_lora_fifo = false;
 				  mesh_main_rec(hdma_usart2_tx, huart2);
@@ -280,6 +286,7 @@ int main(void)
 				  //end restart the CAD timer so it doesn't take the entire receive-timout time
 				  HAL_NVIC_EnableIRQ(TIM21_IRQn);
 				  HAL_NVIC_EnableIRQ(TIM22_IRQn);
+				  HAL_NVIC_EnableIRQ(TIM2_IRQn);
 				  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
 
 //				  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
@@ -292,6 +299,7 @@ int main(void)
 				  HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
 				  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
 				  HAL_NVIC_DisableIRQ(TIM22_IRQn);
+				  HAL_NVIC_DisableIRQ(TIM2_IRQn);
 
 				  send_item_off_send_buffer();
 				  in_send = false;
@@ -300,6 +308,7 @@ int main(void)
 				  HAL_NVIC_EnableIRQ(TIM21_IRQn);
 				  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
 				  HAL_NVIC_EnableIRQ(TIM22_IRQn);
+				  HAL_NVIC_EnableIRQ(TIM2_IRQn);
 				  uint32_t delay = random_number_gen();//random delay
 				  HAL_Delay(delay & 0x0F);
 //				  HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_SET);
