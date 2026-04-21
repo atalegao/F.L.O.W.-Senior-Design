@@ -56,8 +56,8 @@ uint32_t random_number_gen(void){
 }
 
 bool calc_crc(uint8_t * data, uint8_t length){
-	int i = 0; //length is in bytes
-	sum = 0;
+	uint8_t  i = 0; //length is in bytes
+	uint8_t sum = 0;
 	while( i < length){
 		int j = 0;
 		while(j < 8){
@@ -662,13 +662,16 @@ sending_buffer_entry make_sending_buffer_entry(uint8_t * message, uint8_t attemp
 bool mesh_send_hello(uint8_t * battery, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, sending_addr, battery
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH]; //10
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH + 1]; //10 + 1 crc for just battery and sending addr
 
 	//message ID is 32 bit random number
 	uint32_t message_id;
 	message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
 	uint8_t message_id_actual [4];
 	memcpy(message_id_actual, &message_id, sizeof(uint32_t));
+
+	uint8_t crc_byte = 0;
+	bool even;
 
 	//dest addr is any direction
 	uint8_t dest_addr [2];
@@ -678,17 +681,25 @@ bool mesh_send_hello(uint8_t * battery, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 	int i = 0;
 
 	i = mesh_send_add_header(message, message_id_actual, dest_addr, MESH_MSG_HELLO);
+	even = calc_crc(&self_addr[0], 1);
+	crc_byte |= (!even) << 0;
+	even = calc_crc(&self_addr[1], 1);
+	crc_byte |= (!even) << 1;
 
 	int k = i;
 	int j = 0;
 	while(i < k+BATTERY_LENGTH){
 		message[i] = battery[j];
+		even = calc_crc(&battery[j], 1);
+		crc_byte |= (!even) << (2 + j);
 		i += 1;
 		j += 1;
 	}
 
+	message[i] = crc_byte;
+
 	bool good;
-	sending_buffer_entry entry = make_sending_buffer_entry(message, 1, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH), MESH_MSG_HELLO);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, 1, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH + 1), MESH_MSG_HELLO);
 	good = add_one_send_to_sending_buffer(entry);
 	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
 	//send_usb_ttl_message(true, MESH_MSG_HELLO, message_id_actual, 1, dest_addr, huart1);
@@ -705,10 +716,10 @@ bool check_and_handle_neighbor_match(uint8_t * addr, uint8_t * battery, mesh_nei
 	}
 	//got this far means a match to an existing addr, so just update battery, first battery is most recent, 2nd is least recent
 	i = 0;
-	while(i < BATTERY_LENGTH){
-		neighbor->battery[i + ADDR_LENGTH] = neighbor->battery[i];
-		i += 1;
-	}
+	//while(i < BATTERY_LENGTH){
+	neighbor->battery[1] = neighbor->battery[0];
+	//	i += 1;
+	//}
 	i = 0;
 	while(i < BATTERY_LENGTH){
 		neighbor->battery[i] = battery[i];
@@ -939,12 +950,28 @@ bool update_neighbor_nodes(uint8_t * sending_addr, uint8_t * battery){
 	}
 }
 
-bool mesh_rec_hello(uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_rec_hello(uint8_t * message_id, uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//update node addr list if needed
 	//message is dest_addr, message_id, message_type, sending_addr, battery
 
 	uint8_t battery [BATTERY_LENGTH];
 	lora_read_fifo_all(battery, BATTERY_LENGTH, false, hdma_usart_tx, huart);
+
+	uint8_t crc [1];
+	lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);
+
+	//check crc
+	bool good1 = calc_even_with_crc(&sending_addr[0], 1, (crc[0] & (0x1 << 0)));
+	bool good2 = calc_even_with_crc(&sending_addr[1], 1, (crc[0] & (0x1 << 1)));
+	bool good3 = calc_even_with_crc(&battery[0], 1, (crc[0] & (0x1 << 2)));
+	if(!(good1 & good2 & good3)){
+		//crc error, send a special ack: attempt = 0
+		uint32_t new_id;
+		memcpy(&new_id, message_id, sizeof(uint32_t));
+		mesh_send_ack(sending_addr, new_id, 0, hdma_usart_tx, huart);
+		return false;
+	}
+
 	bool good = update_neighbor_nodes(sending_addr, battery);
 	if(isHub){
 		//update mem
@@ -959,8 +986,11 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
 	//dead since is 6 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2]; //19
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2 + 1]; //19 + 1 crc
+	//crc is 2 bytes of dead_addr, 6 bytes of dead_since
 
+	uint8_t crc_byte = 0;
+	bool even;
 	int i = 0;
 	int j = 0;
 	int k = 0;
@@ -971,6 +1001,8 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 	j = 0;
 	while(i < k+ADDR_LENGTH){ //dead_addr
 		message[i] = dead_addr[j];
+		even = calc_crc(&dead_addr[j], 1);
+		crc_byte |= (!even) << j;
 		i += 1;
 		j += 1;
 	}
@@ -978,6 +1010,8 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 	j = 0;
 	while(i < k+6){ //dead_since
 		message[i] = dead_since[j];
+		even = calc_crc(&dead_since[j], 1);
+		crc_byte |= (!even) << (j + 2);
 		i += 1;
 		j += 1;
 	}
@@ -988,15 +1022,17 @@ bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_sin
 		i += 1;
 		j += 1;
 	}
+	message[i] = crc_byte;
+
 	bool good;
-	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2), MESH_MSG_DEAD);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2 + 1), MESH_MSG_DEAD);
 	good = add_one_send_to_sending_buffer(entry);
 	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2), hdma_usart_tx, huart);
 	//send_usb_ttl_message(true, MESH_MSG_DEAD, message_id, attempt, dest_addr, huart1);
 	return good;
 }
 //dead since could be the actual time (I think 6 bytes)
-bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_rec_dead(uint8_t * send_addr, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
 	//dead since is 6 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
 
@@ -1021,6 +1057,26 @@ bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 
 	uint8_t dest_addr [ADDR_LENGTH];
 	find_dest_addr_to_hub(dest_addr, 1);//find addr closer to hub, 1st attempt
+
+	uint8_t crc [1];
+	lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);//get battery
+
+	//check crc
+	bool good1 = calc_even_with_crc(&dead_addr[0], 1, (crc[0] & (0x1 << 0)));
+	bool good2 = calc_even_with_crc(&dead_addr[1], 1, (crc[0] & (0x1 << 1)));
+	bool good3 = calc_even_with_crc(&dead_since[0], 1, (crc[0] & (0x1 << 2)));
+	bool good4 = calc_even_with_crc(&dead_since[1], 1, (crc[0] & (0x1 << 3)));
+	bool good5 = calc_even_with_crc(&dead_since[2], 1, (crc[0] & (0x1 << 4)));
+	bool good6 = calc_even_with_crc(&dead_since[3], 1, (crc[0] & (0x1 << 5)));
+	bool good7 = calc_even_with_crc(&dead_since[0], 1, (crc[0] & (0x1 << 6)));
+	bool good8 = calc_even_with_crc(&dead_since[1], 1, (crc[0] & (0x1 << 7)));
+	if(!(good1 & good2 & good3 & good4 & good5 & good6 & good7 & good8 )){
+		//crc error, send a special ack: attempt = 0
+		uint32_t new_id;
+		memcpy(&new_id, message_id, sizeof(uint32_t));
+		mesh_send_ack(send_addr, new_id, 0, hdma_usart_tx, huart);
+		return false;
+	}
 
 	bool good;
 	good = mesh_send_dead(dest_addr, dead_addr,  dead_since, battery, message_id, 1, hdma_usart_tx, huart);
@@ -1111,17 +1167,20 @@ bool mesh_rec_add(uint8_t * message_id, uint8_t * send_addr, DMA_HandleTypeDef h
 	lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);
 	//check crc
 
-	bool good1 = calc_even_with_crc(&new_node_addr[0], 1, (crc & (0x1 << 0)));
-	bool good2 = calc_even_with_crc(&new_node_addr[1], 1, (crc & (0x1 << 1)));
-	bool good3 = calc_even_with_crc(&node_coordinates[0], 1, (crc & (0x1 << 2)));
-	bool good4 = calc_even_with_crc(&node_coordinates[1], 1, (crc & (0x1 << 3)));
-	bool good5 = calc_even_with_crc(&node_coordinates[2], 1, (crc & (0x1 << 4)));
-	bool good6 = calc_even_with_crc(&node_coordinates[3], 1, (crc & (0x1 << 5)));
-	bool good7 = calc_even_with_crc(&distance[0], 1, (crc & (0x1 << 6)));
-	bool good8 = calc_even_with_crc(&distance[1], 1, (crc & (0x1 << 7)));
-	if(!(good1 | good2 | good3 | good4 | good5 | good6 | good7 | good8 )){
+	bool good1 = calc_even_with_crc(&new_node_addr[0], 1, (crc[0] & (0x1 << 0)));
+	bool good2 = calc_even_with_crc(&new_node_addr[1], 1, (crc[0] & (0x1 << 1)));
+	bool good3 = calc_even_with_crc(&node_coordinates[0], 1, (crc[0] & (0x1 << 2)));
+	bool good4 = calc_even_with_crc(&node_coordinates[1], 1, (crc[0] & (0x1 << 3)));
+	bool good5 = calc_even_with_crc(&node_coordinates[2], 1, (crc[0] & (0x1 << 4)));
+	bool good6 = calc_even_with_crc(&node_coordinates[3], 1, (crc[0] & (0x1 << 5)));
+	bool good7 = calc_even_with_crc(&distance[0], 1, (crc[0] & (0x1 << 6)));
+	bool good8 = calc_even_with_crc(&distance[1], 1, (crc[0] & (0x1 << 7)));
+	if(!(good1 & good2 & good3 & good4 & good5 & good6 & good7 & good8 )){
 		//crc error, send a special ack: attempt = 0
-		mesh_send_ack(send_addr, message_id, 0, hdma_usart_tx, huart);
+		uint32_t new_id;
+		memcpy(&new_id, message_id, sizeof(uint32_t));
+		mesh_send_ack(send_addr, new_id, 0, hdma_usart_tx, huart);
+		return false;
 	}
 
 	//pass on message
@@ -1132,7 +1191,11 @@ bool mesh_rec_add(uint8_t * message_id, uint8_t * send_addr, DMA_HandleTypeDef h
 bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
 	//message is dest_addr, message_id, message_type, sending_addr, new_frequency
 
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4]; //13
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + 1]; //13 + 1 for crc
+	//crc is new frequency
+
+	uint8_t crc_byte = 0;
+	bool even;
 
 	int i = 0;
 	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_POLL);
@@ -1141,19 +1204,23 @@ bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_freq
 	int j = 0;
 	while(i < k + 4){ //new frequency
 		message[i] = (uint8_t) (new_frequency >> (8 * j) );
+		even = calc_crc(&message[i], 1);
+		crc_byte |= (!even) << j;
 		i += 1;
 		j += 1;
 	}
 
+	message[i] = crc_byte;
+
 	bool good;
-	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4), MESH_MSG_POLL);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + 1), MESH_MSG_POLL);
 	good = add_one_send_to_sending_buffer(entry);
 	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4), hdma_usart_tx, huart);
 	//send_usb_ttl_message(true, MESH_MSG_POLL, message_id, attempt, dest_addr, huart1);
 	return good;
 }
 
-bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_rec_poll(uint8_t * send_addr, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//pass on message away from hub
 	if(isHub){
 		return true; //should never happen, but just in case
@@ -1165,6 +1232,22 @@ bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 	//get new frequency
 	uint8_t freq_pre [4];
 	lora_read_fifo_all(freq_pre, 4, false, hdma_usart_tx, huart);
+
+	uint8_t crc [1];
+	lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);
+	//check crc
+
+	bool good1 = calc_even_with_crc(&freq_pre[0], 1, (crc[0] & (0x1 << 0)));
+	bool good2 = calc_even_with_crc(&freq_pre[1], 1, (crc[0] & (0x1 << 1)));
+	bool good3 = calc_even_with_crc(&freq_pre[0], 1, (crc[0] & (0x1 << 2)));
+	bool good4 = calc_even_with_crc(&freq_pre[1], 1, (crc[0] & (0x1 << 3)));
+	if(!(good1 & good2 & good3 & good4)){
+		//crc error, send a special ack: attempt = 0
+		uint32_t new_id;
+		memcpy(&new_id, message_id, sizeof(uint32_t));
+		mesh_send_ack(send_addr, new_id, 0, hdma_usart_tx, huart);
+		return false;
+	}
 
 	uint32_t new_frequency;
 	memcpy(&new_frequency, freq_pre, sizeof(uint32_t));
@@ -1178,15 +1261,30 @@ bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 	return good;
 }
 
-bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_rec_ack(uint8_t * send_addr, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	if(isHub){
-		while(1){
-			//something went wrong
-		}
+//		while(1){
+//			//something went wrong
+//		}
 	}
 
 	uint8_t acked_msg_id [4];
 	lora_read_fifo_all(acked_msg_id, 4, false, hdma_usart_tx, huart);
+	//check crc
+	uint8_t crc [1];
+	lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);
+
+	bool good1 = calc_even_with_crc(&acked_msg_id[0], 1, (crc[0] & (0x1 << 0)));
+	bool good2 = calc_even_with_crc(&acked_msg_id[1], 1, (crc[0] & (0x1 << 1)));
+	bool good3 = calc_even_with_crc(&acked_msg_id[2], 1, (crc[0] & (0x1 << 2)));
+	bool good4 = calc_even_with_crc(&acked_msg_id[3], 1, (crc[0] & (0x1 << 3)));
+	if(!(good1 & good2 & good3 & good4)){
+		//crc error, send a special ack: attempt = 0
+		uint32_t new_id;
+		memcpy(&new_id, message_id, sizeof(uint32_t));
+		mesh_send_ack(send_addr, new_id, 0, hdma_usart_tx, huart);
+		return false;
+	}
 	clear_sent_message_buffer(acked_msg_id); //this clears the sent data struct if it is a match and does nothing if it is not
 
 	return true;
@@ -1196,11 +1294,13 @@ bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 
 bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done
 	//message is dest_addr, message_id, message_type, sending_addr, Message ID that it is acking
-	uint8_t message [ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4];//13
-
+	uint8_t message [ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4 + 1];//13 + 1 crc
+	//crc is message_id (that is being acked)
 	//message ID is 32 bit random number
 	uint32_t message_id;
 	message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
+	uint8_t crc_byte = 0;
+	bool even;
 
 	int i = 0;
 	int j = 0;
@@ -1214,11 +1314,15 @@ bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, 
 	j = 0;
 	while(i < k + 4){ //acking message_id
 		message[i] = (uint8_t) (acked_msg_id >> (8 * j) );
+		even = calc_crc(&message[i], 1);
+		crc_byte |= (!even) << j;
 		i += 1;
 		j += 1;
 	}
+
+	message[i] = crc_byte;
 	bool good;
-	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4), MESH_MSG_ACK);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4 + 1), MESH_MSG_ACK);
 	good = add_one_send_to_sending_buffer(entry);
 	//good = lora_send(message, (ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4), hdma_usart_tx, huart);
 	//send_usb_ttl_message(true, MESH_MSG_ACK, message_id_actual, attempt, dest_addr, huart1);
@@ -1256,7 +1360,10 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 
 	//message is dest_addr, message_id, message_type, sending_addr, node addr that took data, time, water distance, battery status/level
 	int i = 0;
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH]; //19
+	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH + 1]; //19 + 1 crc
+	//crc is 6 time, water, battery
+	uint8_t crc_byte = 0;
+	bool even;
 
 	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_DATA);
 	int j = 0;
@@ -1268,21 +1375,35 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 
 	//time
 	message[i] = time[0];//current_time.Hours;
+	even = calc_crc(&time[0], 1);
+	crc_byte |= (!even) << 0;
 	i += 1;
 	message[i] = time[1];//current_time.Minutes;
+	even = calc_crc(&time[1], 1);
+	crc_byte |= (!even) << 1;
 	i += 1;
 	message[i] = time[2];//current_time.Seconds;
+	even = calc_crc(&time[2], 1);
+	crc_byte |= (!even) << 2;
 	i += 1;
 	message[i] = time[3];//current_date.Month;
+	even = calc_crc(&time[3], 1);
+	crc_byte |= (!even) << 3;
 	i += 1;
 	message[i] = time[4];//current_date.Date;
+	even = calc_crc(&time[4], 1);
+	crc_byte |= (!even) << 4;
 	i += 1;
 	message[i] = time[5];//current_date.Year;
+	even = calc_crc(&time[5], 1);
+	crc_byte |= (!even) << 5;
 	i += 1;
 
 	j = 0;
 	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH){ //water distance
 		message[i] = water_height[j];
+		even = calc_crc(&water_height[j], 1);
+		crc_byte |= (!even) << (6 + j);
 		i += 1;
 		j += 1;
 	}
@@ -1290,12 +1411,16 @@ bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_he
 	j = 0;
 	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH){ //battery status
 		message[i] = battery_status[j];
+		even = calc_crc(&battery_status[j], 1);
+		crc_byte |= (!even) << (7 + j);
 		i += 1;
 		j += 1;
 	}
 
+	message[i] = crc_byte;
+
 	bool good;
-	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), MESH_MSG_DATA);
+	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH + 1), MESH_MSG_DATA);
 	good = add_one_send_to_sending_buffer(entry);
 	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
 	return good;
@@ -1508,19 +1633,19 @@ bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, uint8_t 
 	//this calls the correct sending message
 	bool good;
 	if(type == MESH_MSG_DATA){
-		good = mesh_rec_data(message_id, hdma_usart_tx, huart);
+		good = mesh_rec_data(sending_addr, message_id, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_POLL){
-		good = mesh_rec_poll(message_id, hdma_usart_tx, huart);
+		good = mesh_rec_poll(sending_addr, message_id, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_ACK){
-		good = mesh_rec_ack(hdma_usart_tx, huart);
+		good = mesh_rec_ack(sending_addr, message_id, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_DEAD){
-		good = mesh_rec_dead(message_id, hdma_usart_tx, huart);
+		good = mesh_rec_dead(sending_addr, message_id, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_HELLO){
-		good = mesh_rec_hello(sending_addr, hdma_usart_tx, huart);
+		good = mesh_rec_hello(message_id, sending_addr, hdma_usart_tx, huart);
 	}
 	else if(type == MESH_MSG_ADD){
 		good = mesh_rec_add(message_id, sending_addr, hdma_usart_tx, huart);
@@ -1623,7 +1748,7 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 	return false;//should never reach here
 }
 
-bool mesh_rec_data(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool mesh_rec_data(uint8_t * send_addr, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
 	//got a node_data message, figure out what to do with it
 
 	if(isHub){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
@@ -1646,6 +1771,26 @@ bool mesh_rec_data(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 
 		uint8_t battery_status [BATTERY_LENGTH];
 		lora_read_fifo_all(battery_status, BATTERY_LENGTH, false, hdma_usart_tx, huart);
+
+		uint8_t crc [1];
+		lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);
+		//check crc
+
+		bool good1 = calc_even_with_crc(&time[0], 1, (crc[0] & (0x1 << 0)));
+		bool good2 = calc_even_with_crc(&time[1], 1, (crc[0] & (0x1 << 1)));
+		bool good3 = calc_even_with_crc(&time[2], 1, (crc[0] & (0x1 << 2)));
+		bool good4 = calc_even_with_crc(&time[3], 1, (crc[0] & (0x1 << 3)));
+		bool good5 = calc_even_with_crc(&time[4], 1, (crc[0] & (0x1 << 4)));
+		bool good6 = calc_even_with_crc(&time[5], 1, (crc[0] & (0x1 << 5)));
+		bool good7 = calc_even_with_crc(&water_height[0], 1, (crc[0] & (0x1 << 6)));
+		bool good8 = calc_even_with_crc(&battery_status[0], 1, (crc[0] & (0x1 << 7)));
+		if(!(good1 & good2 & good3 & good4 & good5 & good6 & good7 & good8)){
+			//crc error, send a special ack: attempt = 0
+			uint32_t new_id;
+			memcpy(&new_id, message_id, sizeof(uint32_t));
+			mesh_send_ack(send_addr, new_id, 0, hdma_usart_tx, huart);
+			return false;
+		}
 
 		//pass on data
 		bool good = mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time,1, hdma_usart_tx, huart);

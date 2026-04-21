@@ -24,11 +24,11 @@
 #define DEAD_MESSAGE_THRESHOLD (60 * 1) //1 minute
 
 typedef enum {
-    MESH_MSG_DATA  = 1, //works
-    MESH_MSG_POLL  = 2, //works
-    MESH_MSG_ACK   = 3, //works
-    MESH_MSG_DEAD  = 4, //works
-    MESH_MSG_HELLO = 5, //works
+    MESH_MSG_DATA  = 1, //works, crc
+    MESH_MSG_POLL  = 2, //works, crc
+    MESH_MSG_ACK   = 3, //works, crc
+    MESH_MSG_DEAD  = 4, //works, updated for crc
+    MESH_MSG_HELLO = 5, //works, updated for crc
     MESH_MSG_ADD   = 6, //works, updated for crc
 } mesh_msg_type;  // using this to enumerate the different message types. Currently, we have 6 types. 
 
@@ -117,14 +117,14 @@ void set_self_addr(uint8_t * addr);
 void define_addr_any_direction();
 void define_addr_right_direction();
 bool mesh_send_hello(uint8_t * battery, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_rec_hello(uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_rec_hello(uint8_t * message_id, uint8_t * sending_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_rec_dead(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_rec_dead(uint8_t * send_addr, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint8_t * distance, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_rec_add(uint8_t * message_id, uint8_t * send_addr, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_rec_poll(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_rec_ack(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_rec_poll(uint8_t * send_addr, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_rec_ack(uint8_t * send_addr, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_addr, mesh_msg_type type);
 bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, uint8_t attempt, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
@@ -143,7 +143,7 @@ void clear_sent_message_struct(uint8_t * message_id);
 bool mesh_handle_id_and_message_type(mesh_msg_type * type, uint8_t * message_id);
 bool mesh_message_type_helper(mesh_msg_type type, uint8_t * message_id, uint8_t * sending_addr,DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
-bool mesh_rec_data(uint8_t *message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
+bool mesh_rec_data(uint8_t * send_addr, uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart);
 void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, uint8_t time_or_ignore_reason, uint8_t * send_or_rec_addr, UART_HandleTypeDef huart);
 
 #endif 
