@@ -740,7 +740,7 @@ void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim){
 		htim->Init.ClockDivision = TIM_CLOCKDIVISION_DIV4;
 	}
 	else if(cause == 0){
-		htim->Init.Prescaler = 100;
+		htim->Init.Prescaler = 1000;//added an extra 0 for 2second period
 		htim->Init.Period = 65535;
 		htim->Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
 	}

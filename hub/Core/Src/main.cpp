@@ -283,8 +283,8 @@ int main(void)
 
             //send_data[0] = 0xF0;
             //send_data[1] = 0x0F;
-            HAL_TIM_Base_Start_IT(&htim21);
-            HAL_TIM_Base_Start_IT(&htim6);
+            //HAL_TIM_Base_Start_IT(&htim21);
+            //HAL_TIM_Base_Start_IT(&htim6);
 
             HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
             HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
@@ -303,6 +303,7 @@ int main(void)
   {
     /* USER CODE END WHILE */
 	  if (touchPending)
+//	  if(HAL_GPIO_ReadPin(LCD_INT_GPIO_Port, LCD_INT_Pin) == 0)
 	     {
 	         touchPending = 0;
 
@@ -979,7 +980,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : LCD_INT_Pin */
   GPIO_InitStruct.Pin = LCD_INT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING; //CHANGED FROM RISING TO FALLING
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;//was pullup
   HAL_GPIO_Init(LCD_INT_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : DBG_BTN1_Pin */

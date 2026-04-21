@@ -171,7 +171,7 @@ void EXTI2_3_IRQHandler(void)
   /* USER CODE BEGIN EXTI2_3_IRQn 1 */
 
   touchPending = 1;
-  //update_on_touch();
+//  update_on_touch();
   /* USER CODE END EXTI2_3_IRQn 1 */
 }
 
