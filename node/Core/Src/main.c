@@ -59,6 +59,7 @@ RNG_HandleTypeDef hrng;
 
 RTC_HandleTypeDef hrtc;
 
+TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim21;
 TIM_HandleTypeDef htim22;
@@ -87,6 +88,7 @@ static void MX_TIM21_Init(void);
 static void MX_RNG_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_TIM22_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -180,6 +182,7 @@ int main(void)
   MX_RNG_Init();
   MX_TIM6_Init();
   MX_TIM22_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
   HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
@@ -265,9 +268,9 @@ int main(void)
 				  HAL_NVIC_DisableIRQ(TIM22_IRQn);
 
 				  read_lora_fifo = false;
-				  //mesh_main_rec(hdma_usart2_tx, huart2);
-				  uint8_t buff [30];
-				  lora_read_fifo_all(buff, 30, true, hdma_usart2_tx, huart2); //second input is length
+				  mesh_main_rec(hdma_usart2_tx, huart2);
+				  //uint8_t buff [30];
+				  //lora_read_fifo_all(buff, 30, true, hdma_usart2_tx, huart2); //second input is length
 
 				  // start restart the CAD timer so it doesn't take the entire receive-timout time
 				  HAL_TIM_Base_Stop_IT(&htim21);
@@ -800,6 +803,51 @@ static void MX_RTC_Init(void)
   /* USER CODE BEGIN RTC_Init 2 */
 
   /* USER CODE END RTC_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 1000;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
 
 }
 

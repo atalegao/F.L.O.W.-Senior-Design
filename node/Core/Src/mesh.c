@@ -55,6 +55,29 @@ uint32_t random_number_gen(void){
 	return random_number;
 }
 
+void handle_sending_own_data(void){
+	uint8_t dest_addr[ADDR_LENGTH];
+	find_dest_addr_to_hub(dest_addr, 1);
+
+	uint32_t message_id;
+	message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
+	uint8_t message_id_actual [4];
+	memcpy(message_id_actual, &message_id, sizeof(uint32_t));
+
+	//TODO:figure out battery
+	uint8_t battery [BATTERY_LENGTH];
+
+	//TODO: figure out water height
+	uint8_t water_height [WATER_LENGTH];
+
+	uint8_t time [6];
+	get_timestamp();//get current time
+	time_t current_time_s = get_time_in_seconds(&current_time, &current_date);
+	convert_time_t_to_dead_since(current_time_s, time);
+
+	mesh_send_data(message_id_actual, dest_addr, water_height, battery, self_addr, time, 1, hdma_usart2_tx, huart2);
+
+}
 
 bool send_item_off_send_buffer(void){
 	//send_buffer_send_index
@@ -170,13 +193,13 @@ void replace_one_sent_buffer_entry(sending_buffer_entry * new_entry, sent_messag
 
 //TODO: handle message ID
 //TODO: check resending
-//TODO: if a message is received that the node has already seen, ack it to stop the sending one from sending over and over again
-//hub handles this, just need for nodes
-//what if it is sent to a different addr?, ack anyway: yes
+//TODO: CRC bits
 
-//TODO: need a timer to send hello
-//TODO:need a timer to handle resending
-//TODO: need a timer to send own data (could be the same one to do ultrasonic)
+void handle_send_hello(void){
+	//TODO:figure out battery
+	uint8_t battery [BATTERY_LENGTH];
+	mesh_send_hello(battery, hdma_usart2_tx, huart2);
+}
 
 //use the buffer for sent messages and have a timer to add a sent message to the send buffer if the message is still in the sent buffer and is still valid
 //TODO: need a timer to resend a message that was not received, the timer calls the below function
@@ -196,6 +219,66 @@ void handle_resending(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart)
 	handle_one_resending(current_time_s, &sent_buffer.entry8);
 	handle_one_resending(current_time_s, &sent_buffer.entry9);
 	handle_one_resending(current_time_s, &sent_buffer.entry10);
+
+	//also check if any node_dead messages need to be sent
+	check_node_deads(current_time_s);
+}
+
+void check_node_deads(time_t current_time_s){
+	//goes through each neighbor node and figures out if it is past the time to send a node dead message for it
+	double diff_seconds = difftime(current_time_s, neighbor_to_hub1.last_seen);
+	if((diff_seconds > DEAD_MESSAGE_THRESHOLD) & neighbor_to_hub1.valid){
+		handle_node_dead_send(neighbor_to_hub1);//send node dead message for it
+	}
+	double diff_seconds2 = difftime(current_time_s, neighbor_to_hub2.last_seen);
+	if((diff_seconds2 > DEAD_MESSAGE_THRESHOLD) & neighbor_to_hub2.valid){
+		handle_node_dead_send(neighbor_to_hub2);//send node dead message for it
+	}
+	double diff_seconds3 = difftime(current_time_s, neighbor_to_hub3.last_seen);
+	if((diff_seconds3 > DEAD_MESSAGE_THRESHOLD) & neighbor_to_hub3.valid){
+		handle_node_dead_send(neighbor_to_hub3);//send node dead message for it
+	}
+	double diff_seconds4 = difftime(current_time_s, neighbor_away_hub1.last_seen);
+	if((diff_seconds4 > DEAD_MESSAGE_THRESHOLD) & neighbor_away_hub1.valid){
+		handle_node_dead_send(neighbor_away_hub1);//send node dead message for it
+	}
+	double diff_seconds5 = difftime(current_time_s, neighbor_away_hub2.last_seen);
+	if((diff_seconds5 > DEAD_MESSAGE_THRESHOLD) & neighbor_away_hub2.valid){
+		handle_node_dead_send(neighbor_away_hub2);//send node dead message for it
+	}
+	double diff_seconds6 = difftime(current_time_s, neighbor_away_hub3.last_seen);
+	if((diff_seconds6 > DEAD_MESSAGE_THRESHOLD) & neighbor_away_hub3.valid){
+		handle_node_dead_send(neighbor_away_hub3);//send node dead message for it
+	}
+}
+
+void convert_time_t_to_dead_since(time_t time, uint8_t *dead_since) {
+    struct tm *timeinfo = gmtime(&time);
+
+    // 2. Map structure members to your 6-byte array
+    dead_since[0] = (uint8_t)timeinfo->tm_min;          // Minutes
+    dead_since[1] = (uint8_t)timeinfo->tm_sec;          // Seconds
+    dead_since[2] = (uint8_t)timeinfo->tm_hour;         // Hours (0-23)
+    dead_since[3] = (uint8_t)timeinfo->tm_mday;         // Day
+    dead_since[4] = (uint8_t)(timeinfo->tm_mon + 1);    // Month
+    dead_since[5] = (uint8_t)(timeinfo->tm_year % 100); // Year
+}
+
+void handle_node_dead_send(mesh_neighbor neighbor){
+	uint8_t dest_addr[ADDR_LENGTH];
+	find_dest_addr_to_hub(dest_addr, 1);
+
+	uint32_t message_id;
+	message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
+	uint8_t message_id_actual [4];
+	memcpy(message_id_actual, &message_id, sizeof(uint32_t));
+	//TODO:figure out battery
+	uint8_t battery [BATTERY_LENGTH];
+
+	uint8_t dead_since [6];
+	convert_time_t_to_dead_since(neighbor.last_seen, dead_since);
+
+	mesh_send_dead(dest_addr, neighbor.addr, dead_since, battery,  message_id_actual, 1, hdma_usart2_tx,  huart2);
 }
 
 void handle_one_resending(time_t current_time, sent_message_buff_entry * sent_message){
@@ -1434,7 +1517,19 @@ bool mesh_main_rec(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//
 		send_usb_ttl_message(false, type[0], message_id, 1, sending_addr, huart1);//usb ttl debug print
 		uint32_t new_message_id;
 		memcpy(&new_message_id, message_id, sizeof(uint32_t));
-		mesh_send_ack(sending_addr, new_message_id, 1, hdma_usart_tx, huart);
+		//only send ack if sending addr is farther away from the destination than the self_addr
+		if(type[0] == MESH_MSG_POLL){
+			//only send if sender is closer to hub than self_addr
+			if(check_addr_closer_to_hub(sending_addr,self_addr)){
+				mesh_send_ack(sending_addr, new_message_id, 1, hdma_usart_tx, huart);
+			}
+		}
+		else if((type[0] == MESH_MSG_DATA) | (type[0] == MESH_MSG_DEAD) | (type[0] == MESH_MSG_ADD)){
+			//only send if sender is farther from hub than self addr
+			if(!check_addr_closer_to_hub(sending_addr,self_addr)){
+				mesh_send_ack(sending_addr, new_message_id, 1, hdma_usart_tx, huart);
+			}
+		}
 		return true; //don't have to do anything else, false is either message that this node already sent or a message that has already been seen
 	}
 

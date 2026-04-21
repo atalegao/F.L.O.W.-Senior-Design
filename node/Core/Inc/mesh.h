@@ -21,6 +21,8 @@
 
 #define RESEND_THRESHOLD (60 * 1) //1 minute
 
+#define DEAD_MESSAGE_THRESHOLD (60 * 1) //1 minute
+
 typedef enum {
     MESH_MSG_DATA  = 1, //works
     MESH_MSG_POLL  = 2, //works
@@ -89,6 +91,10 @@ void mesh_set_hello_interval(uint32_t seconds);
 uint32_t random_number_gen(void);
 time_t get_time_in_seconds(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
 bool send_item_off_send_buffer(void);
+void handle_node_dead_send(mesh_neighbor neighbor);
+void convert_time_t_to_dead_since(time_t time, uint8_t *dead_since);
+void handle_send_hello(void);
+void check_node_deads(time_t current_time_s);
 bool add_new_neighbor_node(uint8_t * sending_addr, uint8_t * battery);
 bool update_neighbor_nodes(uint8_t * sending_addr, uint8_t * battery);
 void replace_neighbor_node(mesh_neighbor * replaced,mesh_neighbor * replacing);

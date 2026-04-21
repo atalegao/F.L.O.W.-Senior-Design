@@ -63,6 +63,7 @@ extern DMA_HandleTypeDef hdma_usart2_rx;
 extern DMA_HandleTypeDef hdma_usart2_tx;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
+extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim21;
 extern TIM_HandleTypeDef htim22;
 /* USER CODE BEGIN EV */
@@ -184,6 +185,21 @@ void DMA1_Channel4_5_6_7_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles TIM2 global interrupt.
+  */
+void TIM2_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM2_IRQn 0 */
+  //send hello message
+  handle_send_hello();
+  /* USER CODE END TIM2_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim2);
+  /* USER CODE BEGIN TIM2_IRQn 1 */
+
+  /* USER CODE END TIM2_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM21 global interrupt.
   */
 void TIM21_IRQHandler(void)
@@ -241,7 +257,7 @@ void TIM21_IRQHandler(void)
 void TIM22_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM22_IRQn 0 */
-	handle_resending(hdma_usart2_tx, huart2);
+	handle_resending(hdma_usart2_tx, huart2);//also checks for sending node_dead messages
 
   /* USER CODE END TIM22_IRQn 0 */
   HAL_TIM_IRQHandler(&htim22);
@@ -281,11 +297,13 @@ void USART2_IRQHandler(void)
 /* USER CODE BEGIN 1 */
 void TIM6_DAC_IRQHandler(void)
 {
-  uint8_t message [64];
-  char* str3 ="\r\n\r\n polling timer went off";
-  while(usb_ttl_done == false);
-  memcpy(&message[0], str3, strlen(str3));
-  send_usb_ttl(message, strlen(str3), huart1);
+//  uint8_t message [64];
+//  char* str3 ="\r\n\r\n polling timer went off";
+//  while(usb_ttl_done == false);
+//  memcpy(&message[0], str3, strlen(str3));
+//  send_usb_ttl(message, strlen(str3), huart1);
+	handle_sending_own_data();
+	//mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, uint8_t attempt, hdma_usart2_tx, huart2);
   HAL_TIM_IRQHandler(&htim6);
 
 }
