@@ -208,16 +208,16 @@ void TIM21_IRQHandler(void)
 	if(read_lora_fifo == false){
 			HAL_TIM_Base_Stop_IT(&htim21);
 			if(global_receive_mode_from_cad){ //went to receive mode from CAD, but did not receive anything
-				set_mode_sleep(hdma_usart2_tx, huart2);//set mode to sleep
+				set_mode_sleep(&hdma_usart2_tx, &huart2);//set mode to sleep
 				change_lora_timer_period(0, &htim21); //0 means sleep time
 				global_receive_mode_from_cad = 0;
 			}
 			else{ //switch to CAD
 				bool detect;
-				detect = cad_cycle(hdma_usart2_tx, huart2);
+				detect = cad_cycle(&hdma_usart2_tx, &huart2);
 				if(detect){
 					//go to continuous receive
-					set_mode_continuous_receive();
+					set_mode_continuous_receive(&hdma_usart2_tx, &huart2);
 
 					//check that mode is receive
 					//lora_read_single(0x01, hdma_usart1_tx, huart1, 1);
@@ -230,7 +230,7 @@ void TIM21_IRQHandler(void)
 					//and use the interrupt from the I response to check FIFO if a message was received (might need to use a global variable)
 				}
 				else{
-					set_mode_sleep(hdma_usart2_tx, huart2);//set mode to sleep
+					set_mode_sleep(&hdma_usart2_tx, &huart2);//set mode to sleep
 					change_lora_timer_period(0, &htim21); //0 means sleep time
 					global_receive_mode_from_cad = 0;
 					//send message
@@ -257,7 +257,7 @@ void TIM21_IRQHandler(void)
 void TIM22_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM22_IRQn 0 */
-	handle_resending(hdma_usart2_tx, huart2);//also checks for sending node_dead messages
+	handle_resending(&hdma_usart2_tx, &huart2);//also checks for sending node_dead messages
 
   /* USER CODE END TIM22_IRQn 0 */
   HAL_TIM_IRQHandler(&htim22);

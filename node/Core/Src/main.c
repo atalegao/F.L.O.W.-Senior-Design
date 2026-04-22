@@ -110,6 +110,7 @@ volatile int sendfifo_offset_rec = 0;
 volatile bool sendfifo_ready_rec = true;
 volatile uint8_t rec_data [MESSAGE_LENGTH];
 uint8_t self_addr [ADDR_LENGTH];
+volatile uint8_t buff [MESH_MAX_MESSAGE_LENGTH] __attribute__((aligned(4)));
 
 volatile bool send_normal = false;
 volatile bool send_send = false;
@@ -205,7 +206,7 @@ int main(void)
   HAL_Delay(1000);//added
   connected_test_all();
   ultrasonic_init(); 
-  lora_init(hdma_usart2_tx, huart2);
+  lora_init(&hdma_usart2_tx, &huart2);
   HAL_Delay(1000);
   //setup_lora_send_timer(&htim6); //set up lora send data timer
   HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
@@ -263,7 +264,7 @@ int main(void)
 			  uint8_t distance [2];
 			  distance[0] = 0x24;
 			  distance[1] = 0x25;
-			  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, hdma_usart2_tx, huart2);
+			  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, &hdma_usart2_tx, &huart2);
 		  }
 		  while(1){//this is what the lora code in the main should be
 			  if(read_lora_fifo){ //
@@ -276,9 +277,9 @@ int main(void)
 				  HAL_NVIC_DisableIRQ(TIM2_IRQn);
 
 				  read_lora_fifo = false;
-				  mesh_main_rec(hdma_usart2_tx, huart2);
-				  //uint8_t buff [30];
-				  //lora_read_fifo_all(buff, 30, true, hdma_usart2_tx, huart2); //second input is length
+//				  volatile uint8_t buff [MESH_MAX_MESSAGE_LENGTH];
+				  lora_read_fifo_all((uint8_t *)buff, MESH_MAX_MESSAGE_LENGTH, true, &hdma_usart2_tx, &huart2); //second input is length
+				  mesh_main_rec(buff, &hdma_usart2_tx, &huart2);
 
 				  // start restart the CAD timer so it doesn't take the entire receive-timout time
 				  HAL_TIM_Base_Stop_IT(&htim21);
@@ -339,7 +340,7 @@ int main(void)
 
 			  //added below line (and commented out above line) to handle received message
 			  read_lora_fifo = false;
-			  mesh_main_rec(hdma_usart2_tx, huart2);
+			  //mesh_main_rec(hdma_usart2_tx, huart2);
 
 			  // start restart the CAD timer so it doesn't take the entire receive-timout time
 			  HAL_TIM_Base_Stop_IT(&htim21);
@@ -392,7 +393,7 @@ int main(void)
 		  distance[0] = 0x24;
 		  distance[1] = 0x25;
 
-		  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, hdma_usart2_tx, huart2);
+		  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, &hdma_usart2_tx, &huart2);
 		  //*/
 
 
@@ -1146,12 +1147,14 @@ void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
 	//turns on DMA for receive again since non-dma was used before
 }
 
-void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef huart){
+void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef * huart){
 	while (usb_ttl_done == false){
 		//do nothing
 	}
 	usb_ttl_done = false;
-	if(HAL_UART_Transmit_DMA(&huart, message, length) != HAL_OK){
+	HAL_StatusTypeDef result;
+	result = HAL_UART_Transmit_DMA(huart, message, length);
+	if(result != HAL_OK){
 		while(1){
 			//error
 		}
@@ -1163,7 +1166,7 @@ void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef huart){
 void connected_test_all(void){
 	HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);//turn on all LEDs
 
-	connected_test(hdma_usart2_tx, huart2);//check LoRa
+	connected_test(&hdma_usart2_tx, &huart2);//check LoRa
 
 	//check Ultrasonic
 	//lpuart1
@@ -1174,7 +1177,7 @@ void connected_test_all(void){
 	message[1] = 'e';
 	message[2] = 's';
 	message[3] = 't';
-	send_usb_ttl(message, 4, huart1);
+	send_usb_ttl(message, 4, &huart1);
 
 	//wait some time
 	HAL_Delay(1000);

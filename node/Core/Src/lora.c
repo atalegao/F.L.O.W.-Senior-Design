@@ -23,7 +23,7 @@ bool doing_connected_test = false;
 bool doing_send = false;
 
 
- bool lora_init(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//not done, not tested
+ bool lora_init(DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){//not done, not tested
         //sets preamble length, center frequency, Tx power, and modem config
         // ALSO NEED TO SET ADDRESS of the node (needed depending on AddressFiltering register, but reg is 34)
         // (default is off)
@@ -101,7 +101,7 @@ bool doing_send = false;
     }
 
 
-uint8_t lora_read_fifo_single(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//done, not tested
+uint8_t lora_read_fifo_single(DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){//done, not tested
     //THIS IS FOR READING ONE BYTE OF A LORA MESSAGE,
     uint8_t val = 0;
     uart_write_rx('R'); //0x52
@@ -113,7 +113,7 @@ uint8_t lora_read_fifo_single(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDe
     // 52, 00, 01
 }
 
-void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart, uint8_t send_type, bool re_enable){
+void lora_dma_write_send(int length, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart, uint8_t send_type, bool re_enable){
     //This enables the message send for the LoRa's DMA
 	//send type is 1 for normal, 2 for rx, 3 for tx
 
@@ -130,7 +130,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 
 
 	if(send_type == 1){ //normal
-		status = HAL_UART_Transmit_DMA(&huart, sendfifo_norm, length);
+		status = HAL_UART_Transmit_DMA(huart, (uint8_t *)sendfifo_norm, length);
 		sendfifo_ready_norm = false;
 //		if(global_receive_mode_from_cad == 1){//remove, this is for testing
 //			//do nothing
@@ -141,7 +141,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 		send_normal = true;
 	}
 	else if(send_type == 2){//rx
-		HAL_UART_Transmit_DMA(&huart, sendfifo_rec_message, length);
+		HAL_UART_Transmit_DMA(huart, (uint8_t *)sendfifo_rec_message, length);
 		sendfifo_ready_rec = false;
 //		if(global_receive_mode_from_cad == 1){//remove, this is for testing
 //			//do nothing
@@ -152,7 +152,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 		send_rec = true;
 	}
 	else if (send_type == 3){//tx
-		HAL_UART_Transmit_DMA(&huart, sendfifo_send_message, length);
+		HAL_UART_Transmit_DMA(huart, (uint8_t *)sendfifo_send_message, length);
 		sendfifo_ready_send = false;
 //		if(global_receive_mode_from_cad == 1){//remove, this is for testing
 //			//do nothing
@@ -176,12 +176,12 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
 	}
 }
 
-void set_mode_continuous_receive(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+void set_mode_continuous_receive(DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_RXCONTINUOUS, 1); // 57, 81, 01, 05
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x00, 1); // 57 C0 01 00
     lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1, 1); //normal
 }
-void set_mode_sleep(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){/////////////////////////////////////maybe or values | RH_RF95_LONG_RANGE_MODE to put in LoRa mode
+void set_mode_sleep(DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){/////////////////////////////////////maybe or values | RH_RF95_LONG_RANGE_MODE to put in LoRa mode
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_SLEEP, 1);
     lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1, 1); //normal
 }
@@ -219,7 +219,7 @@ void lora_write_multiple(uint8_t reg, uint8_t* value, uint8_t length, uint8_t me
 }
 
 
-void lora_read_multiple(uint8_t reg, uint8_t* result, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart, uint8_t send_type){//done, not tested
+void lora_read_multiple(uint8_t reg, uint8_t* result, uint8_t length, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart, uint8_t send_type){//done, not tested
     //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
     //reads value in the register reg and places it in result
     //reg is in the LoRa microcontroller
@@ -280,7 +280,7 @@ void lora_write_single(uint8_t reg, uint8_t value, uint8_t message_type){//done,
 	}
 }
 
-bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done, not tested
+bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *crc_error, bool clear, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){ //done, not tested
     //outputs rxdone, valid_header, and crc_error flags after reading them
     //THIS ALSO CLEARS THE FLAG REGISTER if clear == 1
 
@@ -304,7 +304,7 @@ bool check_irq_flags_receive(uint8_t* rxdone, uint8_t* valid_header, uint8_t *cr
     return true;
 }
 
-void lora_read_fifo_all(uint8_t* data, uint8_t length, bool clear_header, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){//done, not tested
+void lora_read_fifo_all(uint8_t* data, uint8_t length, bool clear_header, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){//done, not tested
     //THIS IS FOR READING THE ENTIRE LORA MESSAGE, NO HEADERS
     //LENGTH IS WITHOUT HEADERS
     uint8_t start_addr = 0;
@@ -329,7 +329,7 @@ void lora_read_fifo_all(uint8_t* data, uint8_t length, bool clear_header, DMA_Ha
     }
 }
 
-bool connected_test(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+bool connected_test(DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){
     //returns true if LoRa module is connected and false if not
 
     uint8_t counter = 0;
@@ -511,7 +511,7 @@ void uart_write_tx(uint8_t data){ //done, not tested
     }
 }
 
-uint8_t lora_read_single(uint8_t reg, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart, uint8_t message_type, bool re_enable){//done, not tested
+uint8_t lora_read_single(uint8_t reg, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart, uint8_t message_type, bool re_enable){//done, not tested
     //THIS IS FOR READING REGISTERS IN THE LORA MICRO, NOT READING A LORA MESSAGE
     //reads value in the register reg
     //reg is in the LoRa microcontroller
@@ -541,7 +541,7 @@ uint8_t lora_read_single(uint8_t reg, DMA_HandleTypeDef hdma_usart_tx, UART_Hand
     // 52 00 01 read vale written by write
 }
 
-bool lora_send(volatile uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart) { //not done, not tested
+bool lora_send(volatile uint8_t* data, uint8_t length, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart) { //not done, not tested
     //THIS IS FOR SENDING A LORA MESSAGE, NOT WRTING TO REGISTERS IN THE LORA MICRO
     //this handles sending a lora message
     //length is the length of the message in bytes
@@ -680,19 +680,19 @@ bool lora_send(volatile uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_us
     return true;
 }
 
-void set_mode_standby(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+void set_mode_standby(DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){
 	lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_STDBY,1);
 	lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0x00,1);
 	lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1, 1); //normal
 }
 
-void set_mode_cad(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){
+void set_mode_cad(DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){
     lora_write_single(RH_RF95_REG_01_OP_MODE, RH_RF95_MODE_CAD | RH_RF95_LONG_RANGE_MODE,1);
     lora_write_single(RH_RF95_REG_40_DIO_MAPPING1, 0xA0,1);
     lora_dma_write_send(sendfifo_offset_norm, hdma_usart_tx, huart, 1, 1); //normal
 }
 
-bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //done, not tested
+bool cad_cycle(DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){ //done, not tested
     //THIS IS THE CAD CYCLE OF RECEIVING
     //returning true means go to continuous receive mode
     //returning false means go to sleep mode

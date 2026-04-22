@@ -85,7 +85,7 @@ void go_to_sleep(void);
 void get_timestamp(void);
 void uart_set_rtc(void);
 void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date);
-void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef huart);
+void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef * huart);
 void connected_test_all(void);
 
 /* USER CODE END Private defines */
