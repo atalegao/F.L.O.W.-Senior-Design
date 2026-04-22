@@ -1312,20 +1312,20 @@ void Adafruit_RA8875::setScrollWindow(int16_t x, int16_t y, int16_t w,
   writeData(mode);
 }
 
-/**************************************************************************/
-/*!
-    Scroll in the X direction
-
-    @param dist The distance to scroll
-
- */
-/**************************************************************************/
-void Adafruit_RA8875::scrollX(int16_t dist) {
-  writeCommand(0x24);
-  writeData(dist);
-  writeCommand(0x25);
-  writeData(dist >> 8);
-}
+///**************************************************************************/
+///*!
+//    Scroll in the X direction
+//
+//    @param dist The distance to scroll
+//
+// */
+///**************************************************************************/
+//void Adafruit_RA8875::scrollX(int16_t dist) {
+//  writeCommand(0x24);
+//  writeData(dist);
+//  writeCommand(0x25);
+//  writeData(dist >> 8);
+//}
 
 /**************************************************************************/
 /*!
@@ -1335,12 +1335,12 @@ void Adafruit_RA8875::scrollX(int16_t dist) {
 
  */
 /**************************************************************************/
-void Adafruit_RA8875::scrollY(int16_t dist) {
-  writeCommand(0x26);
-  writeData(dist);
-  writeCommand(0x27);
-  writeData(dist >> 8);
-}
+//void Adafruit_RA8875::scrollY(int16_t dist) {
+//  writeCommand(0x26);
+//  writeData(dist);
+//  writeCommand(0x27);
+//  writeData(dist >> 8);
+//}
 
 /**************************************************************************/
 /*!
@@ -1355,11 +1355,11 @@ void Adafruit_RA8875::scrollY(int16_t dist) {
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void Adafruit_RA8875::drawTriangle(int16_t x0, int16_t y0, int16_t x1,
-                                   int16_t y1, int16_t x2, int16_t y2,
-                                   uint16_t color) {
-  triangleHelper(x0, y0, x1, y1, x2, y2, color, false);
-}
+//void Adafruit_RA8875::drawTriangle(int16_t x0, int16_t y0, int16_t x1,
+//                                   int16_t y1, int16_t x2, int16_t y2,
+//                                   uint16_t color) {
+//  triangleHelper(x0, y0, x1, y1, x2, y2, color, false);
+//}
 
 /**************************************************************************/
 /*!
@@ -1374,11 +1374,11 @@ void Adafruit_RA8875::drawTriangle(int16_t x0, int16_t y0, int16_t x1,
       @param color The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void Adafruit_RA8875::fillTriangle(int16_t x0, int16_t y0, int16_t x1,
-                                   int16_t y1, int16_t x2, int16_t y2,
-                                   uint16_t color) {
-  triangleHelper(x0, y0, x1, y1, x2, y2, color, true);
-}
+//void Adafruit_RA8875::fillTriangle(int16_t x0, int16_t y0, int16_t x1,
+//                                   int16_t y1, int16_t x2, int16_t y2,
+//                                   uint16_t color) {
+//  triangleHelper(x0, y0, x1, y1, x2, y2, color, true);
+//}
 
 /**************************************************************************/
 /*!
@@ -1391,11 +1391,11 @@ void Adafruit_RA8875::fillTriangle(int16_t x0, int16_t y0, int16_t x1,
       @param color     The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void Adafruit_RA8875::drawEllipse(int16_t xCenter, int16_t yCenter,
-                                  int16_t longAxis, int16_t shortAxis,
-                                  uint16_t color) {
-  ellipseHelper(xCenter, yCenter, longAxis, shortAxis, color, false);
-}
+//void Adafruit_RA8875::drawEllipse(int16_t xCenter, int16_t yCenter,
+//                                  int16_t longAxis, int16_t shortAxis,
+//                                  uint16_t color) {
+//  ellipseHelper(xCenter, yCenter, longAxis, shortAxis, color, false);
+//}
 
 /**************************************************************************/
 /*!
@@ -1408,11 +1408,11 @@ void Adafruit_RA8875::drawEllipse(int16_t xCenter, int16_t yCenter,
       @param color     The RGB565 color to use when drawing the pixel
 */
 /**************************************************************************/
-void Adafruit_RA8875::fillEllipse(int16_t xCenter, int16_t yCenter,
-                                  int16_t longAxis, int16_t shortAxis,
-                                  uint16_t color) {
-  ellipseHelper(xCenter, yCenter, longAxis, shortAxis, color, true);
-}
+//void Adafruit_RA8875::fillEllipse(int16_t xCenter, int16_t yCenter,
+//                                  int16_t longAxis, int16_t shortAxis,
+//                                  uint16_t color) {
+//  ellipseHelper(xCenter, yCenter, longAxis, shortAxis, color, true);
+//}
 
 /**************************************************************************/
 /*!
@@ -1470,9 +1470,9 @@ void Adafruit_RA8875::fillCurve(int16_t xCenter, int16_t yCenter,
       @param color  The RGB565 color to use when drawing the pixel
  */
 /**************************************************************************/
-void Adafruit_RA8875::drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
-  roundRectHelper(x, y, x + w, y + h, r, color, false);
-}
+//void Adafruit_RA8875::drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
+//  roundRectHelper(x, y, x + w, y + h, r, color, false);
+//}
 
 /**************************************************************************/
 /*!
@@ -1486,9 +1486,9 @@ void Adafruit_RA8875::drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, 
       @param color  The RGB565 color to use when drawing the pixel
  */
 /**************************************************************************/
-void Adafruit_RA8875::fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
-  roundRectHelper(x, y, x + w, y + h, r, color, true);
-}
+//void Adafruit_RA8875::fillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color) {
+//  roundRectHelper(x, y, x + w, y + h, r, color, true);
+//}
 
 
 

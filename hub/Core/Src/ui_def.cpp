@@ -9,6 +9,8 @@
  */
 #include "ui_def.h"
 #include <string.h>
+#include <math.h>
+
 
 ScreenState currentScreen;
 
@@ -98,14 +100,20 @@ void drawNodeDetail(Node* n) {
     tft->textTransparent(RA8875_WHITE);
     tft->textWrite(n->name);
 //TODO sprintf will not work so i need to figure out something else
-    tft->textSetCursor(50, 130);
-    char buf[64];
-//        sprintf(buf, "Water: %.2f", n->latestWaterHeight);
-//        tft->textWrite(buf);
+//    tft->textSetCursor(50, 130);
+//    char buf[64];
+//    ftoa(n->latestWaterHeight, buf, 5);
+//    tft->textWrite(buf);
 //
-//        tft->textSetCursor(50, 180);
-//        sprintf(buf, "Time: %lu", n->latestTimestamp);
-//        tft->textWrite(buf);
+////
+////
+//    tft->textSetCursor(50, 180);
+//    tft->textWrite("Time stamp:");
+//
+//    ftoa(n->latestTimestamp, buf, 5);
+//    tft->textSetCursor(50, 220);
+//
+//    tft->textWrite(buf);
 //
 //        tft->textSetCursor(50, 230);
 //        sprintf(buf, "Battery: %.1f%%", n->batteryPercent);
@@ -309,3 +317,63 @@ void uiInit(Adafruit_RA8875* display) {
 
     drawHome();
 }
+//from geeksforgeeks
+//void reverse(char* str, int len)
+//{
+//    int i = 0, j = len - 1, temp;
+//    while (i < j) {
+//        temp = str[i];
+//        str[i] = str[j];
+//        str[j] = temp;
+//        i++;
+//        j--;
+//    }
+//}
+//
+//// Converts a given integer x to string str[].
+//// d is the number of digits required in the output.
+//// If d is more than the number of digits in x,
+//// then 0s are added at the beginning.
+//int intToStr(int x, char str[], int d)
+//{
+//    int i = 0;
+//    while (x) {
+//        str[i++] = (x % 10) + '0';
+//        x = x / 10;
+//    }
+//
+//    // If number of digits required is more, then
+//    // add 0s at the beginning
+//    while (i < d)
+//        str[i++] = '0';
+//
+//    reverse(str, i);
+//    str[i] = '\0';
+//    return i;
+//}
+//
+//// Converts a floating-point/double number to a string.
+//void ftoa(float n, char* res, int afterpoint)
+//{
+//    // Extract integer part
+//    int ipart = (int)n;
+//
+//    // Extract floating part
+//    float fpart = n - (float)ipart;
+//
+//    // convert integer part to string
+//    int i = intToStr(ipart, res, 0);
+//
+//    // check for display option after point
+//    if (afterpoint != 0) {
+//        res[i] = '.'; // add dot
+//
+//        // Get the value of fraction part upto given no.
+//        // of points after dot. The third parameter
+//        // is needed to handle cases like 233.007
+//        fpart = fpart * pow(10, afterpoint);
+//
+//        intToStr((int)fpart, res + i + 1, afterpoint);
+//    }
+//}
+

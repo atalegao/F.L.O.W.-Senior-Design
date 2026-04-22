@@ -68,5 +68,10 @@ void drawAllNodes(void);
 void drawNodeDetail(Node* n);
 void drawPhones(void);
 void drawKeypad(void);
+void ftoa(float n, char* res, int afterpoint);
+int intToStr(int x, char str[], int d);
+void reverse(char* str, int len);
+
+
 
 #endif
