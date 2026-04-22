@@ -1,18 +1,28 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
+  * @file           : main.c  [RECEIVER NODE]
+  * @brief          : Receives water level data from LoRa module over USART1,
+  *                   checks against flood threshold, and triggers ESP8266
+  *                   over USART2 to send a Telegram alert if exceeded.
   *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
+  * HARDWARE / UART ASSIGNMENTS:
+  *   USART1  <->  LoRa module         (9600 baud) — receives WATER messages
+  *   USART2  <->  ESP8266 WiFi module  (9600 baud) — sends FLOOD alert
+  *   USART2  also used for debug printf via ST-Link virtual COM
   *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
+  * LORA MESSAGE EXPECTED FORMAT (from sender node):
+  *   "WATER:<node_id>:<distance_mm>\n"
+  *   e.g. "WATER:1:142\n"
   *
+  * MESSAGE SENT TO ESP8266 ON THRESHOLD BREACH:
+  *   "FLOOD:<node_id>:<distance_mm>\n"
+  *   e.g. "FLOOD:1:142\n"
+  *
+  * CUBEIDE IOC SETUP REQUIRED:
+  *   - USART1: Asynchronous, 9600 baud, enable global interrupt in NVIC
+  *   - USART2: Asynchronous, 9600 baud
+  *   Both UARTs will be declared and initialised automatically by CubeMX.
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -21,6 +31,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,6 +43,19 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+// Flood threshold in mm.
+// Alert fires when water level reading is AT OR BELOW this value.
+// Lower reading = water is closer to sensor = higher water level.
+// Adjust once you know your sensor mounting height.
+#define FLOOD_THRESHOLD_MM   150
+
+// Cooldown between alerts — prevents spamming Telegram.
+// Set to 10 minutes (in milliseconds).
+#define ALERT_COOLDOWN_MS    (10 * 60 * 1000)
+
+// UART receive buffer size
+#define RX_BUF_SIZE          128
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -39,46 +64,38 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-UART_HandleTypeDef hlpuart1;
+RTC_HandleTypeDef hrtc;
+
+TIM_HandleTypeDef htim2;
+
 UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-typedef enum {
-	STATE_IDLE,
-	STATE_SAMPLING,
-	STATE_REPORTING
-} SystemState_t;
 
-SystemState_t current_state = STATE_IDLE;
-uint32_t state_timer = 0;
-uint32_t trigger_timer = 0;
+// --- UART receive state ---
+uint8_t          rxByte;
+char             rxBuffer[RX_BUF_SIZE];
+uint8_t          rxIndex = 0;
+volatile uint8_t messageReady = 0;
+char             parsedMessage[RX_BUF_SIZE];
 
-uint8_t rx_data;
-uint8_t packet[4];
-uint8_t packet_idx = 0;
+// --- Alert cooldown state ---
+uint32_t lastAlertTick      = 0;
+uint8_t  alertCooldownActive = 0;
 
-#define FILTER_SIZE 20
-uint32_t readings[FILTER_SIZE] = {0};
-uint8_t read_idx = 0;
-uint32_t distance_mm = 0;
-
-uint64_t long_term_sum = 0;
-uint32_t sample_count = 0;
-
-volatile uint8_t data_ready = 0;
-
-const uint32_t BREAK_TIME = 1 * 60 * 1000; //ten minutes idle
-const uint32_t ON_TIME = 1 * 60 * 1000; //one minute sampling
-const uint32_t TRIGGER_RATE = 200; //polling freq, 5 times per sec during polling
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_RTC_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_USART1_UART_Init(void);
-static void MX_LPUART1_UART_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-void trigger_sensor_reading(void);
+void ESP_SendAlert(int nodeId, uint32_t distance);
+void ProcessLoRaMessage(char* msg);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -115,82 +132,48 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_RTC_Init();
+  MX_TIM2_Init();
   MX_USART1_UART_Init();
-  MX_LPUART1_UART_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1);
+
+  // Start interrupt-driven receive from LoRa module on USART1
+  //HAL_UART_Receive_IT(&huart1, &rxByte, 1);
+
+  // Safe to printf now — USART2 is initialised
+  printf("Receiver node booting...\r\n");
+
+  HAL_Delay(3000); // give D1 Mini time to boot and connect to WiFi
+  ESP_SendAlert(1, 120); // simulate node 1 reading 120mm (below 150mm threshold)
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint32_t last_poll_time = 0;
-  uint32_t poll_interval = 1000; //# ms between readings
-  printf("System Booting...\r\n");
   while (1)
   {
-	  uint32_t now = HAL_GetTick();
-
-	  switch (current_state) {
-	  	  case STATE_IDLE:
-	  		  if (now - state_timer >= BREAK_TIME) { //ten minutes
-	  				  state_timer = now;
-	  		  	  	  long_term_sum = 0;
-	  		  	  	  sample_count = 0;
-	  		  	  	  current_state = STATE_SAMPLING;
-	  		  	  	  printf("Starting Sample \r\n");
-	  		  }
-	  		  break;
-
-	  	  case STATE_SAMPLING:
-	  		  //trigger reading at specific rate
-	  		  if (now - trigger_timer >= TRIGGER_RATE) {
-	  			  trigger_sensor_reading();
-	  			  trigger_timer = now;
-	  		  }
-	  		  //THIS IS OPTIONAL REAL TIME PRINTING DURING MINUTE POLL
-	  		  if (data_ready) {
-	  			  printf("current distance reading: %lu mm\r\n", distance_mm);
-	  			  data_ready = 0;
-	  		  }
-
-	  		  // end sampling window
-	  		  if (now - state_timer >= ON_TIME) {
-	  			  current_state = STATE_REPORTING;
-	  		  }
-	  		  break;
-
-	  	  case STATE_REPORTING:
-	  		  if (sample_count > 0) {
-	  			  uint32_t final_report = (uint32_t)(long_term_sum / sample_count);
-	  			  printf("average reading from poll: %lu mm (from %lu samples)\r\n", final_report, sample_count);
-	  		  }
-	  		  state_timer = now;
-	  		  current_state = STATE_IDLE;
-	  		  printf("entering idle\r\n");
-	  		  break;
-	  }
-
-//	  if (HAL_GetTick() - last_poll_time >= poll_interval) {
-//		  trigger_sensor_reading();
-//
-//		  //wait for interrupt to finish packet (100 ms timeout)
-//		  uint32_t start_wait = HAL_GetTick();
-//		  while(!data_ready && (HAL_GetTick() - start_wait < 100));
-//
-//		  if(data_ready) {
-//			  printf("Distance: %lu mm\r\n", distance_mm);
-//		  } else {
-//			  printf("sensor timeout \r\n");
-//		  }
-//		  last_poll_time = HAL_GetTick();
-//	  }
-//
-//
-//	  HAL_Delay(500);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+    // Process any complete message received from LoRa
+    if (messageReady) {
+      messageReady = 0;
+      ProcessLoRaMessage(parsedMessage);
+    }
+
+    // Check if alert cooldown period has expired
+    if (alertCooldownActive) {
+      if (HAL_GetTick() - lastAlertTick >= ALERT_COOLDOWN_MS) {
+        alertCooldownActive = 0;
+        printf("Alert cooldown expired, ready to alert again\r\n");
+      }
+    }
+//    ESP_SendAlert(1, 120);
+//        printf("Sent test alert\r\n");
+//        HAL_Delay(3000);
+
   }
   /* USER CODE END 3 */
 }
@@ -212,7 +195,8 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_5;
@@ -235,9 +219,11 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_LPUART1;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2
+                              |RCC_PERIPHCLK_RTC;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
-  PeriphClkInit.Lpuart1ClockSelection = RCC_LPUART1CLKSOURCE_PCLK1;
+  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -245,36 +231,111 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief LPUART1 Initialization Function
+  * @brief RTC Initialization Function
   * @param None
   * @retval None
   */
-static void MX_LPUART1_UART_Init(void)
+static void MX_RTC_Init(void)
 {
 
-  /* USER CODE BEGIN LPUART1_Init 0 */
+  /* USER CODE BEGIN RTC_Init 0 */
 
-  /* USER CODE END LPUART1_Init 0 */
+  /* USER CODE END RTC_Init 0 */
 
-  /* USER CODE BEGIN LPUART1_Init 1 */
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
 
-  /* USER CODE END LPUART1_Init 1 */
-  hlpuart1.Instance = LPUART1;
-  hlpuart1.Init.BaudRate = 9600;
-  hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
-  hlpuart1.Init.StopBits = UART_STOPBITS_1;
-  hlpuart1.Init.Parity = UART_PARITY_NONE;
-  hlpuart1.Init.Mode = UART_MODE_TX_RX;
-  hlpuart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  hlpuart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  hlpuart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_UART_Init(&hlpuart1) != HAL_OK)
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
+
+  /** Initialize RTC Only
+  */
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+  if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN LPUART1_Init 2 */
 
-  /* USER CODE END LPUART1_Init 2 */
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0x0;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 0x1;
+  sDate.Year = 0x0;
+
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 1;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
 
 }
 
@@ -314,89 +375,166 @@ static void MX_USART1_UART_Init(void)
 }
 
 /**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
   */
+//static void MX_GPIO_Init(void)
+//{
+//  /* USER CODE BEGIN MX_GPIO_Init_1 */
+//
+//  /* USER CODE END MX_GPIO_Init_1 */
+//
+//  /* GPIO Ports Clock Enable */
+//  __HAL_RCC_GPIOA_CLK_ENABLE();
+//
+//  /* USER CODE BEGIN MX_GPIO_Init_2 */
+//
+//  /* USER CODE END MX_GPIO_Init_2 */
+//}
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-  /* USER CODE BEGIN MX_GPIO_Init_1 */
-
-  /* USER CODE END MX_GPIO_Init_1 */
-
-  /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  // PA2=USART2 TX (ST-Link), PA3=USART2 RX — debug printf
+  GPIO_InitStruct.Pin       = GPIO_PIN_2 | GPIO_PIN_3;
+  GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull      = GPIO_PULLUP;
+  GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF4_USART2;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* USER CODE BEGIN MX_GPIO_Init_2 */
-
-  /* USER CODE END MX_GPIO_Init_2 */
+  // PA9=USART1 TX (ESP8266), PA10=USART1 RX
+  GPIO_InitStruct.Pin       = GPIO_PIN_9 | GPIO_PIN_10;
+  GPIO_InitStruct.Alternate = GPIO_AF4_USART1;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 4 */
-void trigger_sensor_reading(void) {
-	//reset state for new packet
-	packet_idx = 0;
-	data_ready = 0;
 
-	//pull RX low to trigger
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, GPIO_PIN_RESET);
-	HAL_Delay(1);
-	//set back to high aka idle
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, GPIO_PIN_SET);
-}
-//link printf to serial port
-int __io_putchar(int ch) {
-	HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
-	return ch;
-}
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-    if (huart->Instance == LPUART1) {
-        // State Machine to align packet
-        if (packet_idx == 0 && rx_data != 0xFF) {
-            // wait for header byte
-        	packet_idx = 0;
-        } else {
-        	packet[packet_idx++] = rx_data;
-        }
+// -------------------------------------------------------
+// UART RX interrupt callback
+// Builds a complete '\n'-terminated line from LoRa module.
+// Sets messageReady flag when a full line is received.
+// -------------------------------------------------------
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART1)
+  {
+    if (rxByte == '\n' || rxIndex >= RX_BUF_SIZE - 1)
+    {
+      rxBuffer[rxIndex] = '\0';
 
-        //once 4 bytes
-        if (packet_idx == 4) {
-            // Sum the first three bytes and mask to 8 bits
-            uint8_t sum = (packet[0] + packet[1] + packet[2]) & 0xFF;
+      // Trim trailing \r if present
+      if (rxIndex > 0 && rxBuffer[rxIndex - 1] == '\r')
+        rxBuffer[rxIndex - 1] = '\0';
 
-            if (sum == packet[3]) {
-                uint8_t raw_val = (packet[1] << 8) | packet[2];
-                readings[read_idx] = raw_val;
-                read_idx = (read_idx + 1) % FILTER_SIZE;
-                uint32_t total = 0;
-                for(int i = 0; i < FILTER_SIZE; i++) {
-                	total += readings[i];
-                }
-                distance_mm = total / FILTER_SIZE;
-
-                if (current_state == STATE_SAMPLING) {
-                	long_term_sum += raw_val;
-                	sample_count++;
-                }
-                data_ready = 1; //signal finish valid reading
-            }
-            packet_idx = 0; // reset index
-        }
-
-        HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1);
+      strcpy(parsedMessage, rxBuffer);
+      messageReady = 1;
+      rxIndex = 0;
     }
+    else
+    {
+      rxBuffer[rxIndex++] = (char)rxByte;
+    }
+
+    // Re-arm interrupt for next byte
+    HAL_UART_Receive_IT(&huart1, &rxByte, 1);
+  }
+}
+
+// -------------------------------------------------------
+// ProcessLoRaMessage()
+// Parses incoming LoRa message and checks flood threshold.
+//
+// Expected format: "WATER:<nodeId>:<distance_mm>"
+// e.g.             "WATER:1:142"
+// -------------------------------------------------------
+void ProcessLoRaMessage(char* msg)
+{
+  if (strncmp(msg, "WATER:", 6) == 0)
+  {
+    int      nodeId;
+    uint32_t distance;
+
+    if (sscanf(msg, "WATER:%d:%lu", &nodeId, &distance) == 2)
+    {
+      printf("Node %d: water level = %lu mm\r\n", nodeId, distance);
+
+      // Lower distance = water is closer to sensor = higher water level
+      if (distance <= FLOOD_THRESHOLD_MM && !alertCooldownActive)
+      {
+        printf("FLOOD THRESHOLD EXCEEDED — Node %d: %lu mm — sending alert\r\n",
+               nodeId, distance);
+
+        ESP_SendAlert(nodeId, distance);
+
+        lastAlertTick       = HAL_GetTick();
+        alertCooldownActive = 1;
+      }
+    }
+  }
+}
+
+// -------------------------------------------------------
+// ESP_SendAlert()
+// Sends flood alert command to ESP8266 over USART2.
+// ESP8266 parses this and fires the Telegram message.
+//
+// Format sent: "FLOOD:<nodeId>:<distance_mm>\n"
+// e.g.         "FLOOD:1:142\n"
+// -------------------------------------------------------
+void ESP_SendAlert(int nodeId, uint32_t distance)
+{
+  char buf[64];
+  snprintf(buf, sizeof(buf), "FLOOD:%d:%lu\n", nodeId, distance);
+  HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
+}
+
+// -------------------------------------------------------
+// __io_putchar()
+// Routes printf to USART2 (ST-Link debug monitor).
+// -------------------------------------------------------
+int __io_putchar(int ch)
+{
+  HAL_UART_Transmit(&huart2, (uint8_t*)&ch, 1, 0xFFFF);
+  return ch;
 }
 
 /* USER CODE END 4 */
@@ -408,11 +546,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
-  while (1)
-  {
-  }
+  while (1) {}
   /* USER CODE END Error_Handler_Debug */
 }
 #ifdef USE_FULL_ASSERT
@@ -426,8 +561,6 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
