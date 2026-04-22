@@ -71,6 +71,7 @@ TIM_HandleTypeDef htim22;
 //lpuart1 is ultrasonic sensor
 volatile RTC_TimeTypeDef current_time;
 volatile RTC_DateTypeDef current_date;
+#define FILTER_SIZE 20
 
 uint8_t usb_buffer_rtc [7];
 bool read_lora_fifo;
@@ -103,7 +104,7 @@ volatile uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa
 volatile uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
 volatile uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
 volatile uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
-uint8_t rx_data[1];
+volatile uint8_t rx_data[1];
 volatile int sendfifo_offset_send = 0;
 volatile bool sendfifo_ready_send = true;
 volatile int sendfifo_offset_rec = 0;
@@ -136,7 +137,7 @@ bool isHub = false;
 volatile bool usb_ttl_done = true;
 volatile bool in_read_lora_fifo = false;
 
-#define DO_SEND 0
+#define DO_SEND 1
 #define DO_REC 0
 
 #define DO_BOTH 1
@@ -175,10 +176,11 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-  MX_GPIO_Init();
+//  MX_GPIO_Init();
   MX_DMA_Init();
   MX_I2C2_Init();
   MX_LPUART1_UART_Init();
+  MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_RTC_Init();
@@ -194,21 +196,24 @@ int main(void)
   HAL_NVIC_DisableIRQ(TIM2_IRQn);
   read_lora_fifo = false;
   receivefifo[0] = 0; //added
+  receivefifo_usb_ttl[0] = 0;
   HAL_GPIO_WritePin (LORA_TGL_RELAY_GPIO_Port, LORA_TGL_RELAY_Pin, GPIO_PIN_RESET);//Relay
   HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_RESET);
   HAL_Delay(1000);
   HAL_GPIO_WritePin (LORA_TGL_RELAY_GPIO_Port, LORA_TGL_RELAY_Pin, GPIO_PIN_SET);//Relay
   HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_SET);
   HAL_Delay(1000);
-  HAL_UART_Receive_IT(&hlpuart1, rx_data, 1); //ultrasonic sensor data receive on lpuart1
+  __HAL_UART_CLEAR_FLAG(&hlpuart1, UART_CLEAR_OREF);
+  hlpuart1.RxState = HAL_UART_STATE_READY;
+  HAL_UART_Receive_IT(&hlpuart1, (uint8_t * )rx_data, 1); //ultrasonic sensor data receive on lpuart1
 
   HAL_UART_Receive_DMA(&huart2, (uint8_t *)receivefifo, 1); //lora
   HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
   HAL_Delay(1000);//added
   connected_test_all();
-  while(done_with_usb_ttl_setup == false){
-
-  }
+//  while(done_with_usb_ttl_setup == false){
+//
+//  }
   get_timestamp();
   ultrasonic_init(); 
   lora_init(&hdma_usart2_tx, &huart2);
@@ -250,26 +255,29 @@ int main(void)
 	  if(DO_BOTH){
 		  //here to while 1 is just for testing, remove
 		  if(DO_SEND){
-			  uint8_t dest_addr [ADDR_LENGTH];
-			  dest_addr[0] = 0x16;
-			  dest_addr[1] = 0x17;
-			  uint8_t new_addr [ADDR_LENGTH];
-			  new_addr[0] = 0x18;
-			  new_addr[1] = 0x19;
-			  uint8_t message_id [4];
-			  message_id[0] = 0x12;
-			  message_id[1] = 0x13;
-			  message_id[2] = 0x14;
-			  message_id[3] = 0x15;
-			  uint8_t coords [4];
-			  coords[0] = 0x20;
-			  coords[1] = 0x21;
-			  coords[2] = 0x22;
-			  coords[3] = 0x23;
-			  uint8_t distance [2];
-			  distance[0] = 0x24;
-			  distance[1] = 0x25;
-			  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, &hdma_usart2_tx, &huart2);
+//			  uint8_t dest_addr [ADDR_LENGTH];
+//			  dest_addr[0] = 0x16;
+//			  dest_addr[1] = 0x17;
+//			  uint8_t new_addr [ADDR_LENGTH];
+//			  new_addr[0] = 0x18;
+//			  new_addr[1] = 0x19;
+//			  uint8_t message_id [4];
+//			  message_id[0] = 0x12;
+//			  message_id[1] = 0x13;
+//			  message_id[2] = 0x14;
+//			  message_id[3] = 0x15;
+//			  uint8_t coords [4];
+//			  coords[0] = 0x20;
+//			  coords[1] = 0x21;
+//			  coords[2] = 0x22;
+//			  coords[3] = 0x23;
+//			  uint8_t distance [2];
+//			  distance[0] = 0x24;
+//			  distance[1] = 0x25;
+//			  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, &hdma_usart2_tx, &huart2);
+			  handle_sending_own_data();
+			  HAL_Delay(100);
+			  handle_sending_own_data();
 		  }
 		  while(1){//this is what the lora code in the main should be
 			  if(read_lora_fifo){ //
@@ -645,11 +653,11 @@ static void MX_LPUART1_UART_Init(void)
 
   /* USER CODE END LPUART1_Init 1 */
   hlpuart1.Instance = LPUART1;
-  hlpuart1.Init.BaudRate = 209700;
-  hlpuart1.Init.WordLength = UART_WORDLENGTH_7B;
+  hlpuart1.Init.BaudRate = 9600;
+  hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
   hlpuart1.Init.StopBits = UART_STOPBITS_1;
   hlpuart1.Init.Parity = UART_PARITY_NONE;
-  hlpuart1.Init.Mode = UART_MODE_TX_RX;
+  hlpuart1.Init.Mode = UART_MODE_RX;
   hlpuart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   hlpuart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
   hlpuart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
@@ -658,6 +666,7 @@ static void MX_LPUART1_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN LPUART1_Init 2 */
+  //mode rx instead of tx_rx
 
   /* USER CODE END LPUART1_Init 2 */
 
@@ -1035,7 +1044,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin|LORA_TGL_RELAY_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin|LORA_TGL_RELAY_Pin | GPIO_PIN_10, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_SET);
@@ -1060,7 +1069,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC0_LED_Pin PC1_LED_Pin PC2_LED_Pin LORA_TGL_RELAY_Pin */
-  GPIO_InitStruct.Pin = PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin|LORA_TGL_RELAY_Pin;
+  GPIO_InitStruct.Pin = PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin|LORA_TGL_RELAY_Pin| GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1238,9 +1247,43 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 		}
 	}
 	//ADDED FOR ULTRASONIC
-	else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
+	else if(huart->Instance == LPUART1){ // ultrasonic on LPUART1
 		ultrasonic_process_rx(rx_data[0]);
-		HAL_UART_Receive_IT(&hlpuart1, rx_data, 1);
+		__HAL_UART_CLEAR_FLAG(&hlpuart1, UART_CLEAR_OREF);
+		hlpuart1.RxState = HAL_UART_STATE_READY;
+		HAL_UART_Receive_IT(&hlpuart1, (uint8_t * )rx_data, 1);
+		// State Machine to align packet
+//		if (packet_idx == 0 && rx_data[0] != 0xFF) {
+//			// wait for header byte
+//			packet_idx = 0;
+//		} else {
+//			packet[packet_idx++] = rx_data[0];
+//		}
+//
+//		//once 4 bytes
+//		if (packet_idx == 4) {
+//			// Sum the first three bytes and mask to 8 bits
+//			uint8_t sum = (packet[0] + packet[1] + packet[2]) & 0xFF;
+//
+//			if (sum == packet[3]) {
+//				uint8_t raw_val = (packet[1] << 8) | packet[2];
+//				readings[read_idx] = raw_val;
+//				read_idx = (read_idx + 1) % FILTER_SIZE;
+//				uint32_t total = 0;
+//				for(int i = 0; i < FILTER_SIZE; i++) {
+//					total += readings[i];
+//				}
+//				distance_mm = total / FILTER_SIZE;
+//
+//				if (current_state == STATE_SAMPLING) {
+//					long_term_sum += raw_val;
+//					sample_count++;
+//				}
+//		        data_ready = 1; //signal finish valid reading
+//			}
+//			packet_idx = 0; // reset index
+//		}
+//		HAL_UART_Receive_IT(&hlpuart1, (uint8_t *)rx_data, 1);
 	}
 	else if(huart->Instance == USART1){ //usb-ttl
 		if(receivefifo_usb_ttl[0] == 100){ //special character to indicate setting RTC

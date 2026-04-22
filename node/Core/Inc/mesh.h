@@ -6,6 +6,7 @@
 #include <time.h>
 #include "main.h"
 #include "stm32l0xx_hal.h"
+#include "ultrasonic.h"
 
 
 #define MESH_MAX_NEIGHBORS      7

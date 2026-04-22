@@ -8,6 +8,8 @@ extern bool isHub;
 extern volatile bool usb_ttl_done;
 extern volatile uint8_t last_sent_msg_id [4];
 
+extern volatile uint8_t rx_data [1];
+
 extern uint8_t self_addr [ADDR_LENGTH];
 extern uint8_t addr_any_direction [ADDR_LENGTH];
 extern uint8_t addr_right_direction [ADDR_LENGTH];
@@ -96,6 +98,9 @@ void handle_sending_own_data(void){
 
 	//TODO: figure out water height
 	uint8_t water_height [WATER_LENGTH];
+	uint32_t data = ultrasonic_update();
+	ultrasonic_init();
+	water_height[0] = (data) & 0xFF;
 
 	uint8_t time [6];
 	get_timestamp();//get current time
@@ -1752,19 +1757,6 @@ bool mesh_handle_id_and_message_type(volatile uint8_t * z,volatile uint8_t * dat
 		message_id[q] = message_id_pre[q];
 		q += 1;
 	}
-	if(match[0] == true){
-		//matched
-		if(match[1] == true){//this node sent the message
-			clear_sent_message_buffer(message_id);//don't send this message again
-			return false;
-		}
-		else{//this node did not send the message
-			return false;
-		}
-	}
-	else{
-		shift_all_messages(message_id, false); //shift all messages, adding new one to top
-	}
 
 	//read message_type
 	uint8_t message_type [1];
@@ -1774,6 +1766,21 @@ bool mesh_handle_id_and_message_type(volatile uint8_t * z,volatile uint8_t * dat
 	z[0] = i;
 
 	type[0] = (mesh_msg_type) message_type[0]; //might be a typecasting error/warning
+	if(match[0] == true){
+		//matched
+		if(match[1] == true){//this node sent the message
+			clear_sent_message_buffer(message_id);//don't send this message again
+			return false;
+		}
+		else{//this node did not send the message
+			return true; //was false, but false means send an ack
+			//this would cause an issue if a node received a message, but ignored it because it wasn't the correct addr,
+			//but later was the correct addr
+		}
+	}
+	else{
+		shift_all_messages(message_id, false); //shift all messages, adding new one to top
+	}
 	return true;
 }
 
@@ -2024,6 +2031,9 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 	case MESH_MSG_ADD:
 		str2 ="\r\nof type add";
 		break;
+	default:
+		str2 = "\r\nerrant message type";
+		break;
 	}
 	while(usb_ttl_done == false);
 	memcpy(&message[0], str2, strlen(str2));
@@ -2034,6 +2044,14 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		memcpy(&message[0], str3, strlen(str3));
 		send_usb_ttl(message, strlen(str3), huart);
 		while(usb_ttl_done == false);
+		if(time_or_ignore_reason == 0){
+			char* str999 =" crc error ack sent to ";
+			memcpy(&message[0], str999, strlen(str999));
+			send_usb_ttl(message, strlen(str999), huart);
+			while(usb_ttl_done == false);
+			send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);
+			return;
+		}
 		send_usb_ttl(&time_or_ignore_reason, 1, huart);
 		char* str5 =" time, rec addr is";
 		while(usb_ttl_done == false);

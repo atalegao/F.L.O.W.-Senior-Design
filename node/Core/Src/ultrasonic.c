@@ -16,7 +16,7 @@ uint64_t long_term_sum = 0;
 uint32_t sample_count = 0;
 volatile uint8_t data_ready = 0;
 const uint32_t BREAK_TIME = 1 * 60 * 1000; // Ten minutes idle
-const uint32_t ON_TIME = 1 * 60 * 1000;    // One minute sampling
+const uint32_t ON_TIME = 10 * 1000;    //10 seconds
 const uint32_t TRIGGER_RATE = 200;         // Polling freq, 5 times per sec during polling
 
 // Initialize ultrasonic variables (call after HAL inits in main.c)
@@ -33,46 +33,49 @@ void ultrasonic_init(void) {
 }
 
 // Handle state machine and periodic updates (call in main loop)
-void ultrasonic_update(void) {
-    uint32_t now = HAL_GetTick();
+uint32_t ultrasonic_update(void) {
+    uint32_t final_report = 0;
+    while(1){
+    	uint32_t now = HAL_GetTick();
+    	switch (current_state) {
+    	case STATE_IDLE:
+    		//if (now - state_timer >= BREAK_TIME) { // Ten minutes
+    		state_timer = now;
+    		long_term_sum = 0;
+    		sample_count = 0;
+    		current_state = STATE_SAMPLING;
+    		printf("Starting Sample \r\n");
+    		//}
+    		break;
 
-    switch (current_state) {
-        case STATE_IDLE:
-            if (now - state_timer >= BREAK_TIME) { // Ten minutes
-                state_timer = now;
-                long_term_sum = 0;
-                sample_count = 0;
-                current_state = STATE_SAMPLING;
-                printf("Starting Sample \r\n");
-            }
-            break;
+    	 	 case STATE_SAMPLING:
+    	 		 // Trigger reading at specific rate
+    	 		 if (now - trigger_timer >= TRIGGER_RATE) {
+    	 			 trigger_sensor_reading();
+    	 			 trigger_timer = now;
+    	 		 }
+    	 		 // Optional real-time printing during minute poll
+    	 		 if (data_ready) {
+    	 			 printf("current distance reading: %lu mm\r\n", distance_mm);
+    	 			 data_ready = 0;
+    	 		 }
+    	 		 // End sampling window
+    	 		 if (now - state_timer >= ON_TIME) {
+    	 			 current_state = STATE_REPORTING;
+    	 		 }
+    	 		 break;
 
-        case STATE_SAMPLING:
-            // Trigger reading at specific rate
-            if (now - trigger_timer >= TRIGGER_RATE) {
-                trigger_sensor_reading();
-                trigger_timer = now;
-            }
-            // Optional real-time printing during minute poll
-            if (data_ready) {
-                printf("current distance reading: %lu mm\r\n", distance_mm);
-                data_ready = 0;
-            }
-            // End sampling window
-            if (now - state_timer >= ON_TIME) {
-                current_state = STATE_REPORTING;
-            }
-            break;
-
-        case STATE_REPORTING:
-            if (sample_count > 0) {
-                uint32_t final_report = (uint32_t)(long_term_sum / sample_count);
-                printf("average reading from poll: %lu mm (from %lu samples)\r\n", final_report, sample_count);
-            }
-            state_timer = now;
-            current_state = STATE_IDLE;
-            printf("entering idle\r\n");
-            break;
+    	 	 case STATE_REPORTING:
+    	 		 if (sample_count > 0) {
+    	 			 final_report = (uint32_t)(long_term_sum / sample_count);
+    	 			 printf("average reading from poll: %lu mm (from %lu samples)\r\n", final_report, sample_count);
+    	 		 }
+    	 		 state_timer = now;
+    	 		 current_state = STATE_IDLE;
+    	 		 printf("entering idle\r\n");
+    	 		 return final_report;
+    	 		 break;
+    	    }
     }
 }
 
@@ -119,8 +122,8 @@ void trigger_sensor_reading(void) {
     data_ready = 0;
 
     // Pull RX low to trigger
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, GPIO_PIN_RESET);
     HAL_Delay(1);
     // Set back to high aka idle
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, GPIO_PIN_SET);
 }

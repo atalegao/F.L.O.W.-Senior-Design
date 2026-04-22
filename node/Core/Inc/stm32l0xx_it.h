@@ -58,6 +58,7 @@ void TIM21_IRQHandler(void);
 void TIM22_IRQHandler(void);
 void USART1_IRQHandler(void);
 void USART2_IRQHandler(void);
+void RNG_LPUART1_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */

@@ -181,6 +181,9 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     GPIO_InitStruct.Alternate = GPIO_AF0_LPUART1;
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
+    /* LPUART1 interrupt Init */
+    HAL_NVIC_SetPriority(RNG_LPUART1_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(RNG_LPUART1_IRQn);
     /* USER CODE BEGIN LPUART1_MspInit 1 */
 
     /* USER CODE END LPUART1_MspInit 1 */
@@ -342,6 +345,15 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
     */
     HAL_GPIO_DeInit(GPIOC, GPIO_PIN_10|GPIO_PIN_11);
 
+    /* LPUART1 interrupt DeInit */
+    /* USER CODE BEGIN LPUART1:RNG_LPUART1_IRQn disable */
+    /**
+    * Uncomment the line below to disable the "RNG_LPUART1_IRQn" interrupt
+    * Be aware, disabling shared interrupt may affect other IPs
+    */
+    /* HAL_NVIC_DisableIRQ(RNG_LPUART1_IRQn); */
+    /* USER CODE END LPUART1:RNG_LPUART1_IRQn disable */
+
     /* USER CODE BEGIN LPUART1_MspDeInit 1 */
 
     /* USER CODE END LPUART1_MspDeInit 1 */
@@ -412,6 +424,9 @@ void HAL_RNG_MspInit(RNG_HandleTypeDef* hrng)
     /* USER CODE END RNG_MspInit 0 */
     /* Peripheral clock enable */
     __HAL_RCC_RNG_CLK_ENABLE();
+    /* RNG interrupt Init */
+    HAL_NVIC_SetPriority(RNG_LPUART1_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(RNG_LPUART1_IRQn);
     /* USER CODE BEGIN RNG_MspInit 1 */
 
     /* USER CODE END RNG_MspInit 1 */
@@ -435,6 +450,16 @@ void HAL_RNG_MspDeInit(RNG_HandleTypeDef* hrng)
     /* USER CODE END RNG_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_RNG_CLK_DISABLE();
+
+    /* RNG interrupt DeInit */
+    /* USER CODE BEGIN RNG:RNG_LPUART1_IRQn disable */
+    /**
+    * Uncomment the line below to disable the "RNG_LPUART1_IRQn" interrupt
+    * Be aware, disabling shared interrupt may affect other IPs
+    */
+    /* HAL_NVIC_DisableIRQ(RNG_LPUART1_IRQn); */
+    /* USER CODE END RNG:RNG_LPUART1_IRQn disable */
+
     /* USER CODE BEGIN RNG_MspDeInit 1 */
 
     /* USER CODE END RNG_MspDeInit 1 */

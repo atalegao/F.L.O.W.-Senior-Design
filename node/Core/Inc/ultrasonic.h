@@ -14,7 +14,7 @@ typedef enum {
 extern SystemState_t current_state;
 extern uint32_t state_timer;
 extern uint32_t trigger_timer;
-extern uint8_t rx_data [1];
+extern volatile uint8_t rx_data [1];
 extern uint8_t packet[4];
 extern uint8_t packet_idx;
 extern uint32_t readings[20];  // FILTER_SIZE = 20
@@ -29,7 +29,7 @@ extern const uint32_t TRIGGER_RATE;
 
 // Function prototypes
 void ultrasonic_init(void);              // Initialize ultrasonic variables
-void ultrasonic_update(void);            // Handle state machine and updates
+uint32_t ultrasonic_update(void);            // Handle state machine and updates
 void ultrasonic_process_rx(uint8_t data); // Process received UART data
 void trigger_sensor_reading(void);       // Trigger a sensor reading
 

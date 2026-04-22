@@ -61,8 +61,10 @@ extern DMA_HandleTypeDef hdma_usart1_rx;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart2_rx;
 extern DMA_HandleTypeDef hdma_usart2_tx;
+extern UART_HandleTypeDef hlpuart1;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
+extern RNG_HandleTypeDef hrng;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim21;
 extern TIM_HandleTypeDef htim22;
@@ -292,6 +294,21 @@ void USART2_IRQHandler(void)
   /* USER CODE BEGIN USART2_IRQn 1 */
 
   /* USER CODE END USART2_IRQn 1 */
+}
+
+/**
+  * @brief This function handles RNG and LPUART1 Interrupts / LPUART1 wake-up interrupt through EXTI line 28.
+  */
+void RNG_LPUART1_IRQHandler(void)
+{
+  /* USER CODE BEGIN RNG_LPUART1_IRQn 0 */
+
+  /* USER CODE END RNG_LPUART1_IRQn 0 */
+  HAL_RNG_IRQHandler(&hrng);
+  HAL_UART_IRQHandler(&hlpuart1);
+  /* USER CODE BEGIN RNG_LPUART1_IRQn 1 */
+
+  /* USER CODE END RNG_LPUART1_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */
