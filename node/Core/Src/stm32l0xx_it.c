@@ -28,7 +28,7 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
 	extern TIM_HandleTypeDef htim6;
-	extern bool usb_ttl_done;
+	extern volatile bool usb_ttl_done;
 /* USER CODE END TD */
 
 /* Private define ------------------------------------------------------------*/
@@ -67,10 +67,10 @@ extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim21;
 extern TIM_HandleTypeDef htim22;
 /* USER CODE BEGIN EV */
-extern uint8_t global_receive_mode_from_cad;
-extern uint8_t rec_data [MESSAGE_LENGTH];
-extern bool read_lora_fifo;
-extern bool do_send;
+extern volatile uint8_t global_receive_mode_from_cad;
+extern volatile uint8_t rec_data [MESSAGE_LENGTH];
+extern volatile bool read_lora_fifo;
+extern volatile bool do_send;
 
 /* USER CODE END EV */
 

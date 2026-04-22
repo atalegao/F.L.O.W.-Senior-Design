@@ -14,7 +14,7 @@ typedef enum {
 extern SystemState_t current_state;
 extern uint32_t state_timer;
 extern uint32_t trigger_timer;
-extern uint8_t rx_data;
+extern uint8_t rx_data [1];
 extern uint8_t packet[4];
 extern uint8_t packet_idx;
 extern uint32_t readings[20];  // FILTER_SIZE = 20

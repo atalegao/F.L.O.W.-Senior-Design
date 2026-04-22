@@ -5,7 +5,7 @@
 SystemState_t current_state = STATE_IDLE;
 uint32_t state_timer = 0;
 uint32_t trigger_timer = 0;
-uint8_t rx_data;
+//uint8_t rx_data [1];
 uint8_t packet[4];
 uint8_t packet_idx = 0;
 #define FILTER_SIZE 20
@@ -78,13 +78,13 @@ void ultrasonic_update(void) {
 
 // Process received UART data (call from HAL_UART_RxCpltCallback in main.c)
 void ultrasonic_process_rx(uint8_t data) {
-    rx_data = data;
+    rx_data[0] = data;
     // State Machine to align packet
-    if (packet_idx == 0 && rx_data != 0xFF) {
+    if (packet_idx == 0 && rx_data[0] != 0xFF) {
         // Wait for header byte
         packet_idx = 0;
     } else {
-        packet[packet_idx++] = rx_data;
+        packet[packet_idx++] = rx_data[0];
     }
 
     // Once 4 bytes

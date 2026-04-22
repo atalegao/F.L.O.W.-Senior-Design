@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <RH_RF95.h>
 #include "mesh.h"
+#include "ultrasonic.h"
 
 /* USER CODE END Includes */
 
@@ -102,7 +103,7 @@ volatile uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa
 volatile uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
 volatile uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
 volatile uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
-extern uint8_t * rx_data;
+uint8_t rx_data[1];
 volatile int sendfifo_offset_send = 0;
 volatile bool sendfifo_ready_send = true;
 volatile int sendfifo_offset_rec = 0;
@@ -133,7 +134,7 @@ bool isHub = false;
 volatile bool usb_ttl_done = true;
 volatile bool in_read_lora_fifo = false;
 
-#define DO_SEND 1
+#define DO_SEND 0
 #define DO_REC 0
 
 #define DO_BOTH 1
@@ -1214,7 +1215,7 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 	}
 	//ADDED FOR ULTRASONIC
 	else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
-		ultrasonic_process_rx(rx_data);
+		ultrasonic_process_rx(rx_data[0]);
 		HAL_UART_Receive_IT(&hlpuart1, rx_data, 1);
 	}
 	else if(huart->Instance == USART1){ //usb-ttl

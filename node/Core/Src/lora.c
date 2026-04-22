@@ -1,22 +1,22 @@
 #include <lora.h>
 #include <mesh.h>
-extern bool sendfifo_ready_norm;
-extern int sendfifo_offset_norm;
+extern volatile bool sendfifo_ready_norm;
+extern volatile int sendfifo_offset_norm;
 extern volatile bool rx_ready;
-extern uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data sending to LoRa module
-extern uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
-extern uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
-extern uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
-extern uint8_t global_receive_mode_from_cad;
-extern int sendfifo_offset_send;
-extern bool sendfifo_ready_send;
-extern int sendfifo_offset_rec;
-extern bool sendfifo_ready_rec;
-extern bool send_normal;
-extern bool send_send;
-extern bool send_rec;
-extern bool read_lora_fifo;
-extern bool doing_cad;
+extern volatile uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data sending to LoRa module
+extern volatile uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
+extern volatile uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
+extern volatile uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+extern volatile uint8_t global_receive_mode_from_cad;
+extern volatile int sendfifo_offset_send;
+extern volatile bool sendfifo_ready_send;
+extern volatile int sendfifo_offset_rec;
+extern volatile bool sendfifo_ready_rec;
+extern volatile bool send_normal;
+extern volatile bool send_send;
+extern volatile bool send_rec;
+extern volatile bool read_lora_fifo;
+extern volatile bool doing_cad;
 
 
 bool doing_connected_test = false;
@@ -117,7 +117,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef hdma_usart_tx, UART_Handl
     //This enables the message send for the LoRa's DMA
 	//send type is 1 for normal, 2 for rx, 3 for tx
 
-	while((send_normal == true) | (send_send == true) | (send_rec == true)){
+	while((send_normal == true) || (send_send == true) || (send_rec == true)){
 		//wait until all sends are complete before doing another one
 	}
 
