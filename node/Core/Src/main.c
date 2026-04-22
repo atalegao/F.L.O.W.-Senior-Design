@@ -27,6 +27,7 @@
 #include <RH_RF95.h>
 #include "mesh.h"
 #include "ultrasonic.h"
+#include <string.h>
 
 /* USER CODE END Includes */
 
@@ -73,7 +74,7 @@ volatile RTC_TimeTypeDef current_time;
 volatile RTC_DateTypeDef current_date;
 #define FILTER_SIZE 20
 
-uint8_t usb_buffer_rtc [7];
+uint8_t usb_buffer_rtc [13];
 bool read_lora_fifo;
 /* USER CODE END PV */
 
@@ -121,6 +122,8 @@ volatile bool send_rec = false; //great names I know
 volatile bool do_send = false;
 volatile bool in_send = false;
 volatile bool doing_cad = false;
+volatile uint8_t node_distance [2];
+uint8_t coords [4];
 
 volatile uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
@@ -213,7 +216,7 @@ int main(void)
   connected_test_all();
 //  while(done_with_usb_ttl_setup == false){
 //
-//  }
+//  } //force wait to do user inputs, so add back
   get_timestamp();
   ultrasonic_init(); 
   lora_init(&hdma_usart2_tx, &huart2);
@@ -245,6 +248,15 @@ int main(void)
 
   //setup_lora_send_timer(&htim6, 0x000004FF); //does send own data timer
   //setup_lora_send_timer(&htim2, 0x000004FF);//actually sets up hello timer
+
+  /* stuff to automatically send own node data
+  uint32_t message_id;
+  message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
+  uint8_t message_id_actual [4];
+  memcpy(message_id_actual, &message_id, sizeof(uint32_t));
+
+  mesh_send_add(addr_right_direction,self_addr,coords, (uint8_t * )node_distance, message_id_actual, 1, &hdma_usart2_tx,&huart2);
+  */
 
   /* USER CODE END 2 */
 
@@ -1133,7 +1145,7 @@ void uart_set_rtc(void){
 	//this should be called when the user indicates they are about to send rtc time and date data
 
 	//use one buffer with size 7
-	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 7, 240000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
+	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 13, 240000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
 		//do nothing
 	}
 
@@ -1148,19 +1160,35 @@ void uart_set_rtc(void){
 	set_date.Date = usb_buffer_rtc[5];//day
 	set_date.Year = usb_buffer_rtc[6];//just 26 not 2006
 	set_time_and_date(&set_time, &set_date);
-	done_with_usb_ttl_setup = true;
-	uint8_t message [10];
+	uint8_t message [20];
 	message[0] = 'r';
 	message[1] = 't';
 	message[2] = 'c';
 	message[3] = ' ';
-	message[4] = 'i';
-	message[5] = 's';
-	message[6] = ' ';
-	message[7] = 's';
-	message[8] = 'e';
-	message[9] = 't';
-	send_usb_ttl(message, 10, &huart1);
+	message[4] = 'a';
+	message[5] = 'n';
+	message[6] = 'd';
+	message[7] = ' ';
+	message[8] = 'd';
+	message[9] = 'i';
+	message[10] = 's';
+	message[11] = 't';
+	message[12] = ' ';
+	message[13] = 'a';
+	message[14] = 'r';
+	message[15] = 'e';
+	message[16] = ' ';
+	message[17] = 's';
+	message[18] = 'e';
+	message[19] = 't';
+	send_usb_ttl(message, 20, &huart1);
+	node_distance[0] = usb_buffer_rtc[7];
+	node_distance[1] = usb_buffer_rtc[8];
+	done_with_usb_ttl_setup = true;
+	coords[0] = usb_buffer_rtc[9];
+	coords[1] = usb_buffer_rtc[10];
+	coords[2] = usb_buffer_rtc[11];
+	coords[3] = usb_buffer_rtc[12];
 
 }
 

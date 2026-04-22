@@ -7,6 +7,7 @@ extern volatile RTC_DateTypeDef current_date;
 extern bool isHub;
 extern volatile bool usb_ttl_done;
 extern volatile uint8_t last_sent_msg_id [4];
+extern volatile uint8_t node_distance [2];
 
 extern volatile uint8_t rx_data [1];
 
