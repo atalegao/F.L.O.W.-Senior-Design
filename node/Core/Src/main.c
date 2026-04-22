@@ -69,8 +69,8 @@ TIM_HandleTypeDef htim22;
 //usart2 is lora
 //uart1 is USB
 //lpuart1 is ultrasonic sensor
-RTC_TimeTypeDef current_time;
-RTC_DateTypeDef current_date;
+volatile RTC_TimeTypeDef current_time;
+volatile RTC_DateTypeDef current_date;
 
 uint8_t usb_buffer_rtc [7];
 bool read_lora_fifo;
@@ -111,6 +111,7 @@ volatile bool sendfifo_ready_rec = true;
 volatile uint8_t rec_data [MESSAGE_LENGTH];
 uint8_t self_addr [ADDR_LENGTH];
 volatile uint8_t buff [MESH_MAX_MESSAGE_LENGTH] __attribute__((aligned(4)));
+volatile bool done_with_usb_ttl_setup = false;
 
 volatile bool send_normal = false;
 volatile bool send_send = false;
@@ -205,6 +206,10 @@ int main(void)
   HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
   HAL_Delay(1000);//added
   connected_test_all();
+  while(done_with_usb_ttl_setup == false){
+
+  }
+  get_timestamp();
   ultrasonic_init(); 
   lora_init(&hdma_usart2_tx, &huart2);
   HAL_Delay(1000);
@@ -1111,15 +1116,15 @@ void go_to_sleep(void){
 }
 
 void get_timestamp(void){
-	HAL_RTC_GetTime(&hrtc, &current_time, RTC_FORMAT_BIN);
-	HAL_RTC_GetDate(&hrtc, &current_date, RTC_FORMAT_BIN);
+	HAL_RTC_GetTime(&hrtc, (RTC_TimeTypeDef *)&current_time, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(&hrtc, (RTC_DateTypeDef *)&current_date, RTC_FORMAT_BIN);
 }
 
 void uart_set_rtc(void){
 	//this should be called when the user indicates they are about to send rtc time and date data
 
 	//use one buffer with size 7
-	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 7, 120000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
+	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 7, 240000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
 		//do nothing
 	}
 
@@ -1133,14 +1138,28 @@ void uart_set_rtc(void){
 	set_date.Month = usb_buffer_rtc[4]; //1 = January, 2 = February, ...
 	set_date.Date = usb_buffer_rtc[5];//day
 	set_date.Year = usb_buffer_rtc[6];//just 26 not 2006
+	set_time_and_date(&set_time, &set_date);
+	done_with_usb_ttl_setup = true;
+	uint8_t message [10];
+	message[0] = 'r';
+	message[1] = 't';
+	message[2] = 'c';
+	message[3] = ' ';
+	message[4] = 'i';
+	message[5] = 's';
+	message[6] = ' ';
+	message[7] = 's';
+	message[8] = 'e';
+	message[9] = 't';
+	send_usb_ttl(message, 10, &huart1);
 
 }
 
-void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
-	if(HAL_RTC_SetTime(&hrtc, time, RTC_FORMAT_BIN) != HAL_OK){
+void set_time_and_date(volatile RTC_TimeTypeDef *time, volatile RTC_DateTypeDef *date){
+	if(HAL_RTC_SetTime(&hrtc, (RTC_TimeTypeDef *)time, RTC_FORMAT_BIN) != HAL_OK){
 		//error
 	}
-	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
+	if(HAL_RTC_SetDate(&hrtc, (RTC_DateTypeDef *)date, RTC_FORMAT_BIN) != HAL_OK){
 		//error
 	}
 	HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
@@ -1172,12 +1191,14 @@ void connected_test_all(void){
 	//lpuart1
 
 	//send something to USB-TTL (don't require a response because it might not be connected)
-	uint8_t message [4];
+	uint8_t message [6];
 	message[0] = 't';
 	message[1] = 'e';
 	message[2] = 's';
 	message[3] = 't';
-	send_usb_ttl(message, 4, &huart1);
+	message[4] = '\r';
+	message[5] = '\n';
+	send_usb_ttl(message, 6, &huart1);
 
 	//wait some time
 	HAL_Delay(1000);
@@ -1222,10 +1243,9 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 		HAL_UART_Receive_IT(&hlpuart1, rx_data, 1);
 	}
 	else if(huart->Instance == USART1){ //usb-ttl
-		if(receivefifo_usb_ttl[0] == 0xFF){ //special character to indicate setting RTC
-			//set flag to update rtc
-			//do not activate DMA
-			//activate it when done with rtc stuff
+		if(receivefifo_usb_ttl[0] == 100){ //special character to indicate setting RTC
+			uart_set_rtc();
+			//HAL_UART_Receive_DMA(&huart1, (uint8_t *)receivefifo_usb_ttl, 1);
 		}
 		else{//ignore
 			HAL_UART_Receive_DMA(&huart1, (uint8_t *)receivefifo_usb_ttl, 1); //usb-ttl

@@ -945,8 +945,8 @@ bool update_neighbor_nodes(uint8_t * sending_addr, uint8_t * battery){
 	bool good6 = check_and_handle_neighbor_match(sending_addr, battery, &neighbor_away_hub3);
 	//if all are false, go back and add the new neighbor node
 	if(!(good1 | good2 | good3 | good4 | good5 | good6)){
-		bool good = add_new_neighbor_node(sending_addr, battery);
-		return good;
+		add_new_neighbor_node(sending_addr, battery);
+		return false;
 	}
 	else{
 		return true;
@@ -988,6 +988,9 @@ bool mesh_rec_hello(volatile uint8_t * data, uint8_t * message_id, uint8_t * sen
 		//update mem
 	}
 	//rest is node
+	if(!good){
+		handle_send_hello();//response to a hello is own hello if new node
+	}
 
 	//update mem
 	return  good;
