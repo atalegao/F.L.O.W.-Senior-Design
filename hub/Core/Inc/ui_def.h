@@ -13,6 +13,9 @@
 #define MAX_NODES 10
 #define MAX_PHONES 10
 #define PHONE_LEN 16
+#define HISTORY_LEN 10
+#define KEYPAD_H 2
+
 
 #include <Adafruit_RA8875.hpp>
 #include <stdint.h>
@@ -29,29 +32,37 @@ typedef enum {
     SCREEN_NODES,
     SCREEN_NODE_DETAIL,
     SCREEN_PHONES,
-    SCREEN_KEYPAD
-} ScreenState;
+    SCREEN_KEYPAD,
+    SCREEN_NODE_HISTORY
 
+} ScreenState;
+typedef struct {
+    float waterHeight;
+    uint32_t timestamp;
+} WaterSample;
 typedef struct {
     uint16_t nodeId;
     const char* name;
     const char* status;
+
+    float latestWaterHeight;
+    uint32_t latestTimestamp;
+    float batteryPercent;
+
+    WaterSample history[HISTORY_LEN];
+    uint8_t historyIndex;
 } Node;
 
 extern ScreenState currentScreen;
 extern Adafruit_RA8875* tft;
 
-/* Core UI */
 void uiInit(Adafruit_RA8875* display);
 void uiHandleTouch(uint16_t x, uint16_t y);
 
-/* Node handling */
 void addNode(uint8_t id, const char* name, const char* status);
 
-/* Phone handling */
 void addPhone(const char* number);
 
-/* Screens */
 void drawHome(void);
 void drawAllNodes(void);
 void drawNodeDetail(Node* n);

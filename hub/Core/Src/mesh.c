@@ -19,6 +19,7 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim6;
 extern DMA_HandleTypeDef hdma_usart2_tx;
+hub_node_entry hub_nodes[MAX_NODES];
 
 mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_away_hub1, neighbor_away_hub2, neighbor_away_hub3;
 //to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
@@ -870,8 +871,32 @@ bool mesh_rec_add(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 	//forget what distance was supposed to be, for node data, are we sending actual water height or just the measured distance?
 
 	if(isHub){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-		//add to mem
-		//send ack
+		uint8_t new_node_addr[ADDR_LENGTH];
+		lora_read_fifo_all(new_node_addr, ADDR_LENGTH, false, hdma_usart_tx, huart);
+
+		uint8_t coords[4];
+		lora_read_fifo_all(coords, 4, false, hdma_usart_tx, huart);
+
+		uint8_t distance[2];
+		lora_read_fifo_all(distance, 2, false, hdma_usart_tx, huart);
+
+		for(int i = 0; i < MAX_NODES; i++){
+			if(!hub_nodes[i].valid)
+			{
+				hub_nodes[i].valid = true;
+		        memcpy(hub_nodes[i].addr, new_node_addr, ADDR_LENGTH);
+		        return true;
+		    }
+		}
+
+		uint8_t dest_addr[ADDR_LENGTH];
+		find_dest_addr_away_hub(dest_addr, 1);
+
+		mesh_send_ack(dest_addr, message_id, 1, hdma_usart2_tx, huart2);
+
+		return true;
+		//add to mem - done
+		//send ack - done
 	}
 	//rest is node
 
@@ -1345,8 +1370,39 @@ bool mesh_rec_data(uint8_t * message_id, DMA_HandleTypeDef hdma_usart_tx, UART_H
 	//got a node_data message, figure out what to do with it
 
 	if(isHub){ //TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-		//add data to mem
-		//send ack
+		uint8_t node_addr[ADDR_LENGTH];
+		lora_read_fifo_all(node_addr, ADDR_LENGTH, false, hdma_usart_tx, huart);
+		uint8_t time[6];
+		lora_read_fifo_all(time, 6, false, hdma_usart_tx, huart);
+		uint8_t water_height [WATER_LENGTH];
+		lora_read_fifo_all(water_height, WATER_LENGTH, false, hdma_usart_tx, huart);
+		uint8_t battery_status [BATTERY_LENGTH];
+		lora_read_fifo_all(battery_status, BATTERY_LENGTH, false, hdma_usart_tx, huart);
+		//following for adding data to memory
+		for(int i = 0; i < MAX_NODES; i++)
+		{
+			if(hub_nodes[i].valid && memcmp(hub_nodes[i].addr, node_addr, ADDR_LENGTH) == 0)
+			{
+				memcpy(hub_nodes[i].water_height, water_height, WATER_LENGTH);
+				memcpy(hub_nodes[i].battery, battery_status, BATTERY_LENGTH);
+				memcpy(hub_nodes[i].time, time, 6);
+				return true;
+			}
+		}
+		for(int i = 0; i < MAX_NODES; i++){
+		    if(!hub_nodes[i].valid)
+		    {
+		    	hub_nodes[i].valid = true;
+		    	memcpy(hub_nodes[i].addr, node_addr, ADDR_LENGTH);
+		    	memcpy(hub_nodes[i].water_height, water_height, WATER_LENGTH);
+		    	memcpy(hub_nodes[i].battery, battery_status, BATTERY_LENGTH);
+		    	memcpy(hub_nodes[i].time, time, 6);
+		    	return true;
+		    }
+		}
+		return true;
+		//add data to mem - done
+		//send ack - not done
 	}
 	else{ //is a node
 		uint8_t dest_addr [ADDR_LENGTH];

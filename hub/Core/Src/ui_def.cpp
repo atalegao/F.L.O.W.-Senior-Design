@@ -20,21 +20,27 @@ uint16_t phoneCount = 0;
 
 char keypadBuffer[PHONE_LEN] = {0};
 uint8_t keypadIndex = 0;
-
+volatile bool change_polling = false;
 Node* activeNode = NULL;
+
+bool floodImminent = false;
+bool showSaved = false;
 
 Button nodeMenu = {100, 200, 220, 80, "Nodes", RA8875_BLUE};
 Button phoneMenu = {420, 200, 220, 80, "Phones", RA8875_GREEN};
-Button backBtn  = {20, 20, 150, 60, "BACK", RA8875_YELLOW};
-Button addPhoneBtn = {300, 380, 200, 80, "Add Phone", RA8875_GREEN};
+Button backBtn  = {20, 20, 150, 80, "BACK", RA8875_YELLOW};
+Button addPhoneBtn = {300, 380, 300, 80, "Add Phone", RA8875_GREEN};
+Button saveBtn = {550, 20, 200, 80, "Save", RA8875_GREEN};
+Button historyBtn = {300, 320, 250, 80, "History", RA8875_BLUE};
 
+Button floodBtn = {200, 300, 300, 80, (floodImminent? "Dec. Polling" : "Dec. Polling"), (floodImminent? RA8875_RED: RA8875_GREEN)};
 
 void draw_button(Button b) {
     tft->fillRectArea(b.x, b.y, b.w, b.h, b.color);
     tft->drawRect(b.x, b.y, b.w, b.h, RA8875_WHITE);
 
     tft->textMode();
-    tft->textSetCursor(b.x + 10, b.y + b.h/2);
+    tft->textSetCursor(b.x + 20, b.y + 20);
     tft->textTransparent(RA8875_WHITE);
     tft->textWrite(b.label);
     tft->graphicsMode();
@@ -45,7 +51,6 @@ bool buttonContains(Button b, uint16_t x, uint16_t y) {
             y >= b.y && y <= b.y + b.h);
 }
 
-/* ---------- Screens ---------- */
 
 void drawHome(void) {
     currentScreen = SCREEN_HOME;
@@ -88,19 +93,33 @@ void drawNodeDetail(Node* n) {
     tft->fillScreen(RA8875_BLACK);
 
     tft->textMode();
-    tft->textSetCursor(50, 50);
+    tft->textSetCursor(300, 50);
     tft->textEnlarge(2);
     tft->textTransparent(RA8875_WHITE);
-
     tft->textWrite(n->name);
+//TODO sprintf will not work so i need to figure out something else
+    tft->textSetCursor(50, 130);
+    char buf[64];
+//        sprintf(buf, "Water: %.2f", n->latestWaterHeight);
+//        tft->textWrite(buf);
+//
+//        tft->textSetCursor(50, 180);
+//        sprintf(buf, "Time: %lu", n->latestTimestamp);
+//        tft->textWrite(buf);
+//
+//        tft->textSetCursor(50, 230);
+//        sprintf(buf, "Battery: %.1f%%", n->batteryPercent);
+//        tft->textWrite(buf);
 
-    tft->textSetCursor(50, 150);
-    tft->textTransparent(RA8875_WHITE);
-
-    tft->textWrite(n->status);
+    tft->textSetCursor(50, 220);
+    if (floodImminent) {
+        tft->textTransparent(RA8875_RED);
+        tft->textWrite("Flooding imminent. Polling frequency increased.");
+    }
 
     tft->graphicsMode();
 
+    draw_button(floodBtn);
     draw_button(backBtn);
 }
 
@@ -110,7 +129,9 @@ void drawPhones(void) {
 
     for (int i = 0; i < phoneCount; i++) {
         tft->textMode();
-        tft->textSetCursor(50, 50 + i * 40);
+        tft->textSetCursor(300, 50 + i * 40);
+        tft->textTransparent(RA8875_WHITE);
+
         tft->textWrite(phoneNumbers[i]);
     }
 
@@ -126,6 +147,7 @@ void drawKeypad(void) {
     int num = 1;
     for (int r = 0; r < 4; r++) {
         for (int c = 0; c < 3; c++) {
+
             char label[2];
 
             if (r == 3 && c == 1) {
@@ -138,7 +160,7 @@ void drawKeypad(void) {
             label[1] = '\0';
 
             Button b = {
-                100 + c * 150,
+                KEYPAD_H + c * 150,
                 100 + r * 100,
                 100,
                 80,
@@ -150,9 +172,22 @@ void drawKeypad(void) {
         }
     }
 
+    tft->textMode();
+    tft->textSetCursor(300, 50);
+    tft->textTransparent(RA8875_WHITE);
+    tft->textWrite(keypadBuffer);
+
+    if (showSaved) {
+        tft->textSetCursor(300, 50);
+        tft->textTransparent(RA8875_GREEN);
+        tft->textWrite("Saved!");
+    }
+
+    tft->graphicsMode();
+
+    draw_button(saveBtn);
     draw_button(backBtn);
 }
-
 
 void uiHandleTouch(uint16_t x, uint16_t y) {
     if (x == 0 && y == 0) return;
@@ -188,25 +223,67 @@ void uiHandleTouch(uint16_t x, uint16_t y) {
             break;
 
         case SCREEN_NODE_DETAIL:
+            if (buttonContains(floodBtn, x, y)) {
+                floodImminent = !floodImminent;
+                change_polling = !change_polling;
+                drawNodeDetail(activeNode);
+            }
+
             if (buttonContains(backBtn, x, y))
                 drawAllNodes();
             break;
 
         case SCREEN_PHONES:
-            if (buttonContains(addPhoneBtn, x, y))
+            if (buttonContains(addPhoneBtn, x, y)) {
+                keypadIndex = 0;
+                keypadBuffer[0] = '\0';
+                showSaved = false;
                 drawKeypad();
+            }
 
             if (buttonContains(backBtn, x, y))
                 drawHome();
             break;
 
         case SCREEN_KEYPAD:
+
+            for (int r = 0; r < 4; r++) {
+                for (int c = 0; c < 3; c++) {
+
+                    uint16_t bx = KEYPAD_H + c * 150;
+                    uint16_t by = 100 + r * 100;
+
+                    if (x >= bx && x <= bx + 100 &&
+                        y >= by && y <= by + 80) {
+
+                        if (keypadIndex < PHONE_LEN - 1) {
+                            char digit;
+
+                            if (r == 3 && c == 1) digit = '0';
+                            else if (r == 3) continue;
+                            else digit = '1' + (r * 3 + c);
+
+                            keypadBuffer[keypadIndex++] = digit;
+                            keypadBuffer[keypadIndex] = '\0';
+                        }
+
+                        drawKeypad();
+                        return;
+                    }
+                }
+            }
+
+            if (buttonContains(saveBtn, x, y)) {
+                addPhone(keypadBuffer);
+                showSaved = true;
+                drawKeypad();
+            }
+
             if (buttonContains(backBtn, x, y))
                 drawPhones();
             break;
     }
 }
-
 
 void addNode(uint8_t id, const char* name, const char* status) {
     if (nodeCount >= MAX_NODES) return;
@@ -223,7 +300,6 @@ void addPhone(const char* number) {
     strncpy(phoneNumbers[phoneCount], number, PHONE_LEN);
     phoneCount++;
 }
-
 
 void uiInit(Adafruit_RA8875* display) {
     tft = display;

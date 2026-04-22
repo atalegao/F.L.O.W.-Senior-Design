@@ -77,6 +77,9 @@ TIM_HandleTypeDef htim21;
 /* USER CODE BEGIN PV */
 extern volatile uint8_t touchPending;
 extern volatile uint8_t touchActive;
+extern volatile bool change_polling;
+uint8_t new_frequency;
+
 bool read_lora_fifo;
 RTC_TimeTypeDef current_time;
 RTC_DateTypeDef current_date;
@@ -256,7 +259,7 @@ int main(void)
     MX_SPI1_ReInit(SPI_BAUDRATEPRESCALER_32);   // ADDED (speed up SPI)
 
     HAL_Delay(500);
-          setup();
+          //setup();
           HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
             HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
             read_lora_fifo = false;
@@ -275,6 +278,7 @@ int main(void)
             connected_test_all();
             lora_init(hdma_usart2_tx, huart2);
             HAL_Delay(1000);
+            setup();
             //setup_lora_send_timer(&htim6); //set up lora send data timer
             HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
             HAL_NVIC_EnableIRQ(TIM21_IRQn);
@@ -314,27 +318,22 @@ int main(void)
 	         HAL_GPIO_WritePin(PB14_LED_GPIO_Port, PB14_LED_Pin, GPIO_PIN_RESET);
 
 	     }
+	  //following is to change polling
+	  if (change_polling)
+	  {
+		  uint32_t new_frequency = 5000;
+		  change_polling = false;
+		  uint8_t dest_addr[ADDR_LENGTH];
+		  find_dest_addr_away_hub(dest_addr, 1);
+
+		  uint32_t message_id;
+		  message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
+		  uint8_t message_id_actual [4];
+		  memcpy(message_id_actual, &message_id, sizeof(uint32_t));
+		  mesh_send_poll(dest_addr, message_id_actual, new_frequency, 1, hdma_usart2_tx, huart2);
+	  }
 
 
-//	  if (touchPending)
-//	  {
-//	    touchPending = 0;
-//
-//	    if (tft->touched())
-//	    {
-//	      if (!touchActive)
-//	      {
-//	        touchActive = 1;
-//	        update_on_touch();
-//	      }
-//	    }
-//	    else
-//	    {
-//	      touchActive = 0;   // finger released
-//	    }
-
-	    //tft->touchRead();  // or your driver's equivalent
-	  //}
 //	  if(DO_REC & !DO_BOTH){
 //	  		  if(read_lora_fifo){ //
 //	  			  in_read_lora_fifo = true;

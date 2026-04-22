@@ -20,6 +20,7 @@
 #define MESH_MAX_MESSAGE_LENGTH 30 //the size of the largest packet
 
 #define RESEND_THRESHOLD (60 * 1) //1 minute
+#define MAX_NODES 10
 
 typedef enum {
     MESH_MSG_DATA  = 1, //works
@@ -84,6 +85,16 @@ typedef struct{
 	sending_buffer_entry entry9;
 	sending_buffer_entry entry10;
 }sending_buffer_type;
+
+typedef struct {
+    uint8_t addr[ADDR_LENGTH];
+    uint8_t water_height[WATER_LENGTH];
+    uint8_t battery[BATTERY_LENGTH];
+    uint8_t time[6];
+    bool valid;
+}hub_node_entry;
+
+extern hub_node_entry hub_nodes[MAX_NODES];
 
 void mesh_init();  //isHub is just a bool which indicates whether a module is a node or hub, since they have different characteristics.
 void mesh_set_hello_interval(uint32_t seconds);
