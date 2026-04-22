@@ -2,7 +2,7 @@
 #include <mesh.h>
 extern bool sendfifo_ready_norm;
 extern int sendfifo_offset_norm;
-extern bool rx_ready;
+extern volatile bool rx_ready;
 extern uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data sending to LoRa module
 extern uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
 extern uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
@@ -16,6 +16,7 @@ extern bool send_normal;
 extern bool send_send;
 extern bool send_rec;
 extern bool read_lora_fifo;
+extern bool doing_cad;
 
 
 bool doing_connected_test = false;
@@ -396,7 +397,7 @@ uint8_t uart_read(){ //not done (add timeout logic), not tested
 
     //HAL_Delay(100);dma
     while(rx_ready == false){
-    	if((receivefifo[0] == 0x49) & doing_send){ //automatic I response
+    	if((receivefifo[0] == 0x49) & ((doing_send) | doing_cad)){ //automatic I response
     		c = receivefifo[0];
     		receivefifo[0] = 0;
     		rx_ready = false;
@@ -540,7 +541,7 @@ uint8_t lora_read_single(uint8_t reg, DMA_HandleTypeDef hdma_usart_tx, UART_Hand
     // 52 00 01 read vale written by write
 }
 
-bool lora_send(uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart) { //not done, not tested
+bool lora_send(volatile uint8_t* data, uint8_t length, DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart) { //not done, not tested
     //THIS IS FOR SENDING A LORA MESSAGE, NOT WRTING TO REGISTERS IN THE LORA MICRO
     //this handles sending a lora message
     //length is the length of the message in bytes
@@ -697,11 +698,13 @@ bool cad_cycle(DMA_HandleTypeDef hdma_usart_tx, UART_HandleTypeDef huart){ //don
     //returning false means go to sleep mode
 	set_mode_standby(hdma_usart_tx, huart);
 	HAL_Delay(10);
+	doing_cad = true;
 
     set_mode_cad(hdma_usart_tx, huart); //go to cad mode (111)
     uint8_t done = 0;
 
     uart_read(); //this should wait until the I response and then let the code move to the actual read
+    doing_cad = false;
     while(1){
     	//HAL_Delay(60); //this is used to prevent the first read from occurring before CAD is done //removed for the above uart_read
         done = lora_read_single(0x12, hdma_usart_tx, huart, 1, 1); //wait until reg 12-2 is high (CAD is done) //norm

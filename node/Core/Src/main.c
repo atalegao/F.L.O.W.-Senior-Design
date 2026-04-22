@@ -95,33 +95,34 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-bool sendfifo_ready_norm = true;
-int sendfifo_offset_norm = 0;
-bool rx_ready = false;
-uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa module
-uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
-uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
-uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
+volatile bool sendfifo_ready_norm = true;
+volatile int sendfifo_offset_norm = 0;
+volatile bool rx_ready = false;
+volatile uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa module
+volatile uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+volatile uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
+volatile uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
 extern uint8_t * rx_data;
-int sendfifo_offset_send = 0;
-bool sendfifo_ready_send = true;
-int sendfifo_offset_rec = 0;
-bool sendfifo_ready_rec = true;
-uint8_t rec_data [MESSAGE_LENGTH];
+volatile int sendfifo_offset_send = 0;
+volatile bool sendfifo_ready_send = true;
+volatile int sendfifo_offset_rec = 0;
+volatile bool sendfifo_ready_rec = true;
+volatile uint8_t rec_data [MESSAGE_LENGTH];
 uint8_t self_addr [ADDR_LENGTH];
 
-bool send_normal = false;
-bool send_send = false;
-bool send_rec = false; //great names I know
+volatile bool send_normal = false;
+volatile bool send_send = false;
+volatile bool send_rec = false; //great names I know
 
-bool do_send = false;
-bool in_send = false;
+volatile bool do_send = false;
+volatile bool in_send = false;
+volatile bool doing_cad = false;
 
-uint8_t global_receive_mode_from_cad;
+volatile uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
 //0 means the lora timer is currently for cad cycle
 
-uint8_t receivefifo_usb_ttl [0];
+volatile uint8_t receivefifo_usb_ttl [1];
 
 uint8_t addr_any_direction [ADDR_LENGTH];
 uint8_t addr_right_direction [ADDR_LENGTH];
@@ -129,10 +130,10 @@ uint8_t addr_right_direction [ADDR_LENGTH];
 uint8_t complete_pass = 0;
 
 bool isHub = false;
-bool usb_ttl_done = true;
-bool in_read_lora_fifo = false;
+volatile bool usb_ttl_done = true;
+volatile bool in_read_lora_fifo = false;
 
-#define DO_SEND 0
+#define DO_SEND 1
 #define DO_REC 0
 
 #define DO_BOTH 1
@@ -198,8 +199,8 @@ int main(void)
   HAL_Delay(1000);
   HAL_UART_Receive_IT(&hlpuart1, rx_data, 1); //ultrasonic sensor data receive on lpuart1
 
-  HAL_UART_Receive_DMA(&huart2, receivefifo, 1); //lora
-  HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)receivefifo, 1); //lora
+  HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
   HAL_Delay(1000);//added
   connected_test_all();
   ultrasonic_init(); 
@@ -217,10 +218,10 @@ int main(void)
 
   //send_data[0] = 0xF0;
   //send_data[1] = 0x0F;
-  HAL_TIM_Base_Start_IT(&htim21);
-  HAL_TIM_Base_Start_IT(&htim22);
-  HAL_TIM_Base_Start_IT(&htim6);
-  HAL_TIM_Base_Start_IT(&htim2);
+  HAL_TIM_Base_Start_IT(&htim21); //CAD
+  HAL_TIM_Base_Start_IT(&htim22); //resending and dead
+  //HAL_TIM_Base_Start_IT(&htim6); //send own data
+  //HAL_TIM_Base_Start_IT(&htim2); //hello
 
   HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
@@ -230,8 +231,8 @@ int main(void)
   self_addr[0] = 0x16;
   self_addr[1] = 0x17;
 
-  setup_lora_send_timer(&htim6, 0x000004FF);
-  setup_lora_send_timer(&htim2, 0x000004FF);//actually sets up hello timer
+  //setup_lora_send_timer(&htim6, 0x000004FF); //does send own data timer
+  //setup_lora_send_timer(&htim2, 0x000004FF);//actually sets up hello timer
 
   /* USER CODE END 2 */
 
@@ -1140,7 +1141,7 @@ void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
 	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
 		//error
 	}
-	HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+	HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
 	//turns on DMA for receive again since non-dma was used before
 }
 
@@ -1187,7 +1188,7 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 		//receivefifo[0] = 0;
 		rx_ready = true;
 		//then call receive again
-		HAL_UART_Receive_DMA(&huart2, receivefifo, 1);
+		HAL_UART_Receive_DMA(&huart2, (uint8_t *)receivefifo, 1);
 		if(global_receive_mode_from_cad == 1){
 			global_receive_mode_from_cad = 0;
 			//this is for when CAD mode detected a preamble
@@ -1223,7 +1224,7 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 			//activate it when done with rtc stuff
 		}
 		else{//ignore
-			HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+			HAL_UART_Receive_DMA(&huart1, (uint8_t *)receivefifo_usb_ttl, 1); //usb-ttl
 		}
 	}
 }

@@ -2,11 +2,11 @@
 #include "mesh.h"
 #include <string.h>
 
-extern RTC_TimeTypeDef current_time;
-extern RTC_DateTypeDef current_date;
+extern volatile RTC_TimeTypeDef current_time;
+extern volatile RTC_DateTypeDef current_date;
 extern bool isHub;
-extern bool usb_ttl_done;
-extern uint8_t last_sent_msg_id [4];
+extern volatile bool usb_ttl_done;
+extern volatile uint8_t last_sent_msg_id [4];
 
 extern uint8_t self_addr [ADDR_LENGTH];
 extern uint8_t addr_any_direction [ADDR_LENGTH];
@@ -17,17 +17,17 @@ extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim6;
 extern DMA_HandleTypeDef hdma_usart2_tx;
 
-mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_away_hub1, neighbor_away_hub2, neighbor_away_hub3;
+volatile mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_away_hub1, neighbor_away_hub2, neighbor_away_hub3;
 //to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
 
-message_id_history message1, message2, message3, message4, message5, message6, message7, message8, message9, message10;
+volatile message_id_history message1, message2, message3, message4, message5, message6, message7, message8, message9, message10;
 
-sent_message_buffer sent_buffer;
+volatile sent_message_buffer sent_buffer;
 
-sending_buffer_type sending_buffer;
+volatile sending_buffer_type sending_buffer;
 
-uint8_t send_buffer_add_index = 1; //is where to add the next message (counts up)
-uint8_t send_buffer_send_index = 1; //is where the next message to be sent is (counts up)
+volatile uint8_t send_buffer_add_index = 1; //is where to add the next message (counts up)
+volatile uint8_t send_buffer_send_index = 1; //is where the next message to be sent is (counts up)
 
 void mesh_init(){
 	define_addr_any_direction();
@@ -61,7 +61,9 @@ bool calc_crc(uint8_t * data, uint8_t length){
 	while( i < length){
 		int j = 0;
 		while(j < 8){
-			sum += data[i] & (0x1 << j);
+			if(data[i] & (0x1 << j)){
+				sum += 1;
+			}
 			j += 1;
 		}
 		i += 1;
@@ -106,7 +108,7 @@ void handle_sending_own_data(void){
 
 bool send_item_off_send_buffer(void){
 	//send_buffer_send_index
-	sending_buffer_entry * entry = get_sending_buffer_entry(send_buffer_send_index);
+	volatile sending_buffer_entry * entry = get_sending_buffer_entry(send_buffer_send_index);
 	if(entry->valid == false){
 		return false;
 	}
@@ -139,7 +141,7 @@ bool send_item_off_send_buffer(void){
 	return good;
 }
 
-void add_to_sent_message_buffer(sending_buffer_entry * entry){
+void add_to_sent_message_buffer(volatile sending_buffer_entry * entry){
 	//find empty buffer slot
 	if(sent_buffer.entry1.entry.valid == false){
 		replace_one_sent_buffer_entry(entry, &sent_buffer.entry1);
@@ -173,7 +175,7 @@ void add_to_sent_message_buffer(sending_buffer_entry * entry){
 	}
 }
 
-void replace_one_sent_buffer_entry(sending_buffer_entry * new_entry, sent_message_buff_entry * old_entry){
+void replace_one_sent_buffer_entry(volatile sending_buffer_entry * new_entry, volatile sent_message_buff_entry * old_entry){
 	old_entry->entry.valid = true;
 	old_entry->entry.type = new_entry->type;
 	old_entry->entry.attempt = new_entry->attempt;
@@ -218,7 +220,7 @@ void replace_one_sent_buffer_entry(sending_buffer_entry * new_entry, sent_messag
 
 //TODO: handle message ID
 //TODO: check resending
-//TODO: CRC bits
+//TODO: check crc
 
 void handle_send_hello(void){
 	//TODO:figure out battery
@@ -306,7 +308,7 @@ void handle_node_dead_send(mesh_neighbor neighbor){
 	mesh_send_dead(dest_addr, neighbor.addr, dead_since, battery,  message_id_actual, 1, hdma_usart2_tx,  huart2);
 }
 
-void handle_one_resending(time_t current_time, sent_message_buff_entry * sent_message){
+void handle_one_resending(time_t current_time, volatile sent_message_buff_entry * sent_message){
 	if(sent_message->entry.valid == false){
 		return;
 	}
@@ -337,7 +339,7 @@ bool add_one_send_to_sending_buffer(sending_buffer_entry new_entry){
 	//uint8_t send_buffer_send_index;
 
 	//check if add_index is free
-	sending_buffer_entry * sending_buffer_at_add_index = get_sending_buffer_entry(send_buffer_add_index);
+	volatile sending_buffer_entry * sending_buffer_at_add_index = get_sending_buffer_entry(send_buffer_add_index);
 	if(sending_buffer_at_add_index->valid == true){
 		//issue, buffer overflowed
 		return false;
@@ -363,7 +365,7 @@ bool add_one_send_to_sending_buffer(sending_buffer_entry new_entry){
 	return false;
 }
 
-sending_buffer_entry * get_sending_buffer_entry(uint8_t index){
+volatile sending_buffer_entry * get_sending_buffer_entry(uint8_t index){
 	switch(index){
 		case 10:
 			return &sending_buffer.entry10;
@@ -408,7 +410,7 @@ bool decide_if_past_time(time_t current_time, time_t stored_time){
 		return false;
 	}
 }
-time_t get_time_in_seconds(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
+time_t get_time_in_seconds(volatile RTC_TimeTypeDef *time, volatile RTC_DateTypeDef *date){
 	//gets time in seconds since epoch
 	struct tm tim = {0};
 	tim.tm_sec = time->Seconds;
@@ -438,7 +440,7 @@ void init_neighbors(){
 	init_one_neighbor(neighbor_away_hub3);
 }
 
-bool check_addr_closer_to_hub(uint8_t * first_addr,uint8_t * second_addr){
+bool check_addr_closer_to_hub(volatile uint8_t * first_addr,volatile uint8_t * second_addr){
 	//returns true if the first addr is closer to the hub than the second addr
 	uint16_t first = (uint16_t)(first_addr[1] << 8) | first_addr[0];
 	uint16_t second = (uint16_t)(second_addr[1] << 8) | second_addr[0];
@@ -450,7 +452,7 @@ bool check_addr_closer_to_hub(uint8_t * first_addr,uint8_t * second_addr){
 	}
 }
 
-bool check_addr_farther_from_hub(uint8_t * first_addr,uint8_t * second_addr){
+bool check_addr_farther_from_hub(volatile uint8_t * first_addr,volatile uint8_t * second_addr){
 	//returns true if the first addr is farther from the hub than the second addr
 	uint16_t first = (uint16_t)(first_addr[1] << 8) | first_addr[0];
 	uint16_t second = (uint16_t)(second_addr[1] << 8) | second_addr[0];
@@ -706,7 +708,7 @@ bool mesh_send_hello(uint8_t * battery, DMA_HandleTypeDef hdma_usart_tx, UART_Ha
 	return good;
 }
 
-bool check_and_handle_neighbor_match(uint8_t * addr, uint8_t * battery, mesh_neighbor * neighbor){
+bool check_and_handle_neighbor_match(uint8_t * addr, uint8_t * battery, volatile mesh_neighbor * neighbor){
 	int i = 0;
 	while(i < ADDR_LENGTH){
 		if(addr[i] != neighbor->addr[i]){
@@ -737,7 +739,7 @@ bool check_and_handle_neighbor_match(uint8_t * addr, uint8_t * battery, mesh_nei
 	return true;
 }
 
-void replace_neighbor_node(mesh_neighbor * replaced,mesh_neighbor * replacing){
+void replace_neighbor_node(volatile mesh_neighbor * replaced,volatile mesh_neighbor * replacing){
 	replaced->valid = replacing->valid;
 	replaced->last_seen = replacing->last_seen;
 	int i = 0;
@@ -1102,26 +1104,26 @@ bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint
 		message[i] = new_addr[j];
 		even = calc_crc(&new_addr[j], 1);
 		crc_byte |= (!even) << j;
-		i += 1;
-		j += 1;
+		i += 1;//even
+		j += 1;//odd
 	}
 
 	k = i;
 	j = 0;
 	while(i < k + 4){ //coords
 		message[i] = coords[j];
-		even = calc_crc(&coords[j], 1);
-		crc_byte |= (!even) << (j + 2);
-		i += 1;
-		j += 1;
+		even = calc_crc(&coords[j], 1);//odd
+		crc_byte |= (!even) << (j + 2);//even
+		i += 1;//even
+		j += 1;//odd
 	}
 
 	k = i;
 	j = 0;
 	while(i < k + 2){ //distance
 		message[i] = distance[j];
-		even = calc_crc(&distance[j], 1);
-		crc_byte |= (!even) << (j + 6);
+		even = calc_crc(&distance[j], 1);//even
+		crc_byte |= (!even) << (j + 6);//odd
 		i += 1;
 		j += 1;
 	}
@@ -1562,7 +1564,7 @@ bool check_message_struct_match(uint8_t * message_id, uint8_t * message_id2){
 
 }
 
-bool sent_message_buffer_clear(uint8_t * message_id, sent_message_buff_entry * entry){
+bool sent_message_buffer_clear(uint8_t * message_id, volatile sent_message_buff_entry * entry){
 	if(entry->entry.valid == false){
 		return false;
 	}
