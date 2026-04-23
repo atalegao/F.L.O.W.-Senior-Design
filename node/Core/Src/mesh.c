@@ -540,7 +540,7 @@ void find_dest_addr_to_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TOD
 	//looks in neighbor node structs
 	int sum = neighbor_to_hub1.valid + neighbor_to_hub2.valid + neighbor_to_hub3.valid;
 	if (sum == 0){
-		if(attempt < 7){
+		if(attempt < 3){
 			dest_addr[0] = addr_right_direction[0];
 			dest_addr[1] = addr_right_direction[1];
 			return;
@@ -552,7 +552,7 @@ void find_dest_addr_to_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TOD
 		}
 	}
 
-	if((attempt == 1) | (attempt == 2)){ //farthest towards hub
+	if((attempt == 1)){ //farthest towards hub
 		switch(sum){
 		case 3:
 			dest_addr[0] = neighbor_to_hub3.addr[0];
@@ -568,7 +568,7 @@ void find_dest_addr_to_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TOD
 			break;
 		}
 	}
-	else if((attempt == 3) | (attempt == 4)){//2nd farthest towards hub
+	else if((attempt == 2)){//2nd farthest towards hub
 		switch(sum){
 			case 3:
 				dest_addr[0] = neighbor_to_hub2.addr[0];
@@ -584,11 +584,11 @@ void find_dest_addr_to_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TOD
 				break;
 				}
 	}
-	else if((attempt == 5) | (attempt == 6)){//3rd farthest towards hub
+	else if((attempt == 3)){//3rd farthest towards hub
 		dest_addr[0] = neighbor_to_hub1.addr[0];
 		dest_addr[1] = neighbor_to_hub1.addr[1];
 	}
-	else if((attempt == 7) | (attempt == 8)){//correct direction (towards hub)
+	else if((attempt == 4)){//correct direction (towards hub)
 		dest_addr[0] = addr_right_direction[0];
 		dest_addr[1] = addr_right_direction[1];
 	}
@@ -603,7 +603,7 @@ void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){
 	//looks in neighbor node structs
 	int sum = neighbor_away_hub1.valid + neighbor_away_hub2.valid + neighbor_away_hub3.valid;
 	if (sum == 0){
-		if(attempt < 7){
+		if(attempt < 3){
 			dest_addr[0] = addr_right_direction[0];
 			dest_addr[1] = addr_right_direction[1];
 			return;
@@ -647,7 +647,7 @@ void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){
 				break;
 				}
 	}
-	else if((attempt == 5) | (attempt == 6)){//farthest away hub
+	else if((attempt == 5)){//farthest away hub
 		switch(sum){
 			case 3:
 				dest_addr[0] = neighbor_away_hub3.addr[0];
@@ -1870,11 +1870,11 @@ bool mesh_message_type_helper(volatile uint8_t * data, mesh_msg_type type, uint8
 	else if(type == MESH_MSG_ADD){
 		good = mesh_rec_add(data, message_id, sending_addr, hdma_usart_tx, huart);
 	}
-	else{
-		while(1){
-			//error
-		}
-	}
+//	else{
+//		while(1){
+//			//error
+//		}
+//	}
 	return good;
 }
 

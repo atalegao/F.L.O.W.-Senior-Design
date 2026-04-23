@@ -516,9 +516,9 @@ int main(void)
 		  HAL_Delay(1000);
 		  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
 		  //
-		  while(1){
-			  send_item_off_send_buffer();
-		  }
+//		  while(1){
+//			  send_item_off_send_buffer();
+//		  }
 	  }
 //	  if(read_lora_fifo){ //
 //		  // start restart the CAD timer so it doesn't take the entire receive-timout time
@@ -1294,9 +1294,9 @@ void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef * huart)
 	HAL_StatusTypeDef result;
 	result = HAL_UART_Transmit_DMA(huart, message, length);
 	if(result != HAL_OK){
-		while(1){
-			//error
-		}
+//		while(1){
+//			//error
+//		}
 	}
 }
 

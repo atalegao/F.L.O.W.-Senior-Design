@@ -444,9 +444,9 @@ void uart_write_normal(uint8_t data){ //done, not tested
     sendfifo_offset_norm += 1;
     if(sendfifo_offset_norm > FIFOSIZE_TX_NORM){
         sendfifo_offset_norm = 0;
-        while(1){
-        	//
-        }
+//        while(1){
+//        	//
+//        }
     }
 }
 
@@ -474,9 +474,9 @@ void uart_write_rx(uint8_t data){ //done, not tested
     sendfifo_offset_rec += 1;
     if(sendfifo_offset_rec > FIFOSIZE_TX_REC){
     	sendfifo_offset_rec = 0;
-    	while(1){
-    	        	//
-    	        }
+//    	while(1){
+//    	        	//
+//    	        }
     }
 }
 
@@ -505,9 +505,9 @@ void uart_write_tx(uint8_t data){ //done, not tested
     sendfifo_offset_send += 1;
     if(sendfifo_offset_send > FIFOSIZE_TX_SEND){
         sendfifo_offset_send = 0;
-        while(1){
-                	//
-                }
+//        while(1){
+//                	//
+//                }
     }
 }
 
@@ -644,9 +644,9 @@ bool lora_send(volatile uint8_t* data, uint8_t length, DMA_HandleTypeDef * hdma_
     value = uart_read(); //this should wait until the I response and then let the code move to the actual read
 
     while(value != 0x49){
-    	while(1){
-    		//error
-    	}
+//    	while(1){
+//    		//error
+//    	}
     }
     while(done == false){
         value = lora_read_single(0x12, hdma_usart_tx, huart, 3, 0);//check irq register for done (12), send
