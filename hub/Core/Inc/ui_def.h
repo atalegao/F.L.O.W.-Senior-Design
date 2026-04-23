@@ -33,7 +33,8 @@ typedef enum {
     SCREEN_NODE_DETAIL,
     SCREEN_PHONES,
     SCREEN_KEYPAD,
-    SCREEN_NODE_HISTORY
+    SCREEN_NODE_HISTORY,
+	SCREEN_POLL
 
 } ScreenState;
 typedef struct {

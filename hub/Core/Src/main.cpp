@@ -146,12 +146,14 @@ bool send_rec = false; //great names I know
 
 bool do_send = false;
 bool in_send = false;
+extern volatile uint16_t freq_req;
+extern volatile bool new_freq_flag;
 
 uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
 //0 means the lora timer is currently for cad cycle
 
-uint8_t receivefifo_usb_ttl [0];
+//uint8_t receivefifo_usb_ttl [0];
 
 uint8_t addr_any_direction [ADDR_LENGTH];
 uint8_t addr_right_direction [ADDR_LENGTH];
@@ -294,7 +296,8 @@ int main(void)
            // HAL_UART_Receive_IT(&hlpuart1, rx_data, 1); //ultrasonic sensor data receive on lpuart1
 
             HAL_UART_Receive_DMA(&huart2, receivefifo, 1); //lora
-            HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+            //HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+            HAL_UART_Receive_IT(&huart1, &rxByte, 1);
             HAL_Delay(1000);//added
             connected_test_all();
             lora_init(hdma_usart2_tx, huart2);
@@ -329,14 +332,12 @@ int main(void)
   {
     /* USER CODE END WHILE */
 	  if (touchPending)
-//	  if(HAL_GPIO_ReadPin(LCD_INT_GPIO_Port, LCD_INT_Pin) == 0)
 	     {
 	         touchPending = 0;
 
 	         HAL_GPIO_WritePin(PB14_LED_GPIO_Port, PB14_LED_Pin, GPIO_PIN_SET);
 
 	         update_on_touch();   // REQUIRED
-	         HAL_Delay(100);
 	         HAL_GPIO_WritePin(PB14_LED_GPIO_Port, PB14_LED_Pin, GPIO_PIN_RESET);
 
 	     }
@@ -345,10 +346,10 @@ int main(void)
 //
 //	  }
 	  //following is to change polling
-	  if (change_polling)
+	  if (new_freq_flag)
 	  {
-		  uint32_t new_frequency = 5000;
-		  change_polling = false;
+		  uint32_t new_frequency = freq_req;
+		  new_freq_flag = false;
 		  uint8_t dest_addr[ADDR_LENGTH];
 		  find_dest_addr_away_hub(dest_addr, 1);
 
@@ -667,7 +668,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 9600;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -1268,7 +1269,7 @@ void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
 	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
 		//error
 	}
-	HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+	//HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
 	//turns on DMA for receive again since non-dma was used before
 }
 #ifdef USE_FULL_ASSERT

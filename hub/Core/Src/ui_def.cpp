@@ -19,6 +19,8 @@ uint16_t nodeCount = 0;
 
 char phoneNumbers[MAX_PHONES][PHONE_LEN];
 uint16_t phoneCount = 0;
+volatile uint16_t freq_req = 120;
+volatile bool new_freq_flag = false;
 
 char keypadBuffer[PHONE_LEN] = {0};
 uint8_t keypadIndex = 0;
@@ -27,16 +29,21 @@ Node* activeNode = NULL;
 uint8_t node_screen = 1;
 
 bool floodImminent = false;
-bool showSaved = false;
+bool disp_ok = false;
+
 
 Button nodeMenu = {100, 200, 220, 80, "Nodes", RA8875_BLUE};
-Button phoneMenu = {420, 200, 220, 80, "Phones", RA8875_GREEN};
+Button pollingScreen = {420, 200, 220, 80, "Polling", RA8875_GREEN};
 Button backBtn  = {630, 380, 150, 80, "BACK", RA8875_GREEN};
 Button addPhoneBtn = {300, 380, 300, 80, "Add Phone", RA8875_GREEN};
 Button saveBtn = {550, 20, 200, 80, "Save", RA8875_GREEN};
 Button historyBtn = {300, 320, 250, 80, "History", RA8875_BLUE};
-Button upBtn = {630, 280, 80, 80, "//\\", RA8875_YELLOW};
-Button downBtn = {630, 280, 80, 80, "\\//", RA8875_YELLOW};
+Button upBtn = {630, 280, 100, 80, "UP", RA8875_YELLOW};
+Button downBtn = {630, 400, 100, 80, "DWN", RA8875_YELLOW};
+Button incBtn = {400, 180, 100, 80, "+", RA8875_BLUE};
+Button decBtn = {400, 300, 100, 80, "-", RA8875_BLUE};
+Button okBtn = {500, 300, 100, 80, "OK", RA8875_BLUE};
+
 
 
 Button floodBtn = {200, 300, 300, 80, (floodImminent? "Dec. Polling" : "Dec. Polling"), (floodImminent? RA8875_RED: RA8875_GREEN)};
@@ -70,7 +77,7 @@ void drawHome(void) {
     tft->graphicsMode();
 
     draw_button(nodeMenu);
-    draw_button(phoneMenu);
+    draw_button(pollingScreen);
 }
 
 void draw1to6Nodes(void) {
@@ -146,11 +153,7 @@ void drawNodeDetail(Node* n) {
     tft->textSetCursor(400, 230);
     tft->textWrite(buf);
 
-    tft->textSetCursor(50, 220);
-    if (floodImminent) {
-        tft->textTransparent(RA8875_RED);
-        tft->textWrite("Flooding imminent. Polling frequency increased.");
-    }
+
 
     tft->graphicsMode();
 
@@ -158,22 +161,51 @@ void drawNodeDetail(Node* n) {
     draw_button(backBtn);
 }
 
-void drawPhones(void) {
-    currentScreen = SCREEN_PHONES;
-    tft->fillScreen(RA8875_BLACK);
+void drawPollScreen(void)
+{
+	currentScreen = SCREEN_POLL;
+	tft->fillScreen(RA8875_BLACK);
 
-    for (int i = 0; i < phoneCount; i++) {
-        tft->textMode();
-        tft->textSetCursor(300, 50 + i * 40);
-        tft->textTransparent(RA8875_WHITE);
+	tft->textMode();
+	tft->textSetCursor(50, 50);
+    tft->textTransparent(RA8875_WHITE);
 
-        tft->textWrite(phoneNumbers[i]);
-    }
+	tft->textWrite("Polling Frequency Changes");
+	tft->textSetCursor(300, 200);
+	char buf[4];
+	ftoa(freq_req, buf, 0);
+    tft->textTransparent(RA8875_WHITE);
+	tft->textWrite(buf);
+	if(disp_ok){
+		tft->textSetCursor(500, 220);
+		tft->textTransparent(RA8875_GREEN);
+		tft->textWrite("Saved");
+	}
 
-    tft->graphicsMode();
-    draw_button(addPhoneBtn);
-    draw_button(backBtn);
+
+	tft->graphicsMode();
+	draw_button(incBtn);
+	draw_button(decBtn);
+	draw_button(okBtn);
+	draw_button(backBtn);
+
 }
+//void drawPhones(void) {
+//    currentScreen = SCREEN_PHONES;
+//    tft->fillScreen(RA8875_BLACK);
+//
+//    for (int i = 0; i < phoneCount; i++) {
+//        tft->textMode();
+//        tft->textSetCursor(300, 50 + i * 40);
+//        tft->textTransparent(RA8875_WHITE);
+//
+//        tft->textWrite(phoneNumbers[i]);
+//    }
+//
+//    tft->graphicsMode();
+//    draw_button(addPhoneBtn);
+//    draw_button(backBtn);
+//}
 
 void drawKeypad(void) {
     currentScreen = SCREEN_KEYPAD;
@@ -212,11 +244,11 @@ void drawKeypad(void) {
     tft->textTransparent(RA8875_WHITE);
     tft->textWrite(keypadBuffer);
 
-    if (showSaved) {
-        tft->textSetCursor(300, 50);
-        tft->textTransparent(RA8875_GREEN);
-        tft->textWrite("Saved!");
-    }
+//    if (showSaved) {
+//        tft->textSetCursor(300, 50);
+//        tft->textTransparent(RA8875_GREEN);
+//        tft->textWrite("Saved!");
+//    }
 
     tft->graphicsMode();
 
@@ -233,8 +265,8 @@ void uiHandleTouch(uint16_t x, uint16_t y) {
             if (buttonContains(nodeMenu, x, y))
                 draw1to6Nodes();
 
-            if (buttonContains(phoneMenu, x, y))
-                drawPhones();
+            if (buttonContains(pollingScreen, x, y))
+            	drawPollScreen();
             break;
 
         case SCREEN_NODES:
@@ -283,64 +315,78 @@ void uiHandleTouch(uint16_t x, uint16_t y) {
             break;
 
         case SCREEN_NODE_DETAIL:
-            if (buttonContains(floodBtn, x, y)) {
-                floodImminent = !floodImminent;
-                change_polling = !change_polling;
-                drawNodeDetail(activeNode);
-            }
+//            if (buttonContains(floodBtn, x, y)) {
+//                floodImminent = !floodImminent;
+//                change_polling = !change_polling;
+//                drawNodeDetail(activeNode);
+//            }
 
             if (buttonContains(backBtn, x, y))
                 draw1to6Nodes();
             break;
 
-        case SCREEN_PHONES:
-            if (buttonContains(addPhoneBtn, x, y)) {
-                keypadIndex = 0;
-                keypadBuffer[0] = '\0';
-                showSaved = false;
-                drawKeypad();
+//        case SCREEN_PHONES:
+//            if (buttonContains(addPhoneBtn, x, y)) {
+//                keypadIndex = 0;
+//                keypadBuffer[0] = '\0';
+//                showSaved = false;
+//                drawKeypad();
+//            }
+//
+//            if (buttonContains(backBtn, x, y))
+//                drawHome();
+//            break;
+        case SCREEN_POLL:
+
+
+//        case SCREEN_KEYPAD:
+//
+//            for (int r = 0; r < 4; r++) {
+//                for (int c = 0; c < 3; c++) {
+//
+//                    uint16_t bx = KEYPAD_H + c * 150;
+//                    uint16_t by = 100 + r * 100;
+//
+//                    if (x >= bx && x <= bx + 100 &&
+//                        y >= by && y <= by + 80) {
+//
+//                        if (keypadIndex < PHONE_LEN - 1) {
+//                            char digit;
+//
+//                            if (r == 3 && c == 1) digit = '0';
+//                            else if (r == 3) continue;
+//                            else digit = '1' + (r * 3 + c);
+//
+//                            keypadBuffer[keypadIndex++] = digit;
+//                            keypadBuffer[keypadIndex] = '\0';
+//                        }
+//
+//                        drawKeypad();
+//                        return;
+//                    }
+//                }
+//            }
+
+            if (buttonContains(incBtn, x, y) && freq_req < 180) {
+            	freq_req = freq_req + 30;
+                drawPollScreen();
+            }
+            if (buttonContains(decBtn, x, y) && freq_req > 60) {
+            	freq_req = freq_req - 30;
+                drawPollScreen();
+            }
+            if (buttonContains(okBtn, x, y))
+            {
+            	disp_ok = true;
+            	new_freq_flag = true;
+            	drawPollScreen();
             }
 
             if (buttonContains(backBtn, x, y))
+            {
+            	disp_ok = false;
                 drawHome();
-            break;
-
-        case SCREEN_KEYPAD:
-
-            for (int r = 0; r < 4; r++) {
-                for (int c = 0; c < 3; c++) {
-
-                    uint16_t bx = KEYPAD_H + c * 150;
-                    uint16_t by = 100 + r * 100;
-
-                    if (x >= bx && x <= bx + 100 &&
-                        y >= by && y <= by + 80) {
-
-                        if (keypadIndex < PHONE_LEN - 1) {
-                            char digit;
-
-                            if (r == 3 && c == 1) digit = '0';
-                            else if (r == 3) continue;
-                            else digit = '1' + (r * 3 + c);
-
-                            keypadBuffer[keypadIndex++] = digit;
-                            keypadBuffer[keypadIndex] = '\0';
-                        }
-
-                        drawKeypad();
-                        return;
-                    }
-                }
             }
-
-            if (buttonContains(saveBtn, x, y)) {
-                addPhone(keypadBuffer);
-                showSaved = true;
-                drawKeypad();
-            }
-
-            if (buttonContains(backBtn, x, y))
-                drawPhones();
             break;
     }
 }
