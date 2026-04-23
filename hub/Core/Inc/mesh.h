@@ -151,5 +151,6 @@ bool mesh_message_type_helper(volatile uint8_t * data, mesh_msg_type type, uint8
 bool mesh_main_rec(volatile uint8_t * data,DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart);
 bool mesh_rec_data(volatile uint8_t * data, uint8_t * send_addr, uint8_t * message_id, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef *huart);
 void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, uint8_t time_or_ignore_reason, uint8_t * send_or_rec_addr, UART_HandleTypeDef *huart);
+void makeNodeName(char *name, uint8_t node_id);
 
 #endif

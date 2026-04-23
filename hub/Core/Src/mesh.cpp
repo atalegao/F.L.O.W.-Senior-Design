@@ -54,6 +54,8 @@ void mesh_init(){
     if (isHub) {
         // Initialize as a hub
         // Set up necessary data structures for a hub
+    	self_addr[0] = 0;
+    	self_addr[1] = 0;
     } else {
         // Initialize as a node
         // Set up necessary data structures for a node
@@ -1368,7 +1370,7 @@ bool mesh_rec_add(volatile uint8_t * data, uint8_t * message_id, uint8_t * send_
 		    }
 
 		    // ---- convert node id ----
-		    uint16_t node_id = (new_node_addr[0] << 8) | new_node_addr[1];
+		    uint16_t node_id = (new_node_addr[1] << 8) | new_node_addr[0];
 
 		    static char nameBuf[10][10];
 		    static uint8_t nameIndex = 0;
@@ -1454,7 +1456,21 @@ bool mesh_rec_add(volatile uint8_t * data, uint8_t * message_id, uint8_t * send_
 	bool good = mesh_send_add(dest_addr, new_node_addr, node_coordinates, distance, message_id, 1, hdma_usart_tx, huart);
 	return good;
 }
+void makeNodeName(char *name, uint8_t node_id)
+{
+    name[0] = 'N';
+    name[1] = 'o';
+    name[2] = 'd';
+    name[3] = 'e';
+    name[4] = ' ';
+    name[5] = '\0';
 
+    // append number
+    char buf[4];
+    intToStr(node_id, buf, 0);
+
+    strcat(name, buf);
+}
 bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_frequency, uint8_t attempt, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){ //done
 	//message is dest_addr, message_id, message_type, sending_addr, new_frequency
 

@@ -503,6 +503,32 @@ void addNode(uint8_t id, const char* name, const char* status) {
     nodeCount++;
 }
 
+//void addNode(uint8_t id, const char* name, const char* status)
+//{
+//    if (nodeCount >= MAX_NODES) return;
+//
+//    Node *n = &nodes[nodeCount];
+//
+//    n->nodeId = id;
+//
+//    strncpy(n->name, name, sizeof(n->name) - 1);
+//    n->name[sizeof(n->name) - 1] = '\0';
+//
+//    strncpy(n->status, status, sizeof(n->status) - 1);
+//    n->status[sizeof(n->status) - 1] = '\0';
+//
+//    n->latestWaterHeight = 0;
+//    n->latestTimestamp = 0;
+//    n->batteryPercent = 0;
+//    n->historyIndex = 0;
+//
+//    for (int i = 0; i < HISTORY_LEN; i++) {
+//        n->history[i].waterHeight = 0;
+//        n->history[i].timestamp = 0;
+//    }
+//
+//    nodeCount++;
+//}
 //void addPhone(const char* number) {
 //    if (phoneCount >= MAX_PHONES) return;
 //

@@ -457,7 +457,6 @@ int main(void)
 		  HAL_NVIC_DisableIRQ(TIM21_IRQn);
 		  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
 		  HAL_NVIC_DisableIRQ(TIM22_IRQn);
-		  HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
 
 		  read_lora_fifo = false;
 		  // volatile uint8_t buff [MESH_MAX_MESSAGE_LENGTH];
