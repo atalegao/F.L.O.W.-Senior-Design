@@ -1265,7 +1265,7 @@ bool mesh_rec_add(volatile uint8_t * data, uint8_t * message_id, uint8_t * send_
 		    name[7] = '\0';
 
 		    // ADDS NODE TO UI
-		    //addNode(node_id, name, "Active");
+		    addNode(node_id, name, "Active");
 
 
 		    uint32_t new_id;
