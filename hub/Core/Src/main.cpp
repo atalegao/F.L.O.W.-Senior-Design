@@ -45,7 +45,14 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define FLOOD_THRESHOLD_MM   150
 
+// Cooldown between alerts — prevents spamming Telegram.
+// Set to 10 minutes (in milliseconds).
+#define ALERT_COOLDOWN_MS    (10 * 60 * 1000)
+
+// UART receive buffer size
+#define RX_BUF_SIZE          128
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -72,6 +79,7 @@ RNG_HandleTypeDef hrng;
 SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim21;
+TIM_HandleTypeDef htim2;
 
 
 /* USER CODE BEGIN PV */
@@ -85,6 +93,13 @@ RTC_TimeTypeDef current_time;
 RTC_DateTypeDef current_date;
 
 uint8_t usb_buffer_rtc [7];
+uint8_t          rxByte;
+char             rxBuffer[RX_BUF_SIZE];
+uint8_t          rxIndex = 0;
+volatile uint8_t messageReady = 0;
+char             parsedMessage[RX_BUF_SIZE];
+uint32_t lastAlertTick      = 0;
+uint8_t  alertCooldownActive = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -96,7 +111,7 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_RTC_Init(void);
-//static void MX_TIM2_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_RNG_Init(void);
 
@@ -104,7 +119,8 @@ static void MX_TIM6_Init(void);
 static void MX_TIM21_Init(void);
 void MX_SPI1_ReInit(uint32_t scaler);
 /* USER CODE BEGIN PFP */
-
+void ESP_SendAlert(int nodeId, uint32_t distance);
+void ProcessLoRaMessage(char* msg);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -144,6 +160,9 @@ bool isHub = false;
 bool usb_ttl_done = true;
 bool in_read_lora_fifo = false;
 
+
+
+// UART receive buffer size
 #define DO_SEND 0
 
 #define DO_REC 1
@@ -247,6 +266,8 @@ int main(void)
 
     MX_I2C2_Init();
     MX_TIM6_Init();
+    MX_TIM2_Init();
+
     MX_TIM21_Init();
   //MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
@@ -299,6 +320,7 @@ int main(void)
             self_addr[1] = 0x17;
 
             //setup_lora_send_timer(&htim6, 0x000004FF);
+            ESP_SendAlert(1, 120);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -318,6 +340,10 @@ int main(void)
 	         HAL_GPIO_WritePin(PB14_LED_GPIO_Port, PB14_LED_Pin, GPIO_PIN_RESET);
 
 	     }
+//	  if(threshold_met)
+//	  {
+//
+//	  }
 	  //following is to change polling
 	  if (change_polling)
 	  {
@@ -1015,59 +1041,58 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-//static void MX_TIM2_Init(void)
-//{
-//
-//  /* USER CODE BEGIN TIM2_Init 0 */
-//
-//  /* USER CODE END TIM2_Init 0 */
-//
-//  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-//  TIM_MasterConfigTypeDef sMasterConfig = {0};
-//  TIM_OC_InitTypeDef sConfigOC = {0};
-//
-//  /* USER CODE BEGIN TIM2_Init 1 */
-//
-//  /* USER CODE END TIM2_Init 1 */
-//  htim2.Instance = TIM2;
-//  htim2.Init.Prescaler = 180-1;
-//  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-//  htim2.Init.Period = 65535;
-//  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-//  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-//  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-//  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-//  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-//  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-//  sConfigOC.Pulse = 0;
-//  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-//  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-//  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  /* USER CODE BEGIN TIM2_Init 2 */
-//
-//  /* USER CODE END TIM2_Init 2 */
-//  HAL_TIM_MspPostInit(&htim2);
-//
-//}
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 180-1;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
 /* USER CODE END 4 */
 void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 	if(huart->Instance == USART2){ //lora
@@ -1099,24 +1124,37 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 			}
 		}
 	}
+	if (huart->Instance == USART1)
+	  {
+	    if (rxByte == '\n' || rxIndex >= RX_BUF_SIZE - 1)
+	    {
+	      rxBuffer[rxIndex] = '\0';
+
+	      // Trim trailing \r if present
+	      if (rxIndex > 0 && rxBuffer[rxIndex - 1] == '\r')
+	        rxBuffer[rxIndex - 1] = '\0';
+
+	      strcpy(parsedMessage, rxBuffer);
+	      messageReady = 1;
+	      rxIndex = 0;
+	    }
+	    else
+	    {
+	      rxBuffer[rxIndex++] = (char)rxByte;
+	    }
+
+	    // Re-arm interrupt for next byte
+	    HAL_UART_Receive_IT(&huart1, &rxByte, 1);
+	  }
+
 }
-//	//ADDED FOR ULTRASONIC
-//	else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
-//		ultrasonic_process_rx(rx_data);
-//		HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1);
-//	}
-//	else if(huart->Instance == USART1){ //usb-ttl
-//		if(receivefifo_usb_ttl[0] == 0xFF){ //special character to indicate setting RTC
-//			//set flag to update rtc
-//			//do not activate DMA
-//			//activate it when done with rtc stuff
-//		}
-//		else{//ignore
-//			HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
-//		}
-//	}
-//}
-//
+
+void ESP_SendAlert(int nodeId, uint32_t distance)
+{
+  char buf[64];
+  snprintf(buf, sizeof(buf), "FLOOD:%d:%lu\n", nodeId, distance);
+  HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
+}
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart->Instance == USART2){//lora

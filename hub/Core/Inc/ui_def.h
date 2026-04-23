@@ -64,8 +64,10 @@ void addNode(uint8_t id, const char* name, const char* status);
 void addPhone(const char* number);
 
 void drawHome(void);
-void drawAllNodes(void);
+void draw7to10Nodes(void);
+void draw1to6Nodes(void);
 void drawNodeDetail(Node* n);
+
 void drawPhones(void);
 void drawKeypad(void);
 void ftoa(float n, char* res, int afterpoint);
