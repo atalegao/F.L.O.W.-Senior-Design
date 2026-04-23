@@ -15,8 +15,8 @@ uint32_t distance_mm = 0;
 uint64_t long_term_sum = 0;
 uint32_t sample_count = 0;
 volatile uint8_t data_ready = 0;
-const uint32_t BREAK_TIME = 1 * 60 * 1000; // Ten minutes idle
-const uint32_t ON_TIME = 10 * 1000;    //10 seconds
+//const uint32_t BREAK_TIME = 1 * 60 * 1000; // Ten minutes idle
+const uint32_t ON_TIME = 1 * 1000;    //1 seconds
 const uint32_t TRIGGER_RATE = 200;         // Polling freq, 5 times per sec during polling
 
 // Initialize ultrasonic variables (call after HAL inits in main.c)

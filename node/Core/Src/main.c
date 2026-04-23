@@ -151,7 +151,7 @@ bool isHub = false;
 volatile bool usb_ttl_done = true;
 volatile bool in_read_lora_fifo = false;
 
-#define DO_SEND 1
+#define DO_SEND 0
 #define DO_REC 0
 
 #define DO_BOTH 1
@@ -207,7 +207,7 @@ int main(void)
   HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
   HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
   HAL_NVIC_DisableIRQ(TIM22_IRQn);
-  HAL_NVIC_DisableIRQ(TIM2_IRQn);
+  HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
   read_lora_fifo = false;
   receivefifo[0] = 0; //added
   receivefifo_usb_ttl[0] = 0;
@@ -225,52 +225,48 @@ int main(void)
   HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
   HAL_Delay(1000);//added
   connected_test_all();
-//  while(done_with_usb_ttl_setup == false){
-//
-//  } //force wait to do user inputs, so add back
+  while(done_with_usb_ttl_setup == false){
+
+  } //force wait to do user inputs, so add back
   get_timestamp();
   ultrasonic_init(); 
   lora_init(&hdma_usart2_tx, &huart2);
+  mesh_init();
   HAL_Delay(1000);
   //setup_lora_send_timer(&htim6); //set up lora send data timer
+  setup_lora_send_timer(&htim6, 0x1D4C0); //does send own data timer, 2 minutes
   HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
   HAL_NVIC_EnableIRQ(TIM21_IRQn);
   HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
   HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
   HAL_NVIC_SetPriority(TIM22_IRQn, 2, 0);
   HAL_NVIC_EnableIRQ(TIM22_IRQn);
-  HAL_NVIC_SetPriority(TIM2_IRQn, 2, 0);
-  HAL_NVIC_EnableIRQ(TIM2_IRQn);
-
-  //send_data[0] = 0xF0;
-  //send_data[1] = 0x0F;
-  HAL_TIM_Base_Start_IT(&htim21); //CAD
-  HAL_TIM_Base_Start_IT(&htim22); //resending and dead
-  //HAL_TIM_Base_Start_IT(&htim6); //send own data
-  //HAL_TIM_Base_Start_IT(&htim2);
-  //HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);//battery
-  //HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_2);//battery
-  HAL_LPTIM_Counter_Start_IT(&hlptim1, 15000);//hello
+  HAL_NVIC_SetPriority(LPTIM1_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
 
   HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(SysTick_IRQn);
 
-  mesh_init();//16,17         then 18,17        then 19,17
-  self_addr[0] = 0x16;
-  self_addr[1] = 0x17;
+  HAL_TIM_Base_Start_IT(&htim21); //CAD
+  HAL_TIM_Base_Start_IT(&htim22); //resending and dead
+  HAL_TIM_Base_Start_IT(&htim6); //send own data
+  HAL_LPTIM_Counter_Start_IT(&hlptim1, 60000);//hello
 
-  //setup_lora_send_timer(&htim6, 0x000004FF); //does send own data timer
-  //setup_lora_send_timer(&htim2, 0x000004FF);//actually sets up hello timer
 
-  /* stuff to automatically send own node data
+  //mesh_init();//16,17         then 18,17        then 19,17
+  //self_addr[0] = 0x16;
+  //self_addr[1] = 0x17;
+
+  ///* stuff to automatically send own node data
   uint32_t message_id;
   message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
   uint8_t message_id_actual [4];
   memcpy(message_id_actual, &message_id, sizeof(uint32_t));
 
   mesh_send_add(addr_right_direction,self_addr,coords, (uint8_t * )node_distance, message_id_actual, 1, &hdma_usart2_tx,&huart2);
-  */
+  handle_send_hello();
+ // */
 
   /* USER CODE END 2 */
 
@@ -313,7 +309,7 @@ int main(void)
 				  HAL_NVIC_DisableIRQ(TIM21_IRQn);
 				  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
 				  HAL_NVIC_DisableIRQ(TIM22_IRQn);
-				  HAL_NVIC_DisableIRQ(TIM2_IRQn);
+				  HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
 
 				  read_lora_fifo = false;
 //				  volatile uint8_t buff [MESH_MAX_MESSAGE_LENGTH];
@@ -328,7 +324,7 @@ int main(void)
 				  //end restart the CAD timer so it doesn't take the entire receive-timout time
 				  HAL_NVIC_EnableIRQ(TIM21_IRQn);
 				  HAL_NVIC_EnableIRQ(TIM22_IRQn);
-				  HAL_NVIC_EnableIRQ(TIM2_IRQn);
+				  HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
 				  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
 
 //				  HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
@@ -341,7 +337,7 @@ int main(void)
 				  HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
 				  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
 				  HAL_NVIC_DisableIRQ(TIM22_IRQn);
-				  HAL_NVIC_DisableIRQ(TIM2_IRQn);
+				  HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
 
 				  send_item_off_send_buffer();
 				  in_send = false;
@@ -350,7 +346,7 @@ int main(void)
 				  HAL_NVIC_EnableIRQ(TIM21_IRQn);
 				  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
 				  HAL_NVIC_EnableIRQ(TIM22_IRQn);
-				  HAL_NVIC_EnableIRQ(TIM2_IRQn);
+				  HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
 				  uint32_t delay = random_number_gen();//random delay
 				  HAL_Delay(delay & 0x0F);
 //				  HAL_GPIO_WritePin(GPIOC, PC2_LED_Pin, GPIO_PIN_SET);
@@ -1219,6 +1215,15 @@ void uart_set_rtc(void){
 	set_date.Date = usb_buffer_rtc[5];//day
 	set_date.Year = usb_buffer_rtc[6];//just 26 not 2006
 	set_time_and_date(&set_time, &set_date);
+	node_distance[0] = usb_buffer_rtc[7];
+	node_distance[1] = usb_buffer_rtc[8];
+	coords[0] = usb_buffer_rtc[9];
+	coords[1] = usb_buffer_rtc[10];
+	coords[2] = usb_buffer_rtc[11];
+	coords[3] = usb_buffer_rtc[12];
+	self_addr[0] = usb_buffer_rtc[13];
+	self_addr[1] = usb_buffer_rtc[14];
+	done_with_usb_ttl_setup = true;
 	//uint8_t message [20];
 	message[0] = 'r';
 	message[1] = 't';
@@ -1242,15 +1247,6 @@ void uart_set_rtc(void){
 	message[19] = 't';
 	while(usb_ttl_done == false);
 	send_usb_ttl(message, 20, &huart1);
-	node_distance[0] = usb_buffer_rtc[7];
-	node_distance[1] = usb_buffer_rtc[8];
-	done_with_usb_ttl_setup = true;
-	coords[0] = usb_buffer_rtc[9];
-	coords[1] = usb_buffer_rtc[10];
-	coords[2] = usb_buffer_rtc[11];
-	coords[3] = usb_buffer_rtc[12];
-	self_addr[0] = usb_buffer_rtc[13];
-	self_addr[1] = usb_buffer_rtc[14];
 
 }
 

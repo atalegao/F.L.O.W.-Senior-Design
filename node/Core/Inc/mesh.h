@@ -20,7 +20,7 @@
 
 #define MESH_MAX_MESSAGE_LENGTH 30 //the size of the largest packet
 
-#define RESEND_THRESHOLD (60 * 1) //1 minute
+#define RESEND_THRESHOLD (30 * 1) //0.5 minute
 
 #define DEAD_MESSAGE_THRESHOLD (60 * 1) //1 minute
 

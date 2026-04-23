@@ -124,7 +124,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef * hdma_usart_tx, UART_Han
 	HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable all interrupts that could use the Lora DMA
 	HAL_NVIC_DisableIRQ(TIM22_IRQn);
-	HAL_NVIC_DisableIRQ(TIM2_IRQn);
+	HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
 	HAL_NVIC_DisableIRQ(USART2_IRQn); //disable all interrupts that could use the Lora DMA
 	//HAL_StatusTypeDef status;
 
@@ -170,7 +170,7 @@ void lora_dma_write_send(int length, DMA_HandleTypeDef * hdma_usart_tx, UART_Han
 	HAL_NVIC_EnableIRQ(USART2_IRQn); //enable all interrupts that could use the Lora DMA
 	if(re_enable){
 		HAL_NVIC_EnableIRQ(TIM21_IRQn); //enable all interrupts that could use the Lora DMA
-		HAL_NVIC_EnableIRQ(TIM2_IRQn); //enable all interrupts that could use the Lora DMA
+		HAL_NVIC_EnableIRQ(LPTIM1_IRQn); //enable all interrupts that could use the Lora DMA
 		HAL_NVIC_EnableIRQ(TIM22_IRQn); //enable all interrupts that could use the Lora DMA
 		HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn); //enable all interrupts that could use the Lora DMA
 	}
@@ -636,7 +636,7 @@ bool lora_send(volatile uint8_t* data, uint8_t length, DMA_HandleTypeDef * hdma_
     HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable all interrupts that could use the Lora DMA
     HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable all interrupts that could use the Lora DMA
     HAL_NVIC_DisableIRQ(TIM22_IRQn);
-    HAL_NVIC_DisableIRQ(TIM2_IRQn);
+    HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
 
     lora_dma_write_send(sendfifo_offset_send, hdma_usart_tx, huart, 3, 0); //send
 
@@ -776,9 +776,12 @@ void setup_lora_send_timer(TIM_HandleTypeDef * htim, uint32_t lora_send_time){
 	//time * (APB2Tim_clock / (Prescaler + 1) / (Period + 1)) = 1
 	// (time * APB2Tim_clock) = ((Prescaler + 1) * (Period + 1))
 
-	val = lora_send_time / 100 * 32 * 1000000; // /100 is for ms conversion 10^6 is M
-	period = 64 * 1000; //64000, almost max value
-	prescaler = val / period;
+//	val = lora_send_time / 100 * 32 * 1000000; // /100 is for ms conversion 10^6 is M
+//	period = 64 * 1000; //64000, almost max value
+//	prescaler = val / period;
+	uint64_t wide_val = ((uint64_t)lora_send_time * 32000000ULL) / 1000ULL;
+	period = 64000;
+	prescaler = (uint32_t)(wide_val / (period + 1)) - 1;
 
 	htim->Init.Prescaler = prescaler;
 	htim->Init.Period = period;
