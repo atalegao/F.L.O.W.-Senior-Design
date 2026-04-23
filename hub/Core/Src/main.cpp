@@ -123,7 +123,7 @@ static void MX_TIM6_Init(void);
 static void MX_TIM21_Init(void);
 void MX_SPI1_ReInit(uint32_t scaler);
 /* USER CODE BEGIN PFP */
-void ESP_SendAlert(int nodeId, uint32_t distance);
+void ESP_SendAlert(void);
 void ProcessLoRaMessage(char* msg);
 /* USER CODE END PFP */
 
@@ -146,6 +146,7 @@ uint8_t self_addr [ADDR_LENGTH];
 volatile uint8_t buff [MESH_MAX_MESSAGE_LENGTH] __attribute__((aligned(4)));
 volatile bool done_with_usb_ttl_setup = false;
 uint8_t message [64];
+extern bool floodImminent;
 
 volatile bool banned_addr1_valid;
 volatile bool banned_addr2_valid;
@@ -412,7 +413,7 @@ int main(void)
 
       handle_send_hello();
             //setup_lora_send_timer(&htim6, 0x000004FF);
-      ESP_SendAlert(1, 120);
+      ESP_SendAlert();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -430,10 +431,10 @@ int main(void)
 	         HAL_GPIO_WritePin(PB14_LED_GPIO_Port, PB14_LED_Pin, GPIO_PIN_RESET);
 
 	     }
-//	  if(threshold_met)
-//	  {
-//
-//	  }
+	  if(floodImminent)
+	  {
+		  ESP_SendAlert();
+	  }
 	  //following is to change polling
 	  if (new_freq_flag)
 	  {
@@ -1132,10 +1133,11 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 
 }
 
-void ESP_SendAlert(int nodeId, uint32_t distance)
+void ESP_SendAlert()
 {
   char buf[64];
-  snprintf(buf, sizeof(buf), "FLOOD:%d:%lu\n", nodeId, distance);
+  //snprintf(buf, sizeof(buf), "FLOOD:%d:%lu\n", nodeId, distance);
+  snprintf(buf, sizeof(buf), "FLOOD IMMINENT. 60% of nodes are above threshold");
   HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
 }
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)

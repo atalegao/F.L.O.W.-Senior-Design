@@ -7,16 +7,18 @@
 /*
  * ui_def.h
  */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 #ifndef INC_UI_DEF_H_
 #define INC_UI_DEF_H_
 
 #define MAX_NODES 10
 #define MAX_PHONES 10
 #define PHONE_LEN 16
-#define HISTORY_LEN 10
+#define HISTORY_LEN 5
 #define KEYPAD_H 2
 
 
@@ -55,6 +57,7 @@ typedef struct {
 
     WaterSample history[HISTORY_LEN];
     uint8_t historyIndex;
+
 } Node;
 
 extern ScreenState currentScreen;
@@ -77,10 +80,12 @@ void drawKeypad(void);
 void ftoa(float n, char* res, int afterpoint);
 int intToStr(int x, char str[], int d);
 void reverse(char* str, int len);
-void updateNodeData(uint16_t node_id, float water_height, uint32_t timestamp, float battery);
+void updateNodeData(uint16_t node_id, float water_height, uint32_t timestamp, float battery, bool status);
+void updateFloodStatus(void);
 
 
 #endif
+
 #ifdef __cplusplus
 }
 #endif

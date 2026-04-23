@@ -1,7 +1,8 @@
 #include "main.h"
 #include "mesh.h"
 #include <string.h>
-//#include "ui_def.h"
+#include "ui_api.h"
+
 
 extern volatile RTC_TimeTypeDef current_time;
 extern volatile RTC_DateTypeDef current_date;
@@ -1088,6 +1089,60 @@ bool mesh_rec_dead(volatile uint8_t * data, uint8_t * send_addr, uint8_t * messa
 
 	if(isHub){//TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 		//update mem
+		uint8_t dead_addr [ADDR_LENGTH];
+			//lora_read_fifo_all(dead_addr, ADDR_LENGTH, false, hdma_usart_tx, huart);
+			uint8_t i = ADDR_LENGTH + 4 + 1 + ADDR_LENGTH;
+			uint8_t k = 0;
+			while(k < ADDR_LENGTH){
+				dead_addr[k] = data[i];
+				i += 1;
+				k += 1;
+			}
+
+			uint8_t dead_since [6];
+			//lora_read_fifo_all(dead_since, 6, false, hdma_usart_tx, huart);//get dead_since
+			k = 0;
+			while(k < 6){
+				dead_since[k] = data[i];
+				i += 1;
+				k += 1;
+			}
+
+			uint8_t battery [BATTERY_LENGTH * 2];
+			//lora_read_fifo_all(battery, BATTERY_LENGTH * 2, false, hdma_usart_tx, huart);//get battery
+			k = 0;
+			while(k < (BATTERY_LENGTH * 2)){
+				battery[k] = data[i];
+				i += 1;
+				k += 1;
+			}
+
+			uint8_t dest_addr [ADDR_LENGTH];
+			find_dest_addr_to_hub(dest_addr, 1);//find addr closer to hub, 1st attempt
+
+			uint8_t crc [1];
+			//lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);//get battery
+			crc[0] = data[i];
+
+			//check crc
+			bool good1 = calc_even_with_crc(&dead_addr[0], 1, (crc[0] & (0x1 << 0)));
+			bool good2 = calc_even_with_crc(&dead_addr[1], 1, (crc[0] & (0x1 << 1)));
+			bool good3 = calc_even_with_crc(&dead_since[0], 1, (crc[0] & (0x1 << 2)));
+			bool good4 = calc_even_with_crc(&dead_since[1], 1, (crc[0] & (0x1 << 3)));
+			bool good5 = calc_even_with_crc(&dead_since[2], 1, (crc[0] & (0x1 << 4)));
+			bool good6 = calc_even_with_crc(&dead_since[3], 1, (crc[0] & (0x1 << 5)));
+			bool good7 = calc_even_with_crc(&dead_since[0], 1, (crc[0] & (0x1 << 6)));
+			bool good8 = calc_even_with_crc(&dead_since[1], 1, (crc[0] & (0x1 << 7)));
+			if(!(good1 & good2 & good3 & good4 & good5 & good6 & good7 & good8 )){
+				//crc error, send a special ack: attempt = 0
+				uint32_t new_id;
+				memcpy(&new_id, message_id, sizeof(uint32_t));
+				mesh_send_ack(send_addr, new_id, 0, hdma_usart_tx, huart);
+				return false;
+			}
+		    uint16_t node_id = (dead_addr[0] << 8) | dead_addr[1];
+
+		    //updateNodeData(node_id, 0, 0, 0, 0);
 
 		//dest addr is node in any direction??????
 		 //mesh_send_ack(uint8_t * dest_addr, message_id, hdma_usart_tx, huart);//send ack
@@ -1589,76 +1644,76 @@ int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_
 
 	return i;
 }
-bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, uint8_t attempt, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){ //done
-	//sending time, water distance, node addr that took data, battery level/status
-
-	//message is dest_addr, message_id, message_type, sending_addr, node addr that took data, time, water distance, battery status/level
-	int i = 0;
-	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH + 1]; //19 + 1 crc
-	//crc is 6 time, water, battery
-	uint8_t crc_byte = 0;
-	bool even;
-
-	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_DATA);
-	int j = 0;
-	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH){ //addr that took data
-		message[i] = node_addr[j];
-		i += 1;
-		j += 1;
-	}
-
-	//time
-	message[i] = time[0];//current_time.Hours;
-	even = calc_crc(&time[0], 1);
-	crc_byte |= (!even) << 0;
-	i += 1;
-	message[i] = time[1];//current_time.Minutes;
-	even = calc_crc(&time[1], 1);
-	crc_byte |= (!even) << 1;
-	i += 1;
-	message[i] = time[2];//current_time.Seconds;
-	even = calc_crc(&time[2], 1);
-	crc_byte |= (!even) << 2;
-	i += 1;
-	message[i] = time[3];//current_date.Month;
-	even = calc_crc(&time[3], 1);
-	crc_byte |= (!even) << 3;
-	i += 1;
-	message[i] = time[4];//current_date.Date;
-	even = calc_crc(&time[4], 1);
-	crc_byte |= (!even) << 4;
-	i += 1;
-	message[i] = time[5];//current_date.Year;
-	even = calc_crc(&time[5], 1);
-	crc_byte |= (!even) << 5;
-	i += 1;
-
-	j = 0;
-	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH){ //water distance
-		message[i] = water_height[j];
-		even = calc_crc(&water_height[j], 1);
-		crc_byte |= (!even) << (6 + j);
-		i += 1;
-		j += 1;
-	}
-
-	j = 0;
-	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH){ //battery status
-		message[i] = battery_status[j];
-		even = calc_crc(&battery_status[j], 1);
-		crc_byte |= (!even) << (7 + j);
-		i += 1;
-		j += 1;
-	}
-
-	message[i] = crc_byte;
-
-	bool good;
-	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH + 1), MESH_MSG_DATA);
-	good = add_one_send_to_sending_buffer(entry);
-	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
-	return good;
-}
+//bool mesh_send_data(uint8_t * message_id, uint8_t * dest_addr, uint8_t* water_height, uint8_t *battery_status, uint8_t * node_addr, uint8_t * time, uint8_t attempt, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){ //done
+//	//sending time, water distance, node addr that took data, battery level/status
+//
+//	//message is dest_addr, message_id, message_type, sending_addr, node addr that took data, time, water distance, battery status/level
+//	int i = 0;
+//	uint8_t message [ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH + 1]; //19 + 1 crc
+//	//crc is 6 time, water, battery
+//	uint8_t crc_byte = 0;
+//	bool even;
+//
+//	i = mesh_send_add_header(message, message_id, dest_addr, MESH_MSG_DATA);
+//	int j = 0;
+//	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH){ //addr that took data
+//		message[i] = node_addr[j];
+//		i += 1;
+//		j += 1;
+//	}
+//
+//	//time
+//	message[i] = time[0];//current_time.Hours;
+//	even = calc_crc(&time[0], 1);
+//	crc_byte |= (!even) << 0;
+//	i += 1;
+//	message[i] = time[1];//current_time.Minutes;
+//	even = calc_crc(&time[1], 1);
+//	crc_byte |= (!even) << 1;
+//	i += 1;
+//	message[i] = time[2];//current_time.Seconds;
+//	even = calc_crc(&time[2], 1);
+//	crc_byte |= (!even) << 2;
+//	i += 1;
+//	message[i] = time[3];//current_date.Month;
+//	even = calc_crc(&time[3], 1);
+//	crc_byte |= (!even) << 3;
+//	i += 1;
+//	message[i] = time[4];//current_date.Date;
+//	even = calc_crc(&time[4], 1);
+//	crc_byte |= (!even) << 4;
+//	i += 1;
+//	message[i] = time[5];//current_date.Year;
+//	even = calc_crc(&time[5], 1);
+//	crc_byte |= (!even) << 5;
+//	i += 1;
+//
+//	j = 0;
+//	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH){ //water distance
+//		message[i] = water_height[j];
+//		even = calc_crc(&water_height[j], 1);
+//		crc_byte |= (!even) << (6 + j);
+//		i += 1;
+//		j += 1;
+//	}
+//
+//	j = 0;
+//	while(i < ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH){ //battery status
+//		message[i] = battery_status[j];
+//		even = calc_crc(&battery_status[j], 1);
+//		crc_byte |= (!even) << (7 + j);
+//		i += 1;
+//		j += 1;
+//	}
+//
+//	message[i] = crc_byte;
+//
+//	bool good;
+//	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH + 1), MESH_MSG_DATA);
+//	good = add_one_send_to_sending_buffer(entry);
+//	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH +  6 + WATER_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
+//	return good;
+//}
 
 void message_id_init(message_id_history message){
 	//this makes a message_id struct have default values
@@ -2124,7 +2179,7 @@ bool mesh_rec_data(volatile uint8_t * data, uint8_t * send_addr, uint8_t * messa
 		    float battery = (float)battery_status[0];
 
 
-		    updateNodeData(node_id, water, time, battery);
+		    UI_UpdateNode(node_id, water, time, battery, 1);
 		    uint32_t new_id;
 		    memcpy(&new_id, message_id, sizeof(uint32_t));
 		    mesh_send_ack(send_addr, new_id, 1, hdma_usart_tx, huart);
@@ -2132,72 +2187,72 @@ bool mesh_rec_data(volatile uint8_t * data, uint8_t * send_addr, uint8_t * messa
 		    return true;
 	}
 	else{ //is a node
-		uint8_t dest_addr [ADDR_LENGTH];
-		find_dest_addr_to_hub(dest_addr, 1);//figure out which node to send it to, first attempt
-
-		//get water height, battery_status, and node_addr
-		uint8_t node_addr [ADDR_LENGTH];
-		//lora_read_fifo_all(node_addr, ADDR_LENGTH, false, hdma_usart_tx, huart);
-		uint8_t i = ADDR_LENGTH + 4 + 1 + ADDR_LENGTH;
-		uint8_t k = 0;
-		while(k < ADDR_LENGTH){
-			node_addr[k] = data[i];
-			i += 1;
-			k += 1;
-		}
-
-		uint8_t time [6];
-		//lora_read_fifo_all(time, 6, false, hdma_usart_tx, huart);
-		k = 0;
-		while(k < 6){
-			time[k] = data[i];
-			i += 1;
-			k += 1;
-		}
-
-		uint8_t water_height [WATER_LENGTH];
-		//lora_read_fifo_all(water_height, WATER_LENGTH, false, hdma_usart_tx, huart);
-		k = 0;
-		while(k < WATER_LENGTH){
-			water_height[k] = data[i];
-			i += 1;
-			k += 1;
-		}
-
-		uint8_t battery_status [BATTERY_LENGTH];
-		//lora_read_fifo_all(battery_status, BATTERY_LENGTH, false, hdma_usart_tx, huart);
-		k = 0;
-		while(k < BATTERY_LENGTH){
-			battery_status[k] = data[i];
-			i += 1;
-			k += 1;
-		}
-
-		uint8_t crc [1];
-		//lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);
-		crc[0] = data[i];
-		//check crc
-
-		bool good1 = calc_even_with_crc(&time[0], 1, (crc[0] & (0x1 << 0)));
-		bool good2 = calc_even_with_crc(&time[1], 1, (crc[0] & (0x1 << 1)));
-		bool good3 = calc_even_with_crc(&time[2], 1, (crc[0] & (0x1 << 2)));
-		bool good4 = calc_even_with_crc(&time[3], 1, (crc[0] & (0x1 << 3)));
-		bool good5 = calc_even_with_crc(&time[4], 1, (crc[0] & (0x1 << 4)));
-		bool good6 = calc_even_with_crc(&time[5], 1, (crc[0] & (0x1 << 5)));
-		bool good7 = calc_even_with_crc(&water_height[0], 1, (crc[0] & (0x1 << 6)));
-		bool good8 = calc_even_with_crc(&battery_status[0], 1, (crc[0] & (0x1 << 7)));
-		if(!(good1 & good2 & good3 & good4 & good5 & good6 & good7 & good8)){
-			//crc error, send a special ack: attempt = 0
-			uint32_t new_id;
-			memcpy(&new_id, message_id, sizeof(uint32_t));
-			mesh_send_ack(send_addr, new_id, 0, hdma_usart_tx, huart);
-			return false;
-		}
-
-		//pass on data
-		bool good = mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time,1, hdma_usart_tx, huart);
-		//send_usb_ttl_message(true, MESH_MSG_DATA, message_id, 1, dest_addr, &huart1);
-		return good;
+//		uint8_t dest_addr [ADDR_LENGTH];
+//		find_dest_addr_to_hub(dest_addr, 1);//figure out which node to send it to, first attempt
+//
+//		//get water height, battery_status, and node_addr
+//		uint8_t node_addr [ADDR_LENGTH];
+//		//lora_read_fifo_all(node_addr, ADDR_LENGTH, false, hdma_usart_tx, huart);
+//		uint8_t i = ADDR_LENGTH + 4 + 1 + ADDR_LENGTH;
+//		uint8_t k = 0;
+//		while(k < ADDR_LENGTH){
+//			node_addr[k] = data[i];
+//			i += 1;
+//			k += 1;
+//		}
+//
+//		uint8_t time [6];
+//		//lora_read_fifo_all(time, 6, false, hdma_usart_tx, huart);
+//		k = 0;
+//		while(k < 6){
+//			time[k] = data[i];
+//			i += 1;
+//			k += 1;
+//		}
+//
+//		uint8_t water_height [WATER_LENGTH];
+//		//lora_read_fifo_all(water_height, WATER_LENGTH, false, hdma_usart_tx, huart);
+//		k = 0;
+//		while(k < WATER_LENGTH){
+//			water_height[k] = data[i];
+//			i += 1;
+//			k += 1;
+//		}
+//
+//		uint8_t battery_status [BATTERY_LENGTH];
+//		//lora_read_fifo_all(battery_status, BATTERY_LENGTH, false, hdma_usart_tx, huart);
+//		k = 0;
+//		while(k < BATTERY_LENGTH){
+//			battery_status[k] = data[i];
+//			i += 1;
+//			k += 1;
+//		}
+//
+//		uint8_t crc [1];
+//		//lora_read_fifo_all(crc, 1, false, hdma_usart_tx, huart);
+//		crc[0] = data[i];
+//		//check crc
+//
+//		bool good1 = calc_even_with_crc(&time[0], 1, (crc[0] & (0x1 << 0)));
+//		bool good2 = calc_even_with_crc(&time[1], 1, (crc[0] & (0x1 << 1)));
+//		bool good3 = calc_even_with_crc(&time[2], 1, (crc[0] & (0x1 << 2)));
+//		bool good4 = calc_even_with_crc(&time[3], 1, (crc[0] & (0x1 << 3)));
+//		bool good5 = calc_even_with_crc(&time[4], 1, (crc[0] & (0x1 << 4)));
+//		bool good6 = calc_even_with_crc(&time[5], 1, (crc[0] & (0x1 << 5)));
+//		bool good7 = calc_even_with_crc(&water_height[0], 1, (crc[0] & (0x1 << 6)));
+//		bool good8 = calc_even_with_crc(&battery_status[0], 1, (crc[0] & (0x1 << 7)));
+//		if(!(good1 & good2 & good3 & good4 & good5 & good6 & good7 & good8)){
+//			//crc error, send a special ack: attempt = 0
+//			uint32_t new_id;
+//			memcpy(&new_id, message_id, sizeof(uint32_t));
+//			mesh_send_ack(send_addr, new_id, 0, hdma_usart_tx, huart);
+//			return false;
+//		}
+//
+//		//pass on data
+//		bool good = mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time,1, hdma_usart_tx, huart);
+//		//send_usb_ttl_message(true, MESH_MSG_DATA, message_id, 1, dest_addr, &huart1);
+//		return good;
 
 	}
 	return false;

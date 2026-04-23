@@ -7,18 +7,20 @@
 /*
  * ui_def.cpp
  */
+
+
 #include "ui_def.h"
 #include <string.h>
 #include <math.h>
 
-
+#define WATER_THRESHOLD 120 //mm
 ScreenState currentScreen;
 
 Node nodes[MAX_NODES];
 uint16_t nodeCount = 0;
 
-char phoneNumbers[MAX_PHONES][PHONE_LEN];
-uint16_t phoneCount = 0;
+static uint8_t nodeAboveThreshold[MAX_NODES];
+
 volatile uint16_t freq_req = 120;
 volatile bool new_freq_flag = false;
 
@@ -28,7 +30,7 @@ volatile bool change_polling = false;
 Node* activeNode = NULL;
 uint8_t node_screen = 1;
 
-bool floodImminent = false;
+volatile bool floodImminent = false;
 bool disp_ok = false;
 
 
@@ -38,8 +40,8 @@ Button backBtn  = {630, 380, 150, 80, "BACK", RA8875_GREEN};
 Button addPhoneBtn = {300, 380, 300, 80, "Add Phone", RA8875_GREEN};
 Button saveBtn = {550, 20, 200, 80, "Save", RA8875_GREEN};
 Button historyBtn = {300, 320, 250, 80, "History", RA8875_BLUE};
-Button upBtn = {630, 280, 100, 80, "UP", RA8875_YELLOW};
-Button downBtn = {630, 400, 100, 80, "DWN", RA8875_YELLOW};
+Button upBtn = {630, 180, 100, 80, "UP", RA8875_YELLOW};
+Button downBtn = {630, 300, 100, 80, "DWN", RA8875_YELLOW};
 Button incBtn = {400, 180, 100, 80, "+", RA8875_BLUE};
 Button decBtn = {400, 300, 100, 80, "-", RA8875_BLUE};
 Button okBtn = {500, 300, 100, 80, "OK", RA8875_BLUE};
@@ -155,10 +157,21 @@ void drawNodeDetail(Node* n) {
     // Battery
     tft->textSetCursor(50, 230);
     tft->textWrite("Battery status:");
-
     tft->textSetCursor(400, 230);
-    ftoa(n->batteryPercent, buf, 1);
-    tft->textWrite(buf);
+    if(n->batteryPercent <= 0.2)
+    {
+        tft->textWrite("Battery low");
+
+    }else if(n->batteryPercent > 0.2)
+    {
+        tft->textWrite("Battery Good");
+
+    }else
+    {
+        tft->textWrite("No Data");
+
+    }
+
 
 
 
@@ -176,6 +189,7 @@ void drawNodeHistory(Node* n)
 
     tft->textMode();
     tft->textSetCursor(250, 20);
+    tft->textTransparent(RA8875_WHITE);
     tft->textWrite("History");
 
     for (int i = 0; i < n->historyIndex && i < HISTORY_LEN; i++)
@@ -392,7 +406,7 @@ void uiHandleTouch(uint16_t x, uint16_t y) {
 
 }
 
-void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float battery)
+void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float battery, bool status)
 {
     int found = 0;
 
@@ -407,9 +421,11 @@ void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float batt
             n->latestTimestamp = timestamp;
             n->batteryPercent = battery;
 
+
             // store in circular history buffer
             n->history[n->historyIndex].waterHeight = water;
             n->history[n->historyIndex].timestamp = timestamp;
+
 
             n->historyIndex = (n->historyIndex + 1) % HISTORY_LEN;
             found = 1;
@@ -426,6 +442,8 @@ void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float batt
 
             nodeCount++;
         }
+    updateFloodStatus();
+
 
 }
 void addNode(uint8_t id, const char* name, const char* status) {
@@ -448,13 +466,40 @@ void addNode(uint8_t id, const char* name, const char* status) {
     nodeCount++;
 }
 
-void addPhone(const char* number) {
-    if (phoneCount >= MAX_PHONES) return;
+//void addPhone(const char* number) {
+//    if (phoneCount >= MAX_PHONES) return;
+//
+//    strncpy(phoneNumbers[phoneCount], number, PHONE_LEN);
+//    phoneCount++;
+//}
+void updateFloodStatus(void)
+{
+    int above = 0;
+    int validNodes = nodeCount;
 
-    strncpy(phoneNumbers[phoneCount], number, PHONE_LEN);
-    phoneCount++;
+    for (int i = 0; i < nodeCount; i++)
+    {
+        if (nodes[i].latestWaterHeight >= WATER_THRESHOLD)
+        {
+            nodeAboveThreshold[i] = 1;
+            above++;
+        }
+        else
+        {
+            nodeAboveThreshold[i] = 0;
+        }
+    }
+
+    if (validNodes == 0)
+    {
+        floodImminent = false;
+        return;
+    }
+
+    float ratio = (float)above / (float)validNodes;
+
+    floodImminent = (ratio >= 0.60f);
 }
-
 void uiInit(Adafruit_RA8875* display) {
     tft = display;
 
@@ -462,12 +507,12 @@ void uiInit(Adafruit_RA8875* display) {
     addNode(2, "Node 2", "Water Low");
     addNode(3, "Node 3", "Water High");
     addNode(4, "Node 4", "Water Low");
-//    addNode(5, "Node 5", "Water High");
-//    addNode(6, "Node 6", "Water Low");
-//    addNode(7, "Node 7", "Water High");
-//    addNode(8, "Node 8", "Water Low");
-//    addNode(9, "Node 9", "Water High");
-//    addNode(10, "Node 10", "Water Low");
+    addNode(5, "Node 5", "Water High");
+    addNode(6, "Node 6", "Water Low");
+    addNode(7, "Node 7", "Water High");
+    addNode(8, "Node 8", "Water Low");
+    addNode(9, "Node 9", "Water High");
+    addNode(10, "Node 10", "Water Low");
     drawHome();
 }
 //from geeksforgeeks
@@ -529,4 +574,5 @@ void ftoa(float n, char* res, int afterpoint)
         intToStr((int)fpart, res + i + 1, afterpoint);
     }
 }
+
 
