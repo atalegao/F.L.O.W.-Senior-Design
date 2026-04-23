@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-// Initialize UI system (call once at boot)
+// Initialize _ system (call once at boot)
 void UI_Init(void);
 
 // Update node data from mesh / sensors

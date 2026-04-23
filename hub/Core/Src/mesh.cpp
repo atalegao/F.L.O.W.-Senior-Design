@@ -2,6 +2,7 @@
 #include "mesh.h"
 #include <string.h>
 #include "ui_api.h"
+#include "ui_def.h"
 
 
 extern volatile RTC_TimeTypeDef current_time;
@@ -290,27 +291,27 @@ void check_node_deads(time_t current_time_s){
 	//goes through each neighbor node and figures out if it is past the time to send a node dead message for it
 	double diff_seconds = difftime(current_time_s, neighbor_to_hub1.last_seen);
 	if((diff_seconds > DEAD_MESSAGE_THRESHOLD) & neighbor_to_hub1.valid){
-		handle_node_dead_send(neighbor_to_hub1);//send node dead message for it
+		handle_node_dead_send(&neighbor_to_hub1);//send node dead message for it
 	}
 	double diff_seconds2 = difftime(current_time_s, neighbor_to_hub2.last_seen);
 	if((diff_seconds2 > DEAD_MESSAGE_THRESHOLD) & neighbor_to_hub2.valid){
-		handle_node_dead_send(neighbor_to_hub2);//send node dead message for it
+		handle_node_dead_send(&neighbor_to_hub2);//send node dead message for it
 	}
 	double diff_seconds3 = difftime(current_time_s, neighbor_to_hub3.last_seen);
 	if((diff_seconds3 > DEAD_MESSAGE_THRESHOLD) & neighbor_to_hub3.valid){
-		handle_node_dead_send(neighbor_to_hub3);//send node dead message for it
+		handle_node_dead_send(&neighbor_to_hub3);//send node dead message for it
 	}
 	double diff_seconds4 = difftime(current_time_s, neighbor_away_hub1.last_seen);
 	if((diff_seconds4 > DEAD_MESSAGE_THRESHOLD) & neighbor_away_hub1.valid){
-		handle_node_dead_send(neighbor_away_hub1);//send node dead message for it
+		handle_node_dead_send(&neighbor_away_hub1);//send node dead message for it
 	}
 	double diff_seconds5 = difftime(current_time_s, neighbor_away_hub2.last_seen);
 	if((diff_seconds5 > DEAD_MESSAGE_THRESHOLD) & neighbor_away_hub2.valid){
-		handle_node_dead_send(neighbor_away_hub2);//send node dead message for it
+		handle_node_dead_send(&neighbor_away_hub2);//send node dead message for it
 	}
 	double diff_seconds6 = difftime(current_time_s, neighbor_away_hub3.last_seen);
 	if((diff_seconds6 > DEAD_MESSAGE_THRESHOLD) & neighbor_away_hub3.valid){
-		handle_node_dead_send(neighbor_away_hub3);//send node dead message for it
+		handle_node_dead_send(&neighbor_away_hub3);//send node dead message for it
 	}
 }
 
@@ -326,7 +327,7 @@ void convert_time_t_to_dead_since(time_t time, uint8_t *dead_since) {
     dead_since[5] = (uint8_t)(timeinfo->tm_year % 100); // Year
 }
 
-void handle_node_dead_send(mesh_neighbor neighbor){
+void handle_node_dead_send(volatile mesh_neighbor * neighbor){
 	uint8_t dest_addr[ADDR_LENGTH];
 	find_dest_addr_to_hub(dest_addr, 1);
 
@@ -338,9 +339,9 @@ void handle_node_dead_send(mesh_neighbor neighbor){
 	uint8_t battery [BATTERY_LENGTH];
 
 	uint8_t dead_since [6];
-	convert_time_t_to_dead_since(neighbor.last_seen, dead_since);
+	convert_time_t_to_dead_since(neighbor->last_seen, dead_since);
 
-	mesh_send_dead(dest_addr, neighbor.addr, dead_since, battery,  message_id_actual, 1, &hdma_usart2_tx,  &huart2);
+	mesh_send_dead(dest_addr, neighbor->addr, dead_since, battery,  message_id_actual, 1, &hdma_usart2_tx,  &huart2);
 }
 
 void handle_one_resending(time_t current_time, volatile sent_message_buff_entry * sent_message){
@@ -367,12 +368,12 @@ void handle_one_resending(time_t current_time, volatile sent_message_buff_entry 
 			sent_message->entry.message[i] = dest_addr[i]; //since dest addr is always the first bytes
 			i += 1;
 		}
-		add_one_send_to_sending_buffer(sent_message->entry);
+		add_one_send_to_sending_buffer(&sent_message->entry);
 		sent_message->entry.valid = false;
 	}
 }
 
-bool add_one_send_to_sending_buffer(sending_buffer_entry new_entry){
+bool add_one_send_to_sending_buffer(volatile sending_buffer_entry * new_entry){
 	//uint8_t send_buffer_add_index; //is where to add the next message (counts up)
 	//uint8_t send_buffer_send_index;
 
@@ -386,12 +387,12 @@ bool add_one_send_to_sending_buffer(sending_buffer_entry new_entry){
 		sending_buffer_at_add_index->valid = true;
 		int i = 0;
 		while (i < MESH_MAX_MESSAGE_LENGTH){
-			sending_buffer_at_add_index->message[i] = new_entry.message[i];
+			sending_buffer_at_add_index->message[i] = new_entry->message[i];
 			i += 1;
 		}
-		sending_buffer_at_add_index->length = new_entry.length;
-		sending_buffer_at_add_index->attempt = new_entry.attempt;
-		sending_buffer_at_add_index->type = new_entry.type;
+		sending_buffer_at_add_index->length = new_entry->length;
+		sending_buffer_at_add_index->attempt = new_entry->attempt;
+		sending_buffer_at_add_index->type = new_entry->type;
 
 
 		send_buffer_add_index += 1;
@@ -461,21 +462,21 @@ time_t get_time_in_seconds(volatile RTC_TimeTypeDef *time, volatile RTC_DateType
 	return mktime(&tim);
 }
 
-void init_one_neighbor(mesh_neighbor node){
-	node.addr[0] = 0;
-	node.addr[1] = 0;
-	node.battery[0] = 0;
-	node.last_seen = 0;
-	node.valid = false;
+void init_one_neighbor(volatile mesh_neighbor * node){
+	node->addr[0] = 0;
+	node->addr[1] = 0;
+	node->battery[0] = 0;
+	node->last_seen = 0;
+	node->valid = false;
 }
 // 1 is closest to this node, 3 is farthest from this node
 void init_neighbors(){
-	init_one_neighbor(neighbor_to_hub1);
-	init_one_neighbor(neighbor_to_hub2);
-	init_one_neighbor(neighbor_to_hub3);
-	init_one_neighbor(neighbor_away_hub1);
-	init_one_neighbor(neighbor_away_hub2);
-	init_one_neighbor(neighbor_away_hub3);
+	init_one_neighbor(&neighbor_to_hub1);
+	init_one_neighbor(&neighbor_to_hub2);
+	init_one_neighbor(&neighbor_to_hub3);
+	init_one_neighbor(&neighbor_away_hub1);
+	init_one_neighbor(&neighbor_away_hub2);
+	init_one_neighbor(&neighbor_away_hub3);
 }
 
 bool check_addr_closer_to_hub(volatile uint8_t * first_addr,volatile uint8_t * second_addr){
@@ -740,7 +741,7 @@ bool mesh_send_hello(uint8_t * battery, DMA_HandleTypeDef * hdma_usart_tx, UART_
 
 	bool good;
 	sending_buffer_entry entry = make_sending_buffer_entry(message, 1, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH + 1), MESH_MSG_HELLO);
-	good = add_one_send_to_sending_buffer(entry);
+	good = add_one_send_to_sending_buffer(&entry);
 	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + BATTERY_LENGTH), hdma_usart_tx, huart);
 	////send_usb_ttl_message(true, MESH_MSG_HELLO, message_id_actual, 1, dest_addr, huart1);
 	return good;
@@ -802,26 +803,26 @@ bool add_new_neighbor_node(uint8_t * sending_addr, uint8_t * battery){
 	bool addr2_valid;
 	bool addr3_valid;
 
-	mesh_neighbor new[1]; //make new mesh_neighbor struct
-	new->valid = true;
+	mesh_neighbor new1[1]; //make new mesh_neighbor struct
+	new1->valid = true;
 	int i = 0;
 	while(i < ADDR_LENGTH){
-		new->addr[i] = sending_addr[i];
+		new1->addr[i] = sending_addr[i];
 		i += 1;
 	}
 	i = 0;
 	while(i < BATTERY_LENGTH * 2){
-		new->battery[i] = battery[i];
+		new1->battery[i] = battery[i];
 		i += 1;
 	}
 	get_timestamp();//updates current time and date
-	new->last_seen = 0;
-	new->last_seen |= (uint64_t) current_time.Seconds;
-	new->last_seen |= (uint64_t) current_time.Minutes << (8*1);
-	new->last_seen |= (uint64_t) current_time.Hours << (8*2);
-	new->last_seen |= (uint64_t) current_date.Date << (8*3);
-	new->last_seen |= (uint64_t) current_date.Month << (8*4);
-	new->last_seen |= (uint64_t) current_date.Year << (8*5);//end make new mesh_neighbor struct
+	new1->last_seen = 0;
+	new1->last_seen |= (uint64_t) current_time.Seconds;
+	new1->last_seen |= (uint64_t) current_time.Minutes << (8*1);
+	new1->last_seen |= (uint64_t) current_time.Hours << (8*2);
+	new1->last_seen |= (uint64_t) current_date.Date << (8*3);
+	new1->last_seen |= (uint64_t) current_date.Month << (8*4);
+	new1->last_seen |= (uint64_t) current_date.Year << (8*5);//end make new mesh_neighbor struct
 
 	i = 0;
 	if(closer_to_hub){//handle if closer to hub
@@ -844,50 +845,50 @@ bool add_new_neighbor_node(uint8_t * sending_addr, uint8_t * battery){
 		addr3_valid = neighbor_to_hub3.valid;
 		uint8_t num_valid = addr3_valid + addr1_valid + addr2_valid;
 		if(num_valid == 0){//replace 1
-			replace_neighbor_node(&neighbor_to_hub1,new);
+			replace_neighbor_node(&neighbor_to_hub1,new1);
 			return true;
 		}
 		else if(num_valid == 1){//figure out whether to place at 1 or 2
-			if(check_addr_closer_to_hub(new->addr, addr1)){//if new is closer to hub than neighbor_to_hub1, place at 2
-				replace_neighbor_node(&neighbor_to_hub2,new);//place in 2nd spot
+			if(check_addr_closer_to_hub(new1->addr, addr1)){//if new is closer to hub than neighbor_to_hub1, place at 2
+				replace_neighbor_node(&neighbor_to_hub2,new1);//place in 2nd spot
 				return true;
 			}//was not closer to hub (so closer to node), move 1st to 2nd
 			replace_neighbor_node(&neighbor_to_hub2,&neighbor_to_hub1);//move 1st spot to 2nd
-			replace_neighbor_node(&neighbor_to_hub1,new);//move new to 1st
+			replace_neighbor_node(&neighbor_to_hub1,new1);//move new to 1st
 			return true;
 
 		}
 		else if(num_valid == 2){//figure out whether to place at 1 or 2 or 3
-			if(!check_addr_closer_to_hub(new->addr, addr1)){//if new is not closer to hub than neighbor_to_hub1, place at 1 and shift
+			if(!check_addr_closer_to_hub(new1->addr, addr1)){//if new is not closer to hub than neighbor_to_hub1, place at 1 and shift
 				replace_neighbor_node(&neighbor_to_hub3,&neighbor_to_hub2);
 				replace_neighbor_node(&neighbor_to_hub2,&neighbor_to_hub1);
-				replace_neighbor_node(&neighbor_to_hub1,new);
+				replace_neighbor_node(&neighbor_to_hub1,new1);
 				return true;
 			}
-			else if(!check_addr_closer_to_hub(new->addr, addr2)){//new is not closer to hub than 2, so shift and place at 2
+			else if(!check_addr_closer_to_hub(new1->addr, addr2)){//new is not closer to hub than 2, so shift and place at 2
 				replace_neighbor_node(&neighbor_to_hub3,&neighbor_to_hub2);
-				replace_neighbor_node(&neighbor_to_hub2,new);
+				replace_neighbor_node(&neighbor_to_hub2,new1);
 				return true;
 			}
 			else{
-				replace_neighbor_node(&neighbor_to_hub3,new);//place in 3rd spot
+				replace_neighbor_node(&neighbor_to_hub3,new1);//place in 3rd spot
 				return true;
 			}
 		}
 		else{//all 3 valid
-			if(check_addr_closer_to_hub(new->addr, addr3)){//if new is closer to hub than 3, so shift all and place at 3
+			if(check_addr_closer_to_hub(new1->addr, addr3)){//if new is closer to hub than 3, so shift all and place at 3
 				replace_neighbor_node(&neighbor_to_hub1,&neighbor_to_hub2);//move 2nd to 1st
 				replace_neighbor_node(&neighbor_to_hub2,&neighbor_to_hub3);//move 3rd to 2nd
-				replace_neighbor_node(&neighbor_to_hub3,new);//move new to 3
+				replace_neighbor_node(&neighbor_to_hub3,new1);//move new to 3
 				return true;
 			}
-			else if(check_addr_closer_to_hub(new->addr, addr2)){//if new is closer to hub than 2, so shift and place at 2
+			else if(check_addr_closer_to_hub(new1->addr, addr2)){//if new is closer to hub than 2, so shift and place at 2
 				replace_neighbor_node(&neighbor_to_hub1,&neighbor_to_hub2);//move 2nd to 1st
-				replace_neighbor_node(&neighbor_to_hub2,new);//move new to 2
+				replace_neighbor_node(&neighbor_to_hub2,new1);//move new to 2
 				return true;
 			}
-			else if(check_addr_closer_to_hub(new->addr, addr1)){//if new is closer to hub than 1, place at 1
-				replace_neighbor_node(&neighbor_to_hub1,new);//move new to 1
+			else if(check_addr_closer_to_hub(new1->addr, addr1)){//if new is closer to hub than 1, place at 1
+				replace_neighbor_node(&neighbor_to_hub1,new1);//move new to 1
 				return true;
 			}
 			else{//closest to node, so don't add
@@ -915,50 +916,50 @@ bool add_new_neighbor_node(uint8_t * sending_addr, uint8_t * battery){
 		addr3_valid = neighbor_away_hub3.valid;
 		uint8_t num_valid = addr1_valid + addr2_valid + addr3_valid;
 		if(num_valid == 0){//replace 1
-			replace_neighbor_node(&neighbor_away_hub1,new);
+			replace_neighbor_node(&neighbor_away_hub1,new1);
 			return true;
 		}
 		else if(num_valid == 1){//figure out whether to place at 1 or 2
-			if(check_addr_farther_from_hub(new->addr, addr1)){//if new is closer to hub than neighbor_to_hub1, place at 2
-				replace_neighbor_node(&neighbor_away_hub2,new);//place in 2nd spot
+			if(check_addr_farther_from_hub(new1->addr, addr1)){//if new is closer to hub than neighbor_to_hub1, place at 2
+				replace_neighbor_node(&neighbor_away_hub2,new1);//place in 2nd spot
 				return true;
 			}//was not closer to hub (so closer to node), move 1st to 2nd
 			replace_neighbor_node(&neighbor_away_hub2,&neighbor_away_hub1);//move 1st spot to 2nd
-			replace_neighbor_node(&neighbor_away_hub1,new);//move new to 1st
+			replace_neighbor_node(&neighbor_away_hub1,new1);//move new to 1st
 			return true;
 
 		}
 		else if(num_valid == 2){//figure out whether to place at 1 or 2 or 3
-			if(!check_addr_farther_from_hub(new->addr, addr1)){//if new is not closer to hub than neighbor_to_hub1, place at 1 and shift
+			if(!check_addr_farther_from_hub(new1->addr, addr1)){//if new is not closer to hub than neighbor_to_hub1, place at 1 and shift
 				replace_neighbor_node(&neighbor_away_hub3,&neighbor_away_hub2);
 				replace_neighbor_node(&neighbor_away_hub2,&neighbor_away_hub1);
-				replace_neighbor_node(&neighbor_away_hub1,new);
+				replace_neighbor_node(&neighbor_away_hub1,new1);
 				return true;
 			}
-			else if(!check_addr_farther_from_hub(new->addr, addr2)){//new is not closer to hub than 2, so shift and place at 2
+			else if(!check_addr_farther_from_hub(new1->addr, addr2)){//new is not closer to hub than 2, so shift and place at 2
 				replace_neighbor_node(&neighbor_away_hub3,&neighbor_away_hub2);
-				replace_neighbor_node(&neighbor_away_hub2,new);
+				replace_neighbor_node(&neighbor_away_hub2,new1);
 				return true;
 			}
 			else{
-				replace_neighbor_node(&neighbor_away_hub3,new);//place in 3rd spot
+				replace_neighbor_node(&neighbor_away_hub3,new1);//place in 3rd spot
 				return true;
 			}
 		}
 		else{//all 3 valid
-			if(check_addr_farther_from_hub(new->addr, addr3)){//if new is closer to hub than 3, so shift all and place at 3
+			if(check_addr_farther_from_hub(new1->addr, addr3)){//if new is closer to hub than 3, so shift all and place at 3
 				replace_neighbor_node(&neighbor_away_hub1,&neighbor_away_hub2);//move 2nd to 1st
 				replace_neighbor_node(&neighbor_away_hub2,&neighbor_away_hub3);//move 3rd to 2nd
-				replace_neighbor_node(&neighbor_away_hub3,new);//move new to 3
+				replace_neighbor_node(&neighbor_away_hub3,new1);//move new to 3
 				return true;
 			}
-			else if(check_addr_farther_from_hub(new->addr, addr2)){//if new is closer to hub than 2, so shift and place at 2
+			else if(check_addr_farther_from_hub(new1->addr, addr2)){//if new is closer to hub than 2, so shift and place at 2
 				replace_neighbor_node(&neighbor_away_hub1,&neighbor_away_hub2);//move 2nd to 1st
-				replace_neighbor_node(&neighbor_away_hub2,new);//move new to 2
+				replace_neighbor_node(&neighbor_away_hub2,new1);//move new to 2
 				return true;
 			}
-			else if(check_addr_farther_from_hub(new->addr, addr1)){//if new is closer to hub than 1, place at 1
-				replace_neighbor_node(&neighbor_away_hub1,new);//move new to 1
+			else if(check_addr_farther_from_hub(new1->addr, addr1)){//if new is closer to hub than 1, place at 1
+				replace_neighbor_node(&neighbor_away_hub1,new1);//move new to 1
 				return true;
 			}
 			else{//closest to node, so don't add
@@ -1077,7 +1078,7 @@ bool mesh_send_dead(uint8_t * dest_addr, volatile uint8_t * dead_addr, uint8_t *
 
 	bool good;
 	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2 + 1), MESH_MSG_DEAD);
-	good = add_one_send_to_sending_buffer(entry);
+	good = add_one_send_to_sending_buffer(&entry);
 	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 6 + BATTERY_LENGTH * 2), hdma_usart_tx, huart);
 	////send_usb_ttl_message(true, MESH_MSG_DEAD, message_id, attempt, dest_addr, huart1);
 	return good;
@@ -1257,7 +1258,7 @@ bool mesh_send_add(uint8_t * dest_addr,uint8_t * new_addr,uint8_t * coords, uint
 
 	bool good;
 	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2 + 1), MESH_MSG_ADD);
-	good = add_one_send_to_sending_buffer(entry);
+	good = add_one_send_to_sending_buffer(&entry);
 	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + ADDR_LENGTH + 4 + 2), hdma_usart_tx, huart);
 	////send_usb_ttl_message(true, MESH_MSG_ADD, message_id, attempt, dest_addr, huart1);
 	return good;
@@ -1419,7 +1420,7 @@ bool mesh_send_poll(uint8_t * dest_addr, uint8_t * message_id, uint32_t new_freq
 
 	bool good;
 	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4 + 1), MESH_MSG_POLL);
-	good = add_one_send_to_sending_buffer(entry);
+	good = add_one_send_to_sending_buffer(&entry);
 	//good = lora_send(message, (ADDR_LENGTH + 4 + 1 + ADDR_LENGTH + 4), hdma_usart_tx, huart);
 	////send_usb_ttl_message(true, MESH_MSG_POLL, message_id, attempt, dest_addr, huart1);
 	return good;
@@ -1511,63 +1512,63 @@ bool mesh_rec_ack(volatile uint8_t * data, uint8_t * send_addr, uint8_t * messag
 	if((crc[0] >> 7) & 0x1){//CRC error
 		//send the message again without incrementing attempt
 		bool matchd1, matchd2,  matchd3,  matchd4,  matchd5, matchd6, matchd7,  matchd8,  matchd9,  matchd10;
-		matchd1 = check_message_id_sent(sent_buffer.entry1, message_id);
+		matchd1 = check_message_id_sent(&sent_buffer.entry1, message_id);
 		if(matchd1){
-			add_one_send_to_sending_buffer(sent_buffer.entry1.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry1.entry);
 			sent_buffer.entry1.entry.valid = false;
 			return false;
 		}
-		matchd2 = check_message_id_sent(sent_buffer.entry2, message_id);
+		matchd2 = check_message_id_sent(&sent_buffer.entry2, message_id);
 		if(matchd2){
-			add_one_send_to_sending_buffer(sent_buffer.entry2.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry2.entry);
 			sent_buffer.entry2.entry.valid = false;
 			return false;
 		}
-		matchd3 = check_message_id_sent(sent_buffer.entry3, message_id);
+		matchd3 = check_message_id_sent(&sent_buffer.entry3, message_id);
 		if(matchd3){
-			add_one_send_to_sending_buffer(sent_buffer.entry3.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry3.entry);
 			sent_buffer.entry3.entry.valid = false;
 			return false;
 		}
-		matchd4 = check_message_id_sent(sent_buffer.entry4, message_id);
+		matchd4 = check_message_id_sent(&sent_buffer.entry4, message_id);
 		if(matchd4){
-			add_one_send_to_sending_buffer(sent_buffer.entry4.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry4.entry);
 			sent_buffer.entry4.entry.valid = false;
 			return false;
 		}
-		matchd5 = check_message_id_sent(sent_buffer.entry5, message_id);
+		matchd5 = check_message_id_sent(&sent_buffer.entry5, message_id);
 		if(matchd5){
-			add_one_send_to_sending_buffer(sent_buffer.entry5.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry5.entry);
 			sent_buffer.entry5.entry.valid = false;
 			return false;
 		}
-		matchd6 = check_message_id_sent(sent_buffer.entry6, message_id);
+		matchd6 = check_message_id_sent(&sent_buffer.entry6, message_id);
 		if(matchd6){
-			add_one_send_to_sending_buffer(sent_buffer.entry6.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry6.entry);
 			sent_buffer.entry6.entry.valid = false;
 			return false;
 		}
-		matchd7 = check_message_id_sent(sent_buffer.entry7, message_id);
+		matchd7 = check_message_id_sent(&sent_buffer.entry7, message_id);
 		if(matchd7){
-			add_one_send_to_sending_buffer(sent_buffer.entry7.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry7.entry);
 			sent_buffer.entry7.entry.valid = false;
 			return false;
 		}
-		matchd8 = check_message_id_sent(sent_buffer.entry8, message_id);
+		matchd8 = check_message_id_sent(&sent_buffer.entry8, message_id);
 		if(matchd8){
-			add_one_send_to_sending_buffer(sent_buffer.entry8.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry8.entry);
 			sent_buffer.entry8.entry.valid = false;
 			return false;
 		}
-		matchd9 = check_message_id_sent(sent_buffer.entry9, message_id);
+		matchd9 = check_message_id_sent(&sent_buffer.entry9, message_id);
 		if(matchd9){
-			add_one_send_to_sending_buffer(sent_buffer.entry9.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry9.entry);
 			sent_buffer.entry9.entry.valid = false;
 			return false;
 		}
-		matchd10 = check_message_id_sent(sent_buffer.entry10, message_id);
+		matchd10 = check_message_id_sent(&sent_buffer.entry10, message_id);
 		if(matchd10){
-			add_one_send_to_sending_buffer(sent_buffer.entry10.entry);
+			add_one_send_to_sending_buffer(&sent_buffer.entry10.entry);
 			sent_buffer.entry10.entry.valid = false;
 			return false;
 		}
@@ -1612,7 +1613,7 @@ bool mesh_send_ack(uint8_t * dest_addr, uint32_t acked_msg_id, uint8_t attempt, 
 	message[i] = crc_byte;
 	bool good;
 	sending_buffer_entry entry = make_sending_buffer_entry(message, attempt, (ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4 + 1), MESH_MSG_ACK);
-	good = add_one_send_to_sending_buffer(entry);
+	good = add_one_send_to_sending_buffer(&entry);
 	//good = lora_send(message, (ADDR_LENGTH + ADDR_LENGTH+ 4 + 1 + 4), hdma_usart_tx, huart);
 	////send_usb_ttl_message(true, MESH_MSG_ACK, message_id_actual, attempt, dest_addr, huart1);
 	return good;
@@ -1715,13 +1716,13 @@ int mesh_send_add_header(uint8_t *message, uint8_t * message_id, uint8_t * dest_
 //	return good;
 //}
 
-void message_id_init(message_id_history message){
+void message_id_init(volatile message_id_history * message){
 	//this makes a message_id struct have default values
-	message.valid = false;
-	message.message_id[0] = 0;
-	message.message_id[1] = 0;
-	message.message_id[2] = 0;
-	message.message_id[3] = 0;
+	message->valid = false;
+	message->message_id[0] = 0;
+	message->message_id[1] = 0;
+	message->message_id[2] = 0;
+	message->message_id[3] = 0;
 }
 
 
@@ -1729,16 +1730,16 @@ void message_id_init(message_id_history message){
 void message_id_struct_init(){
 	//Initializes 10 message id structs
 	//1 is most recent, 10 is least recent
-	message_id_init(message1);
-	message_id_init(message2);
-	message_id_init(message3);
-	message_id_init(message4);
-	message_id_init(message5);
-	message_id_init(message6);
-	message_id_init(message7);
-	message_id_init(message8);
-	message_id_init(message9);
-	message_id_init(message10);
+	message_id_init(&message1);
+	message_id_init(&message2);
+	message_id_init(&message3);
+	message_id_init(&message4);
+	message_id_init(&message5);
+	message_id_init(&message6);
+	message_id_init(&message7);
+	message_id_init(&message8);
+	message_id_init(&message9);
+	message_id_init(&message10);
 	//also inits 5 sent messages (the last 5 messages that this node has sent and may still need to send again)
 //	message_id_init_sent(sent_message1);
 //	message_id_init_sent(sent_message2);
@@ -1748,20 +1749,20 @@ void message_id_struct_init(){
 
 }
 
-uint8_t check_message_id(message_id_history past_message, uint8_t * message_id){
-	if(past_message.valid == false){
+uint8_t check_message_id(volatile message_id_history * past_message, uint8_t * message_id){
+	if(past_message->valid == false){
 		return 0;
 	}
-	bool match = check_message_struct_match(message_id, past_message.message_id);
+	bool match = check_message_struct_match(message_id, past_message->message_id);
 	return match;
 }
 
-bool check_message_id_sent(sent_message_buff_entry entry,uint8_t * message_id){
+bool check_message_id_sent(volatile sent_message_buff_entry * entry,uint8_t * message_id){
 	uint8_t message_id_entry [4];
 	int i = 0;
 	int k = ADDR_LENGTH;
 	while (i < 4){
-		message_id_entry[i] = entry.entry.message[k];
+		message_id_entry[i] = entry->entry.message[k];
 		i += 1;
 		k += 1;
 	}
@@ -1772,32 +1773,32 @@ bool check_message_id_sent(sent_message_buff_entry entry,uint8_t * message_id){
 void check_message_id_all(uint8_t * message_id, bool * match){
 	//checks if the message id is one that this node has received recently (in last 10 messages)
 	bool matchd1, matchd2,  matchd3,  matchd4,  matchd5, matchd6, matchd7,  matchd8,  matchd9,  matchd10;
-	matchd1 = check_message_id_sent(sent_buffer.entry1, message_id);
-	matchd2 = check_message_id_sent(sent_buffer.entry2, message_id);
-	matchd3 = check_message_id_sent(sent_buffer.entry3, message_id);
-	matchd4 = check_message_id_sent(sent_buffer.entry4, message_id);
-	matchd5 = check_message_id_sent(sent_buffer.entry5, message_id);
-	matchd6 = check_message_id_sent(sent_buffer.entry6, message_id);
-	matchd7 = check_message_id_sent(sent_buffer.entry7, message_id);
-	matchd8 = check_message_id_sent(sent_buffer.entry8, message_id);
-	matchd9 = check_message_id_sent(sent_buffer.entry9, message_id);
-	matchd10 = check_message_id_sent(sent_buffer.entry10, message_id);
+	matchd1 = check_message_id_sent(&sent_buffer.entry1, message_id);
+	matchd2 = check_message_id_sent(&sent_buffer.entry2, message_id);
+	matchd3 = check_message_id_sent(&sent_buffer.entry3, message_id);
+	matchd4 = check_message_id_sent(&sent_buffer.entry4, message_id);
+	matchd5 = check_message_id_sent(&sent_buffer.entry5, message_id);
+	matchd6 = check_message_id_sent(&sent_buffer.entry6, message_id);
+	matchd7 = check_message_id_sent(&sent_buffer.entry7, message_id);
+	matchd8 = check_message_id_sent(&sent_buffer.entry8, message_id);
+	matchd9 = check_message_id_sent(&sent_buffer.entry9, message_id);
+	matchd10 = check_message_id_sent(&sent_buffer.entry10, message_id);
 	if(matchd1 | matchd2| matchd3| matchd4| matchd5 | matchd6 | matchd7| matchd8| matchd9| matchd10){
 		match[0] = true; //it was a match
 		match[1] = true; //this node sent it
 		return;
 	}
 
-	matchd1 = check_message_id(message1, message_id);
-	matchd2 = check_message_id(message2, message_id);
-	matchd3 = check_message_id(message3, message_id);
-	matchd4 = check_message_id(message4, message_id);
-	matchd5 = check_message_id(message5, message_id);
-	matchd6 = check_message_id(message6, message_id);
-	matchd7 = check_message_id(message7, message_id);
-	matchd8 = check_message_id(message8, message_id);
-	matchd9 = check_message_id(message9, message_id);
-	matchd10 = check_message_id(message10, message_id);
+	matchd1 = check_message_id(&message1, message_id);
+	matchd2 = check_message_id(&message2, message_id);
+	matchd3 = check_message_id(&message3, message_id);
+	matchd4 = check_message_id(&message4, message_id);
+	matchd5 = check_message_id(&message5, message_id);
+	matchd6 = check_message_id(&message6, message_id);
+	matchd7 = check_message_id(&message7, message_id);
+	matchd8 = check_message_id(&message8, message_id);
+	matchd9 = check_message_id(&message9, message_id);
+	matchd10 = check_message_id(&message10, message_id);
 	if(matchd1 | matchd2| matchd3| matchd4| matchd5 | matchd6 | matchd7| matchd8| matchd9| matchd10){
 		match[0] = true; //it was a match
 		match[1] = false; //this node did not send it
@@ -1808,34 +1809,34 @@ void check_message_id_all(uint8_t * message_id, bool * match){
 	match[1] = false;
 	return;
 }
-void replace_one_message_id_struct(message_id_history changing, message_id_history values){
-	changing.valid = values.valid;
-	changing.message_id[0] = values.message_id[0];
-	changing.message_id[1] = values.message_id[1];
-	changing.message_id[2] = values.message_id[2];
-	changing.message_id[3] = values.message_id[3];
+void replace_one_message_id_struct(volatile message_id_history * changing, volatile message_id_history * values){
+	changing->valid = values->valid;
+	changing->message_id[0] = values->message_id[0];
+	changing->message_id[1] = values->message_id[1];
+	changing->message_id[2] = values->message_id[2];
+	changing->message_id[3] = values->message_id[3];
 }
 
 
 void shift_all_messages(uint8_t * message_id, bool this_node_sent){
 	//this shifts all messages
 	//10 becomes 9, 9 becomes 8, ...
-	replace_one_message_id_struct(message10, message9);//first is one changing to be the same as the second one
-	replace_one_message_id_struct(message9, message8);
-	replace_one_message_id_struct(message8, message7);
-	replace_one_message_id_struct(message7, message6);
-	replace_one_message_id_struct(message6, message5);
-	replace_one_message_id_struct(message5, message4);
-	replace_one_message_id_struct(message4, message3);
-	replace_one_message_id_struct(message3, message2);
-	replace_one_message_id_struct(message2, message1);
+	replace_one_message_id_struct(&message10, &message9);//first is one changing to be the same as the second one
+	replace_one_message_id_struct(&message9, &message8);
+	replace_one_message_id_struct(&message8, &message7);
+	replace_one_message_id_struct(&message7, &message6);
+	replace_one_message_id_struct(&message6, &message5);
+	replace_one_message_id_struct(&message5, &message4);
+	replace_one_message_id_struct(&message4, &message3);
+	replace_one_message_id_struct(&message3, &message2);
+	replace_one_message_id_struct(&message2, &message1);
 	message_id_history message0;
 	message0.message_id[0] = message_id[0];
 	message0.message_id[1] = message_id[1];
 	message0.message_id[2] = message_id[2];
 	message0.message_id[3] = message_id[3];
 	message0.valid = true;
-	replace_one_message_id_struct(message1, message0);
+	replace_one_message_id_struct(&message1, &message0);
 }
 
 bool check_message_struct_match(uint8_t * message_id, volatile uint8_t * message_id2){
@@ -2046,9 +2047,9 @@ bool mesh_main_rec(volatile uint8_t * data,DMA_HandleTypeDef * hdma_usart_tx, UA
 	bool banned = check_ban_addr(sending_addr);
 	if(banned){
 		//uint8_t message [64];
-		char* str1 ="\r\n\r\nIgnored message due to banned addr";
-		while(usb_ttl_done == false);
-		memcpy(&message_1[0], str1, strlen(str1));
+		//char* str1 ="\r\n\r\nIgnored message due to banned addr";
+		//while(usb_ttl_done == false);
+		//memcpy(&message_1[0], str1, strlen(str1));
 		//send_usb_ttl(message_1, strlen(str1), &huart1);
 		return true;
 	}
@@ -2178,8 +2179,9 @@ bool mesh_rec_data(volatile uint8_t * data, uint8_t * send_addr, uint8_t * messa
 		    float water = (float)water_height[0];
 		    float battery = (float)battery_status[0];
 
-
-		    UI_UpdateNode(node_id, water, time, battery, 1);
+		    uint32_t new_time;
+		    memcpy(&new_time, time, sizeof(uint32_t));
+		    updateNodeData(node_id, water, new_time, battery, 1);
 		    uint32_t new_id;
 		    memcpy(&new_id, message_id, sizeof(uint32_t));
 		    mesh_send_ack(send_addr, new_id, 1, hdma_usart_tx, huart);
