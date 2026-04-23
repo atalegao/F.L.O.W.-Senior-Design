@@ -1,7 +1,7 @@
 #include "main.h"
 #include "mesh.h"
 #include <string.h>
-#include "ui_def.h"
+//#include "ui_def.h"
 
 extern volatile RTC_TimeTypeDef current_time;
 extern volatile RTC_DateTypeDef current_date;
@@ -1265,7 +1265,7 @@ bool mesh_rec_add(volatile uint8_t * data, uint8_t * message_id, uint8_t * send_
 		    name[7] = '\0';
 
 		    // ADDS NODE TO UI
-		    addNode(node_id, name, "Active");
+		    //addNode(node_id, name, "Active");
 
 
 		    uint32_t new_id;
@@ -2123,9 +2123,8 @@ bool mesh_rec_data(volatile uint8_t * data, uint8_t * send_addr, uint8_t * messa
 		    float water = (float)water_height[0];
 		    float battery = (float)battery_status[0];
 
-		    uint32_t timestamp = convert_time_bytes(time);
 
-		    updateNodeData(node_id, water, timestamp, battery);
+		    updateNodeData(node_id, water, time, battery);
 		    uint32_t new_id;
 		    memcpy(&new_id, message_id, sizeof(uint32_t));
 		    mesh_send_ack(send_addr, new_id, 1, hdma_usart_tx, huart);

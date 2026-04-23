@@ -134,33 +134,66 @@ void drawNodeDetail(Node* n) {
     tft->textWrite(n->name);
 //TODO sprintf will not work so i need to figure out something else
     tft->textSetCursor(50, 130);
-    char buf[64];
+    char buf[32];
+
+    // Water
+    tft->textSetCursor(50, 130);
     tft->textWrite("Latest data:");
-    float datamock = 10.30;
+
     tft->textSetCursor(400, 130);
-    ftoa(datamock, buf, 3);
+    ftoa(n->latestWaterHeight, buf, 2);
     tft->textWrite(buf);
 
+    // Time
     tft->textSetCursor(50, 180);
     tft->textWrite("Time stamp:");
-    ftoa(datamock, buf, 5);
+
     tft->textSetCursor(400, 180);
+    intToStr(n->latestTimestamp, buf, 0);
     tft->textWrite(buf);
-//
+
+    // Battery
     tft->textSetCursor(50, 230);
     tft->textWrite("Battery status:");
-    ftoa(datamock, buf, 5);
+
     tft->textSetCursor(400, 230);
+    ftoa(n->batteryPercent, buf, 1);
     tft->textWrite(buf);
 
 
 
     tft->graphicsMode();
 
-    //draw_button(floodBtn);
+    draw_button(historyBtn);
     draw_button(backBtn);
 }
+void drawNodeHistory(Node* n)
+{
+    currentScreen = SCREEN_NODE_HISTORY;
+    tft->fillScreen(RA8875_BLACK);
 
+    char buf[32];
+
+    tft->textMode();
+    tft->textSetCursor(250, 20);
+    tft->textWrite("History");
+
+    for (int i = 0; i < n->historyIndex && i < HISTORY_LEN; i++)
+    {
+        int y = 60 + i * 30;
+
+        ftoa(n->history[i].waterHeight, buf, 2);
+        tft->textSetCursor(50, y);
+        tft->textWrite(buf);
+
+        intToStr(n->history[i].timestamp, buf, 0);
+        tft->textSetCursor(250, y);
+        tft->textWrite(buf);
+    }
+
+    tft->graphicsMode();
+    draw_button(backBtn);
+}
 void drawPollScreen(void)
 {
 	currentScreen = SCREEN_POLL;
@@ -315,57 +348,18 @@ void uiHandleTouch(uint16_t x, uint16_t y) {
             break;
 
         case SCREEN_NODE_DETAIL:
-//            if (buttonContains(floodBtn, x, y)) {
-//                floodImminent = !floodImminent;
-//                change_polling = !change_polling;
-//                drawNodeDetail(activeNode);
-//            }
 
+        	if (buttonContains(historyBtn, x, y)) {
+        	     drawNodeHistory(activeNode);
+        	    }
             if (buttonContains(backBtn, x, y))
                 draw1to6Nodes();
             break;
 
-//        case SCREEN_PHONES:
-//            if (buttonContains(addPhoneBtn, x, y)) {
-//                keypadIndex = 0;
-//                keypadBuffer[0] = '\0';
-//                showSaved = false;
-//                drawKeypad();
-//            }
-//
-//            if (buttonContains(backBtn, x, y))
-//                drawHome();
-//            break;
+
         case SCREEN_POLL:
 
 
-//        case SCREEN_KEYPAD:
-//
-//            for (int r = 0; r < 4; r++) {
-//                for (int c = 0; c < 3; c++) {
-//
-//                    uint16_t bx = KEYPAD_H + c * 150;
-//                    uint16_t by = 100 + r * 100;
-//
-//                    if (x >= bx && x <= bx + 100 &&
-//                        y >= by && y <= by + 80) {
-//
-//                        if (keypadIndex < PHONE_LEN - 1) {
-//                            char digit;
-//
-//                            if (r == 3 && c == 1) digit = '0';
-//                            else if (r == 3) continue;
-//                            else digit = '1' + (r * 3 + c);
-//
-//                            keypadBuffer[keypadIndex++] = digit;
-//                            keypadBuffer[keypadIndex] = '\0';
-//                        }
-//
-//                        drawKeypad();
-//                        return;
-//                    }
-//                }
-//            }
 
             if (buttonContains(incBtn, x, y) && freq_req < 180) {
             	freq_req = freq_req + 30;
@@ -388,15 +382,69 @@ void uiHandleTouch(uint16_t x, uint16_t y) {
                 drawHome();
             }
             break;
+        case SCREEN_NODE_HISTORY:
+        	if (buttonContains(backBtn, x, y))
+        	   {
+        	            	drawNodeDetail(activeNode);
+        	   }
+
     }
+
 }
 
+void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float battery)
+{
+    int found = 0;
+
+    for (int i = 0; i < nodeCount; i++)
+    {
+        if (nodes[i].nodeId == nodeId)
+        {
+            Node *n = &nodes[i];
+
+            // update latest values
+            n->latestWaterHeight = water;
+            n->latestTimestamp = timestamp;
+            n->batteryPercent = battery;
+
+            // store in circular history buffer
+            n->history[n->historyIndex].waterHeight = water;
+            n->history[n->historyIndex].timestamp = timestamp;
+
+            n->historyIndex = (n->historyIndex + 1) % HISTORY_LEN;
+            found = 1;
+            break;
+        }
+    }
+    if (!found && nodeCount < MAX_NODES)
+        {
+            nodes[nodeCount].nodeId = nodeId;
+            nodes[nodeCount].latestWaterHeight = water;
+            nodes[nodeCount].latestTimestamp = timestamp;
+            nodes[nodeCount].batteryPercent = battery;
+            nodes[nodeCount].historyIndex = 0;
+
+            nodeCount++;
+        }
+
+}
 void addNode(uint8_t id, const char* name, const char* status) {
     if (nodeCount >= MAX_NODES) return;
 
     nodes[nodeCount].nodeId = id;
     nodes[nodeCount].name = name;
     nodes[nodeCount].status = status;
+
+    nodes[nodeCount].latestWaterHeight = 0;
+    nodes[nodeCount].latestTimestamp = 0;
+    nodes[nodeCount].batteryPercent = 0;
+    nodes[nodeCount].historyIndex = 0;
+
+    for (int i = 0; i < HISTORY_LEN; i++) {
+        nodes[nodeCount].history[i].waterHeight = 0;
+        nodes[nodeCount].history[i].timestamp = 0;
+    }
+
     nodeCount++;
 }
 

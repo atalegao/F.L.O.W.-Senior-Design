@@ -7,6 +7,9 @@
 /*
  * ui_def.h
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
 #ifndef INC_UI_DEF_H_
 #define INC_UI_DEF_H_
 
@@ -74,7 +77,10 @@ void drawKeypad(void);
 void ftoa(float n, char* res, int afterpoint);
 int intToStr(int x, char str[], int d);
 void reverse(char* str, int len);
+void updateNodeData(uint16_t node_id, float water_height, uint32_t timestamp, float battery);
 
 
-
+#endif
+#ifdef __cplusplus
+}
 #endif
