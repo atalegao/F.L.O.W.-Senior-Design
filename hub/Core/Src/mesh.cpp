@@ -600,7 +600,6 @@ void find_dest_addr_to_hub(uint8_t * dest_addr, uint8_t attempt){//TODO TODO TOD
 		dest_addr[1] = addr_any_direction[1];
 	}
 }
-
 void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){
 	//finds dest addr for a message going away from the hub
 	//looks in neighbor node structs
@@ -663,6 +662,68 @@ void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){
 		dest_addr[1] = addr_any_direction[1];
 	}
 }
+//void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){
+//	//finds dest addr for a message going away from the hub
+//	//looks in neighbor node structs
+//	int sum = neighbor_away_hub1.valid + neighbor_away_hub2.valid + neighbor_away_hub3.valid;
+//	if (sum == 0){
+//		if(attempt < 7){
+//			dest_addr[0] = addr_right_direction[0];
+//			dest_addr[1] = addr_right_direction[1];
+//			return;
+//		}
+//		else{
+//			dest_addr[0] = addr_any_direction[0];
+//			dest_addr[1] = addr_any_direction[1];
+//			return;
+//		}
+//	}
+//
+//	if((attempt == 1) | (attempt == 2)){ //farthest away from hub
+//		switch(sum){
+//		case 3:
+//			dest_addr[0] = neighbor_away_hub3.addr[0];
+//			dest_addr[1] = neighbor_away_hub3.addr[1];
+//			break;
+//		case 2:
+//			dest_addr[0] = neighbor_away_hub2.addr[0];
+//			dest_addr[1] = neighbor_away_hub2.addr[1];
+//			break;
+//		case 1:
+//			dest_addr[0] = neighbor_away_hub1.addr[0];
+//			dest_addr[1] = neighbor_away_hub1.addr[1];
+//			break;
+//		}
+//	}
+//	else if((attempt == 3) | (attempt == 4)){//2nd farthest towards hub
+//		switch(sum){
+//			case 3:
+//				dest_addr[0] = neighbor_away_hub2.addr[0];
+//				dest_addr[1] = neighbor_away_hub2.addr[1];
+//				break;
+//			case 2:
+//				dest_addr[0] = neighbor_away_hub2.addr[0];
+//				dest_addr[1] = neighbor_away_hub2.addr[1];
+//				break;
+//			case 1:
+//				dest_addr[0] = neighbor_away_hub1.addr[0];
+//				dest_addr[1] = neighbor_away_hub1.addr[1];
+//				break;
+//				}
+//	}
+//	else if((attempt == 5) | (attempt == 6)){//3rd farthest towards hub
+//		dest_addr[0] = neighbor_away_hub1.addr[0];
+//		dest_addr[1] = neighbor_away_hub1.addr[1];
+//	}
+//	else if((attempt == 7) | (attempt == 8)){//correct direction (towards hub)
+//		dest_addr[0] = addr_right_direction[0];
+//		dest_addr[1] = addr_right_direction[1];
+//	}
+//	else{ //any direction
+//		dest_addr[0] = addr_any_direction[0];
+//		dest_addr[1] = addr_any_direction[1];
+//	}
+//}
 
 void set_self_addr(uint8_t * addr){
 	//updates a global uint8_t * called self_addr
@@ -1984,8 +2045,12 @@ bool mesh_message_type_helper(volatile uint8_t * data, mesh_msg_type type, uint8
 
 bool check_ban_addr(uint8_t * dest_addr){
 	uint8_t i = 0;
-	bool match1 = banned_addr1_valid;
-	bool match2 = banned_addr2_valid;
+	bool match1 = true;
+	bool match2 = true;
+	banned_addr1[0] = 0x10;
+	banned_addr1[1] = 0x0;
+	banned_addr2[0] = 0x20;
+	banned_addr2[1] = 0x0;
 	while(i < ADDR_LENGTH){
 		if(banned_addr1[i] != dest_addr[i]){
 			match1 = false;

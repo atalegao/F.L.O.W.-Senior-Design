@@ -90,6 +90,7 @@ TIM_HandleTypeDef htim2;
 extern volatile uint8_t touchPending;
 extern volatile uint8_t touchActive;
 extern volatile bool change_polling;
+extern volatile uint16_t poll_freq_active;
 uint8_t new_frequency;
 
 bool read_lora_fifo;
@@ -431,6 +432,7 @@ int main(void)
 	         HAL_GPIO_WritePin(PB14_LED_GPIO_Port, PB14_LED_Pin, GPIO_PIN_RESET);
 
 	     }
+
 	  if(floodImminent)
 	  {
 		  ESP_SendAlert();
@@ -438,7 +440,7 @@ int main(void)
 	  //following is to change polling
 	  if (new_freq_flag)
 	  {
-		  uint32_t new_frequency = freq_req;
+		  uint32_t new_frequency = poll_freq_active;
 		  new_freq_flag = false;
 		  uint8_t dest_addr[ADDR_LENGTH];
 		  find_dest_addr_away_hub(dest_addr, 1);

@@ -82,6 +82,7 @@ int intToStr(int x, char str[], int d);
 void reverse(char* str, int len);
 void updateNodeData(uint16_t node_id, float water_height, uint32_t timestamp, float battery, bool status);
 void updateFloodStatus(void);
+void commitPollingFrequency(void);
 
 
 #endif

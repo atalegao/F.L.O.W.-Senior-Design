@@ -22,6 +22,7 @@ uint16_t nodeCount = 0;
 static uint8_t nodeAboveThreshold[MAX_NODES];
 
 volatile uint16_t freq_req = 120;
+volatile uint16_t poll_freq_active = 120;
 volatile bool new_freq_flag = false;
 
 char keypadBuffer[PHONE_LEN] = {0};
@@ -76,6 +77,12 @@ void drawHome(void) {
     tft->textEnlarge(2);
     tft->textTransparent(RA8875_WHITE);
     tft->textWrite("Home");
+    if (floodImminent)
+        {
+            tft->textSetCursor(120, 350);
+            tft->textTransparent(RA8875_RED);
+            tft->textWrite("FLOODING OCCURRING!!!");
+        }
     tft->graphicsMode();
 
     draw_button(nodeMenu);
@@ -188,20 +195,45 @@ void drawNodeHistory(Node* n)
     char buf[32];
 
     tft->textMode();
-    tft->textSetCursor(250, 20);
+
+    // Title
+    tft->textSetCursor(220, 10);
     tft->textTransparent(RA8875_WHITE);
     tft->textWrite("History");
 
-    for (int i = 0; i < n->historyIndex && i < HISTORY_LEN; i++)
-    {
-        int y = 60 + i * 30;
+    // Column headers
+    tft->textSetCursor(50, 60);
+    tft->textWrite("Timestamp");
 
-        ftoa(n->history[i].waterHeight, buf, 2);
+    tft->textSetCursor(350, 60);
+    tft->textWrite("Water Level");
+
+    int count = (n->historyIndex < 5) ? n->historyIndex : 5;
+
+    for (int i = 0; i < count; i++)
+    {
+        int y = 70 + i * 30;
+
+        float w = n->history[i].waterHeight;
+        uint32_t t = n->history[i].timestamp;
+
+        // Timestamp label + value
         tft->textSetCursor(50, y);
+        tft->textTransparent(RA8875_WHITE);
+        tft->textWrite("T:");
+        intToStr(t, buf, 0);
         tft->textWrite(buf);
 
-        intToStr(n->history[i].timestamp, buf, 0);
-        tft->textSetCursor(250, y);
+        // Water level label + value
+        tft->textSetCursor(350, y);
+
+        if (w >= WATER_THRESHOLD)
+            tft->textTransparent(RA8875_RED);
+        else
+            tft->textTransparent(RA8875_WHITE);
+
+        tft->textWrite("W:");
+        ftoa(w, buf, 2);
         tft->textWrite(buf);
     }
 
@@ -224,6 +256,7 @@ void drawPollScreen(void)
     tft->textTransparent(RA8875_WHITE);
 	tft->textWrite(buf);
 	if(disp_ok){
+
 		tft->textSetCursor(500, 220);
 		tft->textTransparent(RA8875_GREEN);
 		tft->textWrite("Saved");
@@ -386,7 +419,7 @@ void uiHandleTouch(uint16_t x, uint16_t y) {
             if (buttonContains(okBtn, x, y))
             {
             	disp_ok = true;
-            	new_freq_flag = true;
+                commitPollingFrequency();
             	drawPollScreen();
             }
 
@@ -405,7 +438,11 @@ void uiHandleTouch(uint16_t x, uint16_t y) {
     }
 
 }
-
+void commitPollingFrequency(void)
+{
+    poll_freq_active = freq_req;
+    new_freq_flag = true;
+}
 void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float battery, bool status)
 {
     int found = 0;
@@ -503,16 +540,16 @@ void updateFloodStatus(void)
 void uiInit(Adafruit_RA8875* display) {
     tft = display;
 
-    addNode(1, "Node 1", "Water High");
-    addNode(2, "Node 2", "Water Low");
-    addNode(3, "Node 3", "Water High");
-    addNode(4, "Node 4", "Water Low");
-    addNode(5, "Node 5", "Water High");
-    addNode(6, "Node 6", "Water Low");
-    addNode(7, "Node 7", "Water High");
-    addNode(8, "Node 8", "Water Low");
-    addNode(9, "Node 9", "Water High");
-    addNode(10, "Node 10", "Water Low");
+//    addNode(1, "Node 1", "Water High");
+//    addNode(2, "Node 2", "Water Low");
+//    addNode(3, "Node 3", "Water High");
+//    addNode(4, "Node 4", "Water Low");
+//    addNode(5, "Node 5", "Water High");
+//    addNode(6, "Node 6", "Water Low");
+//    addNode(7, "Node 7", "Water High");
+//    addNode(8, "Node 8", "Water Low");
+//    addNode(9, "Node 9", "Water High");
+//    addNode(10, "Node 10", "Water Low");
     drawHome();
 }
 //from geeksforgeeks
