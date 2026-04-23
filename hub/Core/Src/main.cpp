@@ -79,11 +79,11 @@ RNG_HandleTypeDef hrng;
 SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim21;
-<<<<<<< HEAD
+//<<<<<<< HEAD
 TIM_HandleTypeDef htim22;
-=======
+//=======
 TIM_HandleTypeDef htim2;
->>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
+//>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 
 
 /* USER CODE BEGIN PV */
@@ -152,16 +152,15 @@ volatile bool banned_addr2_valid;
 volatile uint8_t banned_addr1 [ADDR_LENGTH];
 volatile uint8_t banned_addr2 [ADDR_LENGTH];
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
 volatile bool send_normal = false;
 volatile bool send_send = false;
 volatile bool send_rec = false; //great names I know
-=======
-bool do_send = false;
-bool in_send = false;
+//=======
+
 extern volatile uint16_t freq_req;
 extern volatile bool new_freq_flag;
->>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
+//>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 
 volatile bool do_send = false;
 volatile bool in_send = false;
@@ -174,11 +173,11 @@ volatile uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
 //0 means the lora timer is currently for cad cycle
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
 volatile uint8_t receivefifo_usb_ttl [1];
-=======
+//=======
 //uint8_t receivefifo_usb_ttl [0];
->>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
+//>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 
 uint8_t addr_any_direction [ADDR_LENGTH];
 uint8_t addr_right_direction [ADDR_LENGTH];
@@ -369,16 +368,17 @@ int main(void)
       hlpuart1.RxState = HAL_UART_STATE_READY;
       //HAL_UART_Receive_IT(&hlpuart1, (uint8_t * )rx_data, 1); //ultrasonic sensor data receive on lpuart1
 
-<<<<<<< HEAD
+//<<<<<<< HEAD
       HAL_UART_Receive_DMA(&huart2, (uint8_t *)receivefifo, 1); //lora
-      HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
+      HAL_UART_Receive_IT(&huart1, &rxByte, 1);
+
+      //HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
       HAL_Delay(1000);//added
       connected_test_all();
 //      while(done_with_usb_ttl_setup == false){
 //
 //      } //force wait to do user inputs, so add back
       get_timestamp();
-      //ultrasonic_init();
       lora_init(&hdma_usart2_tx, &huart2);
       mesh_init();
       HAL_Delay(1000);
@@ -392,21 +392,14 @@ int main(void)
       HAL_NVIC_EnableIRQ(TIM22_IRQn);
       HAL_NVIC_SetPriority(LPTIM1_IRQn, 2, 0);
       HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
-=======
-            HAL_UART_Receive_DMA(&huart2, receivefifo, 1); //lora
+            //HAL_UART_Receive_DMA(&huart2, receivefifo, 1); //lora
             //HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
-            HAL_UART_Receive_IT(&huart1, &rxByte, 1);
-            HAL_Delay(1000);//added
-            connected_test_all();
-            lora_init(hdma_usart2_tx, huart2);
-            HAL_Delay(1000);
-            setup();
+      HAL_Delay(1000);//added
+      connected_test_all();
+            //lora_init(hdma_usart2_tx, huart2);
+      HAL_Delay(1000);
+      setup();
             //setup_lora_send_timer(&htim6); //set up lora send data timer
-            HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
-            HAL_NVIC_EnableIRQ(TIM21_IRQn);
-            HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
-            HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
->>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 
       HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
       HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
@@ -417,18 +410,9 @@ int main(void)
       HAL_TIM_Base_Start_IT(&htim6); //send own data
       //HAL_LPTIM_Counter_Start_IT(&hlptim1, 60000);//hello
 
-
-<<<<<<< HEAD
-      //mesh_init();//16,17         then 18,17        then 19,17
-      //self_addr[0] = 0x16;
-      //self_addr[1] = 0x17;
       handle_send_hello();
-     // */
-
-=======
             //setup_lora_send_timer(&htim6, 0x000004FF);
-            ESP_SendAlert(1, 120);
->>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
+      ESP_SendAlert(1, 120);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -1121,9 +1105,8 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 				}
 			}
 		}
-<<<<<<< HEAD
-=======
-	}
+
+
 	if (huart->Instance == USART1)
 	  {
 	    if (rxByte == '\n' || rxIndex >= RX_BUF_SIZE - 1)
@@ -1147,7 +1130,6 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 	    HAL_UART_Receive_IT(&huart1, &rxByte, 1);
 	  }
 
->>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 }
 
 void ESP_SendAlert(int nodeId, uint32_t distance)
@@ -1241,7 +1223,7 @@ void connected_test_all(void){
 	//HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);//turn off all LEDs
 
 }
-//void uart_set_rtc(void){
+void uart_set_rtc(void){
 //	//this should be called when the user indicates they are about to send rtc time and date data
 //
 //	//use one buffer with size 7
@@ -1262,18 +1244,7 @@ void connected_test_all(void){
 //
 //}
 
-<<<<<<< HEAD
-//void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
-//	if(HAL_RTC_SetTime(&hrtc, time, RTC_FORMAT_BIN) != HAL_OK){
-//		//error
-//	}
-//	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
-//		//error
-//	}
-//	HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
-//	//turns on DMA for receive again since non-dma was used before
-//}
-=======
+
 	//use one buffer with size 7
 	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 7, 120000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
 		//do nothing
@@ -1294,15 +1265,17 @@ void connected_test_all(void){
 
 void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
 	if(HAL_RTC_SetTime(&hrtc, time, RTC_FORMAT_BIN) != HAL_OK){
-		//error
+        Error_Handler();
+
 	}
 	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
-		//error
+        Error_Handler();
+
 	}
 	//HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
 	//turns on DMA for receive again since non-dma was used before
 }
->>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
+//>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
