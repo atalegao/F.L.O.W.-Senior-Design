@@ -45,7 +45,14 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define FLOOD_THRESHOLD_MM   150
 
+// Cooldown between alerts — prevents spamming Telegram.
+// Set to 10 minutes (in milliseconds).
+#define ALERT_COOLDOWN_MS    (10 * 60 * 1000)
+
+// UART receive buffer size
+#define RX_BUF_SIZE          128
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -72,7 +79,11 @@ RNG_HandleTypeDef hrng;
 SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim21;
+<<<<<<< HEAD
 TIM_HandleTypeDef htim22;
+=======
+TIM_HandleTypeDef htim2;
+>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 
 
 /* USER CODE BEGIN PV */
@@ -86,6 +97,13 @@ RTC_TimeTypeDef current_time;
 RTC_DateTypeDef current_date;
 
 uint8_t usb_buffer_rtc [7];
+uint8_t          rxByte;
+char             rxBuffer[RX_BUF_SIZE];
+uint8_t          rxIndex = 0;
+volatile uint8_t messageReady = 0;
+char             parsedMessage[RX_BUF_SIZE];
+uint32_t lastAlertTick      = 0;
+uint8_t  alertCooldownActive = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -97,7 +115,7 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_RTC_Init(void);
-//static void MX_TIM2_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_RNG_Init(void);
 
@@ -105,7 +123,8 @@ static void MX_TIM6_Init(void);
 static void MX_TIM21_Init(void);
 void MX_SPI1_ReInit(uint32_t scaler);
 /* USER CODE BEGIN PFP */
-
+void ESP_SendAlert(int nodeId, uint32_t distance);
+void ProcessLoRaMessage(char* msg);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -133,9 +152,16 @@ volatile bool banned_addr2_valid;
 volatile uint8_t banned_addr1 [ADDR_LENGTH];
 volatile uint8_t banned_addr2 [ADDR_LENGTH];
 
+<<<<<<< HEAD
 volatile bool send_normal = false;
 volatile bool send_send = false;
 volatile bool send_rec = false; //great names I know
+=======
+bool do_send = false;
+bool in_send = false;
+extern volatile uint16_t freq_req;
+extern volatile bool new_freq_flag;
+>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 
 volatile bool do_send = false;
 volatile bool in_send = false;
@@ -148,7 +174,11 @@ volatile uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
 //0 means the lora timer is currently for cad cycle
 
+<<<<<<< HEAD
 volatile uint8_t receivefifo_usb_ttl [1];
+=======
+//uint8_t receivefifo_usb_ttl [0];
+>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 
 uint8_t addr_any_direction [ADDR_LENGTH];
 uint8_t addr_right_direction [ADDR_LENGTH];
@@ -159,6 +189,9 @@ bool isHub = true;
 volatile bool usb_ttl_done = true;
 volatile bool in_read_lora_fifo = false;
 
+
+
+// UART receive buffer size
 #define DO_SEND 0
 #define DO_REC 0
 
@@ -306,6 +339,8 @@ int main(void)
 
     MX_I2C2_Init();
     MX_TIM6_Init();
+    MX_TIM2_Init();
+
     MX_TIM21_Init();
     MX_TIM22_Init();
   //MX_TIM2_Init();
@@ -334,6 +369,7 @@ int main(void)
       hlpuart1.RxState = HAL_UART_STATE_READY;
       //HAL_UART_Receive_IT(&hlpuart1, (uint8_t * )rx_data, 1); //ultrasonic sensor data receive on lpuart1
 
+<<<<<<< HEAD
       HAL_UART_Receive_DMA(&huart2, (uint8_t *)receivefifo, 1); //lora
       HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
       HAL_Delay(1000);//added
@@ -356,6 +392,21 @@ int main(void)
       HAL_NVIC_EnableIRQ(TIM22_IRQn);
       HAL_NVIC_SetPriority(LPTIM1_IRQn, 2, 0);
       HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
+=======
+            HAL_UART_Receive_DMA(&huart2, receivefifo, 1); //lora
+            //HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+            HAL_UART_Receive_IT(&huart1, &rxByte, 1);
+            HAL_Delay(1000);//added
+            connected_test_all();
+            lora_init(hdma_usart2_tx, huart2);
+            HAL_Delay(1000);
+            setup();
+            //setup_lora_send_timer(&htim6); //set up lora send data timer
+            HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
+            HAL_NVIC_EnableIRQ(TIM21_IRQn);
+            HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
+            HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 
       HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
       HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
@@ -367,12 +418,17 @@ int main(void)
       //HAL_LPTIM_Counter_Start_IT(&hlptim1, 60000);//hello
 
 
+<<<<<<< HEAD
       //mesh_init();//16,17         then 18,17        then 19,17
       //self_addr[0] = 0x16;
       //self_addr[1] = 0x17;
       handle_send_hello();
      // */
 
+=======
+            //setup_lora_send_timer(&htim6, 0x000004FF);
+            ESP_SendAlert(1, 120);
+>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -381,22 +437,24 @@ int main(void)
   {
     /* USER CODE END WHILE */
 	  if (touchPending)
-//	  if(HAL_GPIO_ReadPin(LCD_INT_GPIO_Port, LCD_INT_Pin) == 0)
 	     {
 	         touchPending = 0;
 
 	         HAL_GPIO_WritePin(PB14_LED_GPIO_Port, PB14_LED_Pin, GPIO_PIN_SET);
 
 	         update_on_touch();   // REQUIRED
-	         HAL_Delay(100);
 	         HAL_GPIO_WritePin(PB14_LED_GPIO_Port, PB14_LED_Pin, GPIO_PIN_RESET);
 
 	     }
+//	  if(threshold_met)
+//	  {
+//
+//	  }
 	  //following is to change polling
-	  if (change_polling)
+	  if (new_freq_flag)
 	  {
-		  uint32_t new_frequency = 5000;
-		  change_polling = false;
+		  uint32_t new_frequency = freq_req;
+		  new_freq_flag = false;
 		  uint8_t dest_addr[ADDR_LENGTH];
 		  find_dest_addr_away_hub(dest_addr, 1);
 
@@ -605,7 +663,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 9600;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -980,59 +1038,58 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-//static void MX_TIM2_Init(void)
-//{
-//
-//  /* USER CODE BEGIN TIM2_Init 0 */
-//
-//  /* USER CODE END TIM2_Init 0 */
-//
-//  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-//  TIM_MasterConfigTypeDef sMasterConfig = {0};
-//  TIM_OC_InitTypeDef sConfigOC = {0};
-//
-//  /* USER CODE BEGIN TIM2_Init 1 */
-//
-//  /* USER CODE END TIM2_Init 1 */
-//  htim2.Instance = TIM2;
-//  htim2.Init.Prescaler = 180-1;
-//  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-//  htim2.Init.Period = 65535;
-//  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-//  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-//  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-//  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-//  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-//  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-//  sConfigOC.Pulse = 0;
-//  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-//  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-//  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  /* USER CODE BEGIN TIM2_Init 2 */
-//
-//  /* USER CODE END TIM2_Init 2 */
-//  HAL_TIM_MspPostInit(&htim2);
-//
-//}
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 180-1;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
 /* USER CODE END 4 */
 void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 	if(huart->Instance == USART2){ //lora
@@ -1064,24 +1121,41 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 				}
 			}
 		}
+<<<<<<< HEAD
+=======
+	}
+	if (huart->Instance == USART1)
+	  {
+	    if (rxByte == '\n' || rxIndex >= RX_BUF_SIZE - 1)
+	    {
+	      rxBuffer[rxIndex] = '\0';
+
+	      // Trim trailing \r if present
+	      if (rxIndex > 0 && rxBuffer[rxIndex - 1] == '\r')
+	        rxBuffer[rxIndex - 1] = '\0';
+
+	      strcpy(parsedMessage, rxBuffer);
+	      messageReady = 1;
+	      rxIndex = 0;
+	    }
+	    else
+	    {
+	      rxBuffer[rxIndex++] = (char)rxByte;
+	    }
+
+	    // Re-arm interrupt for next byte
+	    HAL_UART_Receive_IT(&huart1, &rxByte, 1);
+	  }
+
+>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 }
-//	//ADDED FOR ULTRASONIC
-//	else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
-//		ultrasonic_process_rx(rx_data);
-//		HAL_UART_Receive_IT(&hlpuart1, &rx_data, 1);
-//	}
-//	else if(huart->Instance == USART1){ //usb-ttl
-//		if(receivefifo_usb_ttl[0] == 0xFF){ //special character to indicate setting RTC
-//			//set flag to update rtc
-//			//do not activate DMA
-//			//activate it when done with rtc stuff
-//		}
-//		else{//ignore
-//			HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
-//		}
-//	}
-//}
-//
+
+void ESP_SendAlert(int nodeId, uint32_t distance)
+{
+  char buf[64];
+  snprintf(buf, sizeof(buf), "FLOOD:%d:%lu\n", nodeId, distance);
+  HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
+}
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart->Instance == USART2){//lora
@@ -1188,6 +1262,7 @@ void connected_test_all(void){
 //
 //}
 
+<<<<<<< HEAD
 //void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
 //	if(HAL_RTC_SetTime(&hrtc, time, RTC_FORMAT_BIN) != HAL_OK){
 //		//error
@@ -1198,6 +1273,36 @@ void connected_test_all(void){
 //	HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
 //	//turns on DMA for receive again since non-dma was used before
 //}
+=======
+	//use one buffer with size 7
+	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 7, 120000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
+		//do nothing
+	}
+
+	RTC_TimeTypeDef set_time;
+	RTC_DateTypeDef set_date;
+	set_time.Hours = usb_buffer_rtc[0];// 24 hour time
+	set_time.Minutes = usb_buffer_rtc[1];
+	set_time.Seconds = usb_buffer_rtc[2];
+
+	set_date.WeekDay = usb_buffer_rtc[3]; //monday = 1, tuesday = 2,...
+	set_date.Month = usb_buffer_rtc[4]; //1 = January, 2 = February, ...
+	set_date.Date = usb_buffer_rtc[5];//day
+	set_date.Year = usb_buffer_rtc[6];//just 26 not 2006
+
+}
+
+void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
+	if(HAL_RTC_SetTime(&hrtc, time, RTC_FORMAT_BIN) != HAL_OK){
+		//error
+	}
+	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
+		//error
+	}
+	//HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+	//turns on DMA for receive again since non-dma was used before
+}
+>>>>>>> branch 'hub' of https://github.com/atalegao/F.L.O.W.-Senior-Design.git
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number

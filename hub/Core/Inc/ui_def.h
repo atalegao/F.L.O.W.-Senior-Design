@@ -33,7 +33,8 @@ typedef enum {
     SCREEN_NODE_DETAIL,
     SCREEN_PHONES,
     SCREEN_KEYPAD,
-    SCREEN_NODE_HISTORY
+    SCREEN_NODE_HISTORY,
+	SCREEN_POLL
 
 } ScreenState;
 typedef struct {
@@ -64,8 +65,10 @@ void addNode(uint8_t id, const char* name, const char* status);
 void addPhone(const char* number);
 
 void drawHome(void);
-void drawAllNodes(void);
+void draw7to10Nodes(void);
+void draw1to6Nodes(void);
 void drawNodeDetail(Node* n);
+
 void drawPhones(void);
 void drawKeypad(void);
 void ftoa(float n, char* res, int afterpoint);
