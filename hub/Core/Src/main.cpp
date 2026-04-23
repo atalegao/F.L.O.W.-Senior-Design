@@ -72,6 +72,7 @@ RNG_HandleTypeDef hrng;
 SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim21;
+TIM_HandleTypeDef htim22;
 
 
 /* USER CODE BEGIN PV */
@@ -109,46 +110,61 @@ void MX_SPI1_ReInit(uint32_t scaler);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-bool sendfifo_ready_norm = true;
-int sendfifo_offset_norm = 0;
-bool rx_ready = false;
-uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa module
-uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
-uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
-uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
-//extern uint8_t * rx_data;
-int sendfifo_offset_send = 0;
-bool sendfifo_ready_send = true;
-int sendfifo_offset_rec = 0;
-bool sendfifo_ready_rec = true;
-uint8_t rec_data [MESSAGE_LENGTH];
+volatile bool sendfifo_ready_norm = true;
+volatile int sendfifo_offset_norm = 0;
+volatile bool rx_ready = false;
+volatile uint8_t sendfifo_norm[FIFOSIZE_TX_NORM]; //array of data read from LoRa module
+volatile uint8_t receivefifo[FIFOSIZE_RX]; //array of data read from LoRa module
+volatile uint8_t sendfifo_send_message[FIFOSIZE_TX_SEND]; //array of data sending to LoRa module for an actual message send
+volatile uint8_t sendfifo_rec_message[FIFOSIZE_TX_REC]; //array of data sending to LoRa module for reading FIFO buffer
+volatile uint8_t rx_data[1];
+volatile int sendfifo_offset_send = 0;
+volatile bool sendfifo_ready_send = true;
+volatile int sendfifo_offset_rec = 0;
+volatile bool sendfifo_ready_rec = true;
+volatile uint8_t rec_data [MESSAGE_LENGTH];
 uint8_t self_addr [ADDR_LENGTH];
+volatile uint8_t buff [MESH_MAX_MESSAGE_LENGTH] __attribute__((aligned(4)));
+volatile bool done_with_usb_ttl_setup = false;
+uint8_t message [64];
 
-bool send_normal = false;
-bool send_send = false;
-bool send_rec = false; //great names I know
+volatile bool banned_addr1_valid;
+volatile bool banned_addr2_valid;
+volatile uint8_t banned_addr1 [ADDR_LENGTH];
+volatile uint8_t banned_addr2 [ADDR_LENGTH];
 
-bool do_send = false;
-bool in_send = false;
+volatile bool send_normal = false;
+volatile bool send_send = false;
+volatile bool send_rec = false; //great names I know
 
-uint8_t global_receive_mode_from_cad;
+volatile bool do_send = false;
+volatile bool in_send = false;
+volatile bool doing_cad = false;
+volatile uint8_t node_distance [2];
+uint8_t coords [4];
+volatile uint32_t adc_val;
+
+volatile uint8_t global_receive_mode_from_cad;
 //1 means the lora timer is currently for receive mode timeout
 //0 means the lora timer is currently for cad cycle
 
-uint8_t receivefifo_usb_ttl [0];
+volatile uint8_t receivefifo_usb_ttl [1];
 
 uint8_t addr_any_direction [ADDR_LENGTH];
 uint8_t addr_right_direction [ADDR_LENGTH];
 
-bool isHub = false;
-bool usb_ttl_done = true;
-bool in_read_lora_fifo = false;
+uint8_t complete_pass = 0;
+
+bool isHub = true;
+volatile bool usb_ttl_done = true;
+volatile bool in_read_lora_fifo = false;
 
 #define DO_SEND 0
+#define DO_REC 0
 
-#define DO_REC 1
+#define DO_BOTH 1
 
-#define DO_BOTH 0
+
 #ifdef REDIRECT_PRINTF
 #define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 #endif
@@ -174,6 +190,49 @@ PUTCHAR_PROTOTYPE
 //	__HAL_TIM_SET_COUNTER(&htim2, 0); // changed from htim1 to htim2
 //	while (__HAL_TIM_GET_COUNTER (&htim2) < time);
 //}
+
+
+static void MX_TIM22_Init(void)
+{
+
+  /* USER CODE BEGIN TIM22_Init 0 */
+
+  /* USER CODE END TIM22_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM22_Init 1 */
+
+  /* USER CODE END TIM22_Init 1 */
+  htim22.Instance = TIM22;
+  htim22.Init.Prescaler = 6399;
+  htim22.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim22.Init.Period = 9999;
+  htim22.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim22.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim22) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim22, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim22, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM22_Init 2 */
+
+  /* USER CODE END TIM22_Init 2 */
+
+}
+
+
 void MX_SPI1_ReInit(uint32_t scaler)
 {
 
@@ -248,6 +307,7 @@ int main(void)
     MX_I2C2_Init();
     MX_TIM6_Init();
     MX_TIM21_Init();
+    MX_TIM22_Init();
   //MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   //HAL_TIM_Base_Start(&htim2);   // ADDED
@@ -259,46 +319,60 @@ int main(void)
     MX_SPI1_ReInit(SPI_BAUDRATEPRESCALER_32);   // ADDED (speed up SPI)
 
     HAL_Delay(500);
-          //setup();
-          HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
-            HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
-            read_lora_fifo = false;
-            receivefifo[0] = 0; //added
-            HAL_GPIO_WritePin (LORA_TGL_GPIO_Port, LORA_TGL_Pin, GPIO_PIN_RESET);//Relay
-            //HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_RESET);
-            HAL_Delay(1000);
-            HAL_GPIO_WritePin (LORA_TGL_GPIO_Port, LORA_TGL_Pin, GPIO_PIN_SET);//Relay
-            //HAL_GPIO_WritePin(LORA_MOSFET_GPIO_Port, LORA_MOSFET_Pin, GPIO_PIN_SET);
-            HAL_Delay(1000);
-           // HAL_UART_Receive_IT(&hlpuart1, rx_data, 1); //ultrasonic sensor data receive on lpuart1
+    HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
+      HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); //disable tim6, used for lora send so it does not go off before init is done
+      HAL_NVIC_DisableIRQ(TIM22_IRQn);
+      HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
+      read_lora_fifo = false;
+      receivefifo[0] = 0; //added
+      receivefifo_usb_ttl[0] = 0;
+      HAL_GPIO_WritePin (LORA_TGL_GPIO_Port, LORA_TGL_Pin, GPIO_PIN_RESET);//Relay
+      HAL_Delay(1000);
+      HAL_GPIO_WritePin (LORA_TGL_GPIO_Port, LORA_TGL_Pin, GPIO_PIN_SET);//Relay
+      HAL_Delay(1000);
+      __HAL_UART_CLEAR_FLAG(&hlpuart1, UART_CLEAR_OREF);
+      hlpuart1.RxState = HAL_UART_STATE_READY;
+      //HAL_UART_Receive_IT(&hlpuart1, (uint8_t * )rx_data, 1); //ultrasonic sensor data receive on lpuart1
 
-            HAL_UART_Receive_DMA(&huart2, receivefifo, 1); //lora
-            HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
-            HAL_Delay(1000);//added
-            connected_test_all();
-            lora_init(hdma_usart2_tx, huart2);
-            HAL_Delay(1000);
-            setup();
-            //setup_lora_send_timer(&htim6); //set up lora send data timer
-            HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
-            HAL_NVIC_EnableIRQ(TIM21_IRQn);
-            HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
-            HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+      HAL_UART_Receive_DMA(&huart2, (uint8_t *)receivefifo, 1); //lora
+      HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1); //usb-ttl
+      HAL_Delay(1000);//added
+      connected_test_all();
+//      while(done_with_usb_ttl_setup == false){
+//
+//      } //force wait to do user inputs, so add back
+      get_timestamp();
+      //ultrasonic_init();
+      lora_init(&hdma_usart2_tx, &huart2);
+      mesh_init();
+      HAL_Delay(1000);
+      //setup_lora_send_timer(&htim6); //set up lora send data timer
+      setup_lora_send_timer(&htim6, 0x1D4C0); //does send own data timer, 2 minutes
+      HAL_NVIC_SetPriority(TIM21_IRQn, 2, 0); //start TIM21 since it was stopped before
+      HAL_NVIC_EnableIRQ(TIM21_IRQn);
+      HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 2, 0);
+      HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+      HAL_NVIC_SetPriority(TIM22_IRQn, 2, 0);
+      HAL_NVIC_EnableIRQ(TIM22_IRQn);
+      HAL_NVIC_SetPriority(LPTIM1_IRQn, 2, 0);
+      HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
 
-            //send_data[0] = 0xF0;
-            //send_data[1] = 0x0F;
-            //HAL_TIM_Base_Start_IT(&htim21);
-            //HAL_TIM_Base_Start_IT(&htim6);
+      HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
+      HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+      HAL_NVIC_EnableIRQ(SysTick_IRQn);
 
-            HAL_NVIC_DisableIRQ (SysTick_IRQn);//this has to be added here, else HAL_Delay will not work in TIM21 IRQ
-            HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
-            HAL_NVIC_EnableIRQ(SysTick_IRQn);
+      HAL_TIM_Base_Start_IT(&htim21); //CAD
+      HAL_TIM_Base_Start_IT(&htim22); //resending and dead
+      HAL_TIM_Base_Start_IT(&htim6); //send own data
+      //HAL_LPTIM_Counter_Start_IT(&hlptim1, 60000);//hello
 
-            mesh_init();//16,17         then 18,17        then 19,17
-            self_addr[0] = 0x16;
-            self_addr[1] = 0x17;
 
-            //setup_lora_send_timer(&htim6, 0x000004FF);
+      //mesh_init();//16,17         then 18,17        then 19,17
+      //self_addr[0] = 0x16;
+      //self_addr[1] = 0x17;
+      handle_send_hello();
+     // */
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -330,164 +404,54 @@ int main(void)
 		  message_id = random_number_gen(); //new since this will always be a new message (does not get passed on)
 		  uint8_t message_id_actual [4];
 		  memcpy(message_id_actual, &message_id, sizeof(uint32_t));
-		  mesh_send_poll(dest_addr, message_id_actual, new_frequency, 1, hdma_usart2_tx, huart2);
+		  mesh_send_poll(dest_addr, message_id_actual, new_frequency, 1, &hdma_usart2_tx, &huart2);
 	  }
+	  if(read_lora_fifo){ //
+		  in_read_lora_fifo = true;
+		  // stop the CAD timer since it will make the module go into sleep mode->this clears the FIFO, also stop send timer since need to receive first
+		  HAL_NVIC_DisableIRQ(TIM21_IRQn);
+		  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
+		  HAL_NVIC_DisableIRQ(TIM22_IRQn);
+		  HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
 
+		  read_lora_fifo = false;
+		  // volatile uint8_t buff [MESH_MAX_MESSAGE_LENGTH];
+		  lora_read_fifo_all((uint8_t *)buff, MESH_MAX_MESSAGE_LENGTH, true, &hdma_usart2_tx, &huart2); //second input is length
+		  mesh_main_rec(buff, &hdma_usart2_tx, &huart2);
 
-//	  if(DO_REC & !DO_BOTH){
-//	  		  if(read_lora_fifo){ //
-//	  			  in_read_lora_fifo = true;
-//	  			  // stop the CAD timer since it will make the module go into sleep mode->this clears the FIFO, also stop send timer since need to receive first
-//	  			  HAL_NVIC_DisableIRQ(TIM21_IRQn);
-//	  			  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
-//
-//	  			  //lora_read_fifo_all(sendfifo_rec_message, 20, true, hdma_usart2_tx, huart2); //second input is length
-//
-//	  			  //added below line (and commented out above line) to handle received message
-//	  			  read_lora_fifo = false;
-//	  			  mesh_main_rec(hdma_usart2_tx, huart2);
-//
-//	  			  // start restart the CAD timer so it doesn't take the entire receive-timout time
-//	  			  HAL_TIM_Base_Stop_IT(&htim21);
-//	  			  change_lora_timer_period(0, &htim21); //0 means sleep time,
-//	  			  HAL_TIM_Base_Start_IT(&htim21);
-//	  			  in_read_lora_fifo = false;
-//	  			  //end restart the CAD timer so it doesn't take the entire receive-timout time
-//	  			  HAL_NVIC_EnableIRQ(TIM21_IRQn);
-//	  			  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
-//
-//	  			  //HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
-//	  			  //HAL_Delay(1000);
-//	  			  //HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
-//	  		  }
-//	  	  }
-//	  	  if(DO_SEND & (!global_receive_mode_from_cad) & (!read_lora_fifo) & !DO_BOTH){
-//	  		  in_send = true;
-//	  		  HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
-//	  		  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
-//
-//	  		  send_item_off_send_buffer();
-//
-//	  		  ///*hello
-//	  		  uint8_t battery[1];
-//	  		  battery[0] = 0x20;
-//
-//	  		  mesh_send_hello(battery, hdma_usart2_tx, huart2);
-	  		  //*/
+		  // start restart the CAD timer so it doesn't take the entire receive-timout time
+		  HAL_TIM_Base_Stop_IT(&htim21);
+		  change_lora_timer_period(0, &htim21); //0 means sleep time,
+		  HAL_TIM_Base_Start_IT(&htim21);
+		  in_read_lora_fifo = false;
+		  //end restart the CAD timer so it doesn't take the entire receive-timout time
+		  HAL_NVIC_EnableIRQ(TIM21_IRQn);
+		  HAL_NVIC_EnableIRQ(TIM22_IRQn);
+		  HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
+		  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+	  }
+	  if(do_send & (!global_receive_mode_from_cad) & (!read_lora_fifo)){
+		  in_send = true;
+		  HAL_NVIC_DisableIRQ(TIM21_IRQn); //disable tim21, used for CAD cycle so it does not go off before init is done
+		  HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn);
+		  HAL_NVIC_DisableIRQ(TIM22_IRQn);
+		  HAL_NVIC_DisableIRQ(LPTIM1_IRQn);
 
-	  		  //add
-	  		  /*
-	  		  uint8_t dest_addr [ADDR_LENGTH];
-	  		  dest_addr[0] = 0x16;
-	  		  dest_addr[1] = 0x17;
-	  		  uint8_t new_addr [ADDR_LENGTH];
-	  		  new_addr[0] = 0x18;
-	  		  new_addr[1] = 0x19;
-	  		  uint8_t message_id [4];
-	  		  message_id[0] = 0x12;
-	  		  message_id[1] = 0x13;
-	  		  message_id[2] = 0x14;
-	  		  message_id[3] = 0x15;
-	  		  uint8_t coords [4];
-	  		  coords[0] = 0x20;
-	  		  coords[1] = 0x21;
-	  		  coords[2] = 0x22;
-	  		  coords[3] = 0x23;
-	  		  uint8_t distance [2];
-	  		  distance[0] = 0x24;
-	  		  distance[1] = 0x25;
+		  send_item_off_send_buffer();
+		  in_send = false;
+		  do_send = false;
 
-	  		  mesh_send_add(dest_addr,new_addr, coords, distance, message_id, 2, hdma_usart2_tx, huart2);
-	  		  */
-
-
-	  		  /*dead
-	  		  uint8_t dest_addr [ADDR_LENGTH];
-	  		  dest_addr[0] = 0x16;
-	  		  dest_addr[1] = 0x17;
-	  		  uint8_t dead_addr [ADDR_LENGTH];
-	  		  dead_addr[0] = 0x18;
-	  		  dead_addr[1] = 0x19;
-	  		  uint8_t message_id [4];
-	  		  message_id[0] = 0x12;
-	  		  message_id[1] = 0x13;
-	  		  message_id[2] = 0x14;
-	  		  message_id[3] = 0x15;
-	  		  uint8_t dead_since [6];
-	  		  dead_since[0] = 0x20;
-	  		  dead_since[1] = 0x21;
-	  		  dead_since[2] = 0x22;
-	  		  dead_since[3] = 0x23;
-	  		  dead_since[4] = 0x24;
-	  		  dead_since[5] = 0x25;
-	  		  uint8_t battery[2];
-	  		  battery[0] = 0x26;
-	  		  battery[1] = 0x27;
-	  		  mesh_send_dead(dest_addr, dead_addr, dead_since, battery, message_id, 1, hdma_usart2_tx, huart2);
-	  		  */
-
-	  		  //poll
-	  		  /*
-	  		  uint8_t dest_addr [ADDR_LENGTH];
-	  		  dest_addr[0] = 0x16;
-	  		  dest_addr[1] = 0x17;
-	  		  uint8_t message_id [4];
-	  		  message_id[0] = 0x12;
-	  		  message_id[1] = 0x13;
-	  		  message_id[2] = 0x14;
-	  		  message_id[3] = 0x15;
-	  		  uint32_t new_frequency = 0x000000FF;
-	  		  mesh_send_poll(dest_addr,message_id, new_frequency, 1, hdma_usart2_tx, huart2);
-	  		  */
-
-	  		  /* ack
-	  		  uint8_t dest_addr [ADDR_LENGTH];
-	  		  dest_addr[0] = 0x16;
-	  		  dest_addr[1] = 0x17;
-	  		  uint8_t message_id [4];
-	  		  message_id[0] = 0x12;
-	  		  message_id[1] = 0x13;
-	  		  message_id[2] = 0x14;
-	  		  message_id[3] = 0x15;
-	  		  mesh_send_ack(dest_addr, message_id, 1, hdma_usart2_tx, huart2);
-	  		  */
-	  		  /*data
-	  		  uint8_t message_id [4];
-	  		  message_id[0] = 0x12;
-	  		  message_id[1] = 0x13;
-	  		  message_id[2] = 0x14;
-	  		  message_id[3] = 0x15;
-	  		  uint8_t dest_addr [ADDR_LENGTH];
-	  		  dest_addr[0] = 0x16;
-	  		  dest_addr[1] = 0x17;
-	  		  uint8_t water_height [WATER_LENGTH];
-	  		  water_height[0] = 0x18;
-	  		  uint8_t battery_status [BATTERY_LENGTH];
-	  		  battery_status[0] = 0x19;
-	  		  uint8_t node_addr [ADDR_LENGTH];
-	  		  node_addr[0] = 0x20;
-	  		  node_addr[1] = 0x21;
-	  		  uint8_t time [6];
-	  		  time[0] = 0x22;
-	  		  time[1] = 0x23;
-	  		  time[2] = 0x24;
-	  		  time[3] = 0x25;
-	  		  time[4] = 0x26;
-	  		  time[5] = 0x27;
-
-	  		  self_addr[0] = 0x01;
-	  		  self_addr[1] = 0xFF;
-	  		  mesh_send_data(message_id, dest_addr, water_height, battery_status, node_addr, time, hdma_usart2_tx, huart2);
-	  		  */
-	  		  //in_send = false;
-	  		  //HAL_Delay(100);
-	  		  //HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);
-	  		  //HAL_Delay(1000);
-	  		  //HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);
+		  HAL_NVIC_EnableIRQ(TIM21_IRQn);
+		  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+		  HAL_NVIC_EnableIRQ(TIM22_IRQn);
+		  HAL_NVIC_EnableIRQ(LPTIM1_IRQn);
+		  uint32_t delay = random_number_gen();//random delay
+		  HAL_Delay(delay & 0x0F);
     /* USER CODE BEGIN 3 */
-  }
+	  }
   /* USER CODE END 3 */
   }
+}
 
 /**
   * @brief System Clock Configuration
@@ -719,6 +683,7 @@ static void MX_RNG_Init(void)
   * @param None
   * @retval None
   */
+
 static void MX_RTC_Init(void)
 {
 
@@ -1071,34 +1036,34 @@ static void MX_GPIO_Init(void)
 /* USER CODE END 4 */
 void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 	if(huart->Instance == USART2){ //lora
-		//normal code
-		//receivefifo[0] = 0;
-		rx_ready = true;
-		//then call receive again
-		HAL_UART_Receive_DMA(&huart2, receivefifo, 1);
-		if(global_receive_mode_from_cad == 1){
-			global_receive_mode_from_cad = 0;
-			//this is for when CAD mode detected a preamble
-			//this should not happen, figure out what to do here later
-			if(receivefifo[0] == 0x49){
-				//this is when the response is I (0x49)
-				//this means this is actually the I response for a DIO interrupt
-				//call the read FIFO and figure out response function
-				//lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart[0]); //second input is length
-				//HAL_NVIC_SetPendingIRQ(1);//above line is called in this interrupt to deal with interrupt priorities
-				int value;
-				value = uart_read(); //dummy read to get rid of the I response
-				if((in_read_lora_fifo == false) & (in_send == false)){
-					read_lora_fifo = true;
-				}
-				else{
-//					while(1){
-//
-//					}
+			//normal code
+			//receivefifo[0] = 0;
+			rx_ready = true;
+			//then call receive again
+			HAL_UART_Receive_DMA(&huart2, (uint8_t *)receivefifo, 1);
+			if(global_receive_mode_from_cad == 1){
+				global_receive_mode_from_cad = 0;
+				//this is for when CAD mode detected a preamble
+				//this should not happen, figure out what to do here later
+				if(receivefifo[0] == 0x49){
+					//this is when the response is I (0x49)
+					//this means this is actually the I response for a DIO interrupt
+					//call the read FIFO and figure out response function
+					//lora_read_fifo_all(rec_data, 0x2, hdma_usart1_tx, huart[0]); //second input is length
+					//HAL_NVIC_SetPendingIRQ(1);//above line is called in this interrupt to deal with interrupt priorities
+					int value;
+					value = uart_read(); //dummy read to get rid of the I response
+					if((in_read_lora_fifo == false) & (in_send == false)){
+						read_lora_fifo = true;
+					}
+					else{
+	//					while(1){
+	//
+	//					}
+					}
 				}
 			}
 		}
-	}
 }
 //	//ADDED FOR ULTRASONIC
 //	else if(huart->Instance == hlpuart1.Instance){ // ultrasonic on LPUART1
@@ -1183,17 +1148,17 @@ void get_timestamp(void){
 void connected_test_all(void){
 	//HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_SET);//turn on all LEDs
 
-	connected_test(hdma_usart2_tx, huart2);//check LoRa
+	connected_test(&hdma_usart2_tx, &huart2);//check LoRa
 
 	//check Ultrasonic
 	//lpuart1
 
 	//send something to USB-TTL (don't require a response because it might not be connected)
-	uint8_t message [4];
-	message[0] = 't';
-	message[1] = 'e';
-	message[2] = 's';
-	message[3] = 't';
+//	uint8_t message [4];
+//	message[0] = 't';
+//	message[1] = 'e';
+//	message[2] = 's';
+//	message[3] = 't';
 	//send_usb_ttl(message, 4, huart1);
 
 	//wait some time
@@ -1202,37 +1167,37 @@ void connected_test_all(void){
 	//HAL_GPIO_WritePin(GPIOC, PC0_LED_Pin|PC1_LED_Pin|PC2_LED_Pin, GPIO_PIN_RESET);//turn off all LEDs
 
 }
-void uart_set_rtc(void){
-	//this should be called when the user indicates they are about to send rtc time and date data
+//void uart_set_rtc(void){
+//	//this should be called when the user indicates they are about to send rtc time and date data
+//
+//	//use one buffer with size 7
+//	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 7, 120000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
+//		//do nothing
+//	}
+//
+//	RTC_TimeTypeDef set_time;
+//	RTC_DateTypeDef set_date;
+//	set_time.Hours = usb_buffer_rtc[0];// 24 hour time
+//	set_time.Minutes = usb_buffer_rtc[1];
+//	set_time.Seconds = usb_buffer_rtc[2];
+//
+//	set_date.WeekDay = usb_buffer_rtc[3]; //monday = 1, tuesday = 2,...
+//	set_date.Month = usb_buffer_rtc[4]; //1 = January, 2 = February, ...
+//	set_date.Date = usb_buffer_rtc[5];//day
+//	set_date.Year = usb_buffer_rtc[6];//just 26 not 2006
+//
+//}
 
-	//use one buffer with size 7
-	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 7, 120000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
-		//do nothing
-	}
-
-	RTC_TimeTypeDef set_time;
-	RTC_DateTypeDef set_date;
-	set_time.Hours = usb_buffer_rtc[0];// 24 hour time
-	set_time.Minutes = usb_buffer_rtc[1];
-	set_time.Seconds = usb_buffer_rtc[2];
-
-	set_date.WeekDay = usb_buffer_rtc[3]; //monday = 1, tuesday = 2,...
-	set_date.Month = usb_buffer_rtc[4]; //1 = January, 2 = February, ...
-	set_date.Date = usb_buffer_rtc[5];//day
-	set_date.Year = usb_buffer_rtc[6];//just 26 not 2006
-
-}
-
-void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
-	if(HAL_RTC_SetTime(&hrtc, time, RTC_FORMAT_BIN) != HAL_OK){
-		//error
-	}
-	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
-		//error
-	}
-	HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
-	//turns on DMA for receive again since non-dma was used before
-}
+//void set_time_and_date(RTC_TimeTypeDef *time, RTC_DateTypeDef *date){
+//	if(HAL_RTC_SetTime(&hrtc, time, RTC_FORMAT_BIN) != HAL_OK){
+//		//error
+//	}
+//	if(HAL_RTC_SetDate(&hrtc, date, RTC_FORMAT_BIN) != HAL_OK){
+//		//error
+//	}
+//	HAL_UART_Receive_DMA(&huart1, receivefifo_usb_ttl, 1); //usb-ttl
+//	//turns on DMA for receive again since non-dma was used before
+//}
 #ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number

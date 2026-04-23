@@ -211,11 +211,12 @@ void DMA1_Channel4_5_6_7_IRQHandler(void)
 void TIM6_DAC_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM6_DAC_IRQn 0 */
-	uint8_t message [64];
-	  char* str3 ="\r\n\r\n polling timer went off";
+	//uint8_t message [64];
+	  //char* str3 ="\r\n\r\n polling timer went off";
 	  //while(usb_ttl_done == false);
-	  memcpy(&message[0], str3, strlen(str3));
+	  //memcpy(&message[0], str3, strlen(str3));
 	  //send_usb_ttl(message, strlen(str3), huart1);
+	handle_send_hello();
 	  HAL_TIM_IRQHandler(&htim6);
   /* USER CODE END TIM6_DAC_IRQn 0 */
   HAL_TIM_IRQHandler(&htim6);
@@ -231,43 +232,44 @@ void TIM21_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM21_IRQn 0 */
 	if(read_lora_fifo == false){
-				HAL_TIM_Base_Stop_IT(&htim21);
-				if(global_receive_mode_from_cad){ //went to receive mode from CAD, but did not receive anything
-					set_mode_sleep(hdma_usart2_tx, huart2);//set mode to sleep
+			HAL_TIM_Base_Stop_IT(&htim21);
+			if(global_receive_mode_from_cad){ //went to receive mode from CAD, but did not receive anything
+				set_mode_sleep(&hdma_usart2_tx, &huart2);//set mode to sleep
+				change_lora_timer_period(0, &htim21); //0 means sleep time
+				global_receive_mode_from_cad = 0;
+			}
+			else{ //switch to CAD
+				bool detect;
+				detect = cad_cycle(&hdma_usart2_tx, &huart2);
+				if(detect){
+					//go to continuous receive
+					set_mode_continuous_receive(&hdma_usart2_tx, &huart2);
+
+					//check that mode is receive
+					//lora_read_single(0x01, hdma_usart1_tx, huart1, 1);
+
+					global_receive_mode_from_cad = 1;
+					change_lora_timer_period(1, &htim21); //1 means receive got nothing time
+					//start timer again (when the timer goes off this time, did not actually receive anything, so quit and go to sleep mode
+					//need to disable and reset the timer in the I response
+					//use a timer to quit (did not actually receive anything)
+					//and use the interrupt from the I response to check FIFO if a message was received (might need to use a global variable)
+				}
+				else{
+					set_mode_sleep(&hdma_usart2_tx, &huart2);//set mode to sleep
 					change_lora_timer_period(0, &htim21); //0 means sleep time
 					global_receive_mode_from_cad = 0;
+					//send message
+					do_send = true;
+					//end send
 				}
-				else{ //switch to CAD
-					bool detect;
-					detect = cad_cycle(hdma_usart2_tx, huart2);
-					if(detect){
-						//go to continuous receive
-						set_mode_continuous_receive();
-
-						//check that mode is receive
-						//lora_read_single(0x01, hdma_usart1_tx, huart1, 1);
-
-						global_receive_mode_from_cad = 1;
-						change_lora_timer_period(1, &htim21); //1 means receive got nothing time
-						//start timer again (when the timer goes off this time, did not actually receive anything, so quit and go to sleep mode
-						//need to disable and reset the timer in the I response
-						//use a timer to quit (did not actually receive anything)
-						//and use the interrupt from the I response to check FIFO if a message was received (might need to use a global variable)
-					}
-					else{
-						set_mode_sleep(hdma_usart2_tx, huart2);//set mode to sleep
-						change_lora_timer_period(0, &htim21); //0 means sleep time
-						global_receive_mode_from_cad = 0;
-						//send message
-						do_send = true;
-						//end send
-					}
-				}
-				HAL_TIM_Base_Start_IT(&htim21);
 			}
-			else{
-				//do nothing
-			}
+			HAL_TIM_Base_Start_IT(&htim21);
+		}
+		else{
+			//do nothing
+		}
+
   /* USER CODE END TIM21_IRQn 0 */
   HAL_TIM_IRQHandler(&htim21);
   /* USER CODE BEGIN TIM21_IRQn 1 */
