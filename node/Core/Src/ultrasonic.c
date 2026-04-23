@@ -44,7 +44,7 @@ uint32_t ultrasonic_update(void) {
     		long_term_sum = 0;
     		sample_count = 0;
     		current_state = STATE_SAMPLING;
-    		printf("Starting Sample \r\n");
+    		//printf("Starting Sample \r\n");
     		//}
     		break;
 
@@ -56,7 +56,7 @@ uint32_t ultrasonic_update(void) {
     	 		 }
     	 		 // Optional real-time printing during minute poll
     	 		 if (data_ready) {
-    	 			 printf("current distance reading: %lu mm\r\n", distance_mm);
+    	 			 //printf("current distance reading: %lu mm\r\n", distance_mm);
     	 			 data_ready = 0;
     	 		 }
     	 		 // End sampling window
@@ -68,11 +68,11 @@ uint32_t ultrasonic_update(void) {
     	 	 case STATE_REPORTING:
     	 		 if (sample_count > 0) {
     	 			 final_report = (uint32_t)(long_term_sum / sample_count);
-    	 			 printf("average reading from poll: %lu mm (from %lu samples)\r\n", final_report, sample_count);
+    	 			 //printf("average reading from poll: %lu mm (from %lu samples)\r\n", final_report, sample_count);
     	 		 }
     	 		 state_timer = now;
     	 		 current_state = STATE_IDLE;
-    	 		 printf("entering idle\r\n");
+    	 		 //printf("entering idle\r\n");
     	 		 return final_report;
     	 		 break;
     	    }

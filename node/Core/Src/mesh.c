@@ -11,6 +11,8 @@ extern volatile uint8_t node_distance [2];
 
 extern volatile uint8_t rx_data [1];
 
+extern ADC_HandleTypeDef hadc;
+
 extern volatile bool banned_addr1_valid;
 extern volatile bool banned_addr2_valid;
 extern volatile uint8_t banned_addr1 [ADDR_LENGTH];
@@ -24,6 +26,11 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern TIM_HandleTypeDef htim6;
 extern DMA_HandleTypeDef hdma_usart2_tx;
+
+const uint16_t ADC_MIN = 1861; // Corresponds to 3.0V battery
+const uint16_t ADC_MAX = 2606;
+
+extern volatile uint32_t adc_val;
 
 volatile mesh_neighbor neighbor_to_hub1, neighbor_to_hub2, neighbor_to_hub3, neighbor_away_hub1, neighbor_away_hub2, neighbor_away_hub3;
 //to hub is closer to hub, away is farther from, 1 is closest to node, 3 is farthest, populates 1->3
@@ -102,6 +109,19 @@ void handle_sending_own_data(void){
 
 	//TODO:figure out battery
 	uint8_t battery [BATTERY_LENGTH];
+	HAL_ADC_Start(&hadc);
+	if (HAL_ADC_PollForConversion(&hadc, 10) == HAL_OK) {
+		adc_val = HAL_ADC_GetValue(&hadc);
+	}
+	HAL_ADC_Stop(&hadc);
+
+	battery[0] = (uint8_t)(((uint32_t)(adc_val - ADC_MIN) * 255) / (ADC_MAX - ADC_MIN));
+	if (adc_val <= ADC_MIN){
+		battery[0] = 0;
+	}
+	if (adc_val >= ADC_MAX){
+		battery[0] = 255;
+	}
 
 	//TODO: figure out water height
 	uint8_t water_height [WATER_LENGTH];

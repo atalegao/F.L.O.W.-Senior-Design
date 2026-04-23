@@ -57,6 +57,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern LPTIM_HandleTypeDef hlptim1;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart2_rx;
@@ -65,7 +66,6 @@ extern UART_HandleTypeDef hlpuart1;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern RNG_HandleTypeDef hrng;
-extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim21;
 extern TIM_HandleTypeDef htim22;
 /* USER CODE BEGIN EV */
@@ -187,18 +187,17 @@ void DMA1_Channel4_5_6_7_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles TIM2 global interrupt.
+  * @brief This function handles LPTIM1 global interrupt / LPTIM1 wake-up interrupt through EXTI line 29.
   */
-void TIM2_IRQHandler(void)
+void LPTIM1_IRQHandler(void)
 {
-  /* USER CODE BEGIN TIM2_IRQn 0 */
-  //send hello message
-  handle_send_hello();
-  /* USER CODE END TIM2_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim2);
-  /* USER CODE BEGIN TIM2_IRQn 1 */
+  /* USER CODE BEGIN LPTIM1_IRQn 0 */
+	handle_send_hello();
+  /* USER CODE END LPTIM1_IRQn 0 */
+  HAL_LPTIM_IRQHandler(&hlptim1);
+  /* USER CODE BEGIN LPTIM1_IRQn 1 */
 
-  /* USER CODE END TIM2_IRQn 1 */
+  /* USER CODE END LPTIM1_IRQn 1 */
 }
 
 /**
