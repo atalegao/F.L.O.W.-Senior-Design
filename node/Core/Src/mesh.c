@@ -58,7 +58,7 @@ uint32_t random_number_gen(void){
 	return random_number;
 }
 
-bool calc_crc(uint8_t * data, uint8_t length){
+bool calc_crc(volatile uint8_t * data, uint8_t length){
 	uint8_t  i = 0; //length is in bytes
 	uint8_t sum = 0;
 	while( i < length){
@@ -322,6 +322,9 @@ void handle_one_resending(time_t current_time, volatile sent_message_buff_entry 
 
 	bool past_time = decide_if_past_time(current_time, sent_message->last_sent_time);
 	if(past_time){
+		if(sent_message->entry.attempt > 8){
+			return;
+		}
 		sent_message->entry.attempt = sent_message->entry.attempt + 1;
 		//update addr
 		uint8_t dest_addr [ADDR_LENGTH];
@@ -1002,7 +1005,7 @@ bool mesh_rec_hello(volatile uint8_t * data, uint8_t * message_id, uint8_t * sen
 	return  good;
 }
 
-bool mesh_send_dead(uint8_t * dest_addr, uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){
+bool mesh_send_dead(uint8_t * dest_addr, volatile uint8_t * dead_addr, uint8_t * dead_since, uint8_t * battery, uint8_t * message_id, uint8_t attempt, DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){
 	//message is dest_addr, message_id, message_type, dead_addr, dead_since, battery
 	//dead since is 6 bytes, battery is last 2 battery, so BATTERY_LENGTH * 2
 
@@ -1694,7 +1697,7 @@ void shift_all_messages(uint8_t * message_id, bool this_node_sent){
 	replace_one_message_id_struct(message1, message0);
 }
 
-bool check_message_struct_match(uint8_t * message_id, uint8_t * message_id2){
+bool check_message_struct_match(uint8_t * message_id, volatile uint8_t * message_id2){
 	//this checks if the two message ids are equal, returns true if they are
 	int i = 0;
 	while (i < 4){
@@ -1711,18 +1714,30 @@ bool sent_message_buffer_clear(uint8_t * message_id, volatile sent_message_buff_
 	if(entry->entry.valid == false){
 		return false;
 	}
-	bool id_match = true;
 	int i = 0;
 	int k = ADDR_LENGTH;//since message_id is not the first couple bytes
 	while(i < 4){
 		if(entry->entry.message[k] != message_id[i]){
-			id_match = false;
 			return false;
 		}
 		i += 1;
+		k += 1;
 	}
 	entry->entry.valid = false;
 	return true;
+}
+
+void clear_sending_buffer(uint8_t * message_id, volatile sending_buffer_entry * buffer){
+	uint8_t i = 0;
+	uint8_t k = ADDR_LENGTH;
+	while(i < 4){
+		if(message_id[i] != buffer->message[k]){
+			return;
+		}
+		i += 1;
+		k += 1;
+	}
+	buffer->valid = false;
 }
 
 void clear_sent_message_buffer(uint8_t * message_id){
@@ -1737,6 +1752,17 @@ void clear_sent_message_buffer(uint8_t * message_id){
 	sent_message_buffer_clear(message_id, &sent_buffer.entry8);
 	sent_message_buffer_clear(message_id, &sent_buffer.entry9);
 	sent_message_buffer_clear(message_id, &sent_buffer.entry10);
+	//also needs to clear the value from send buffer
+	clear_sending_buffer(message_id, &sending_buffer.entry1);
+	clear_sending_buffer(message_id, &sending_buffer.entry2);
+	clear_sending_buffer(message_id, &sending_buffer.entry3);
+	clear_sending_buffer(message_id, &sending_buffer.entry4);
+	clear_sending_buffer(message_id, &sending_buffer.entry5);
+	clear_sending_buffer(message_id, &sending_buffer.entry6);
+	clear_sending_buffer(message_id, &sending_buffer.entry7);
+	clear_sending_buffer(message_id, &sending_buffer.entry8);
+	clear_sending_buffer(message_id, &sending_buffer.entry9);
+	clear_sending_buffer(message_id, &sending_buffer.entry10);
 }
 
 bool mesh_handle_id_and_message_type(volatile uint8_t * z,volatile uint8_t * data, volatile mesh_msg_type * type, uint8_t * message_id){
