@@ -74,7 +74,7 @@ volatile RTC_TimeTypeDef current_time;
 volatile RTC_DateTypeDef current_date;
 #define FILTER_SIZE 20
 
-uint8_t usb_buffer_rtc [13];
+uint8_t usb_buffer_rtc [15];
 bool read_lora_fifo;
 /* USER CODE END PV */
 
@@ -114,6 +114,12 @@ volatile uint8_t rec_data [MESSAGE_LENGTH];
 uint8_t self_addr [ADDR_LENGTH];
 volatile uint8_t buff [MESH_MAX_MESSAGE_LENGTH] __attribute__((aligned(4)));
 volatile bool done_with_usb_ttl_setup = false;
+uint8_t message [64];
+
+volatile bool banned_addr1_valid;
+volatile bool banned_addr2_valid;
+volatile uint8_t banned_addr1 [ADDR_LENGTH];
+volatile uint8_t banned_addr2 [ADDR_LENGTH];
 
 volatile bool send_normal = false;
 volatile bool send_send = false;
@@ -1145,7 +1151,7 @@ void uart_set_rtc(void){
 	//this should be called when the user indicates they are about to send rtc time and date data
 
 	//use one buffer with size 7
-	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 13, 240000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
+	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 15, 240000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
 		//do nothing
 	}
 
@@ -1160,7 +1166,7 @@ void uart_set_rtc(void){
 	set_date.Date = usb_buffer_rtc[5];//day
 	set_date.Year = usb_buffer_rtc[6];//just 26 not 2006
 	set_time_and_date(&set_time, &set_date);
-	uint8_t message [20];
+	//uint8_t message [20];
 	message[0] = 'r';
 	message[1] = 't';
 	message[2] = 'c';
@@ -1181,6 +1187,7 @@ void uart_set_rtc(void){
 	message[17] = 's';
 	message[18] = 'e';
 	message[19] = 't';
+	while(usb_ttl_done == false);
 	send_usb_ttl(message, 20, &huart1);
 	node_distance[0] = usb_buffer_rtc[7];
 	node_distance[1] = usb_buffer_rtc[8];
@@ -1189,7 +1196,34 @@ void uart_set_rtc(void){
 	coords[1] = usb_buffer_rtc[10];
 	coords[2] = usb_buffer_rtc[11];
 	coords[3] = usb_buffer_rtc[12];
+	self_addr[0] = usb_buffer_rtc[13];
+	self_addr[1] = usb_buffer_rtc[14];
 
+}
+
+void ban_addr(void){
+	while (HAL_UART_Receive(&huart1, usb_buffer_rtc, 6, 240000) != HAL_OK){ //last is timeout in ms, 60000 is 1 minute
+		//do nothing
+	}
+	banned_addr1_valid = (usb_buffer_rtc[0] != 0);//valid 1
+	banned_addr1[0] = usb_buffer_rtc[1];//addr[0]
+	banned_addr1[1] = usb_buffer_rtc[2];//addr[1]
+	banned_addr2_valid = (usb_buffer_rtc[3] != 0);//valid 2
+	banned_addr2[0] = usb_buffer_rtc[4];//addr2[0]
+	banned_addr2[1] = usb_buffer_rtc[5];//addr2[1]
+//	uint8_t message [9];
+	message[0] = 'b';
+	message[1] = 'a';
+	message[2] = 'n';
+	message[3] = ' ';
+	message[4] = 'a';
+	message[5] = 'd';
+	message[6] = 'd';
+	message[7] = 'e';
+	message[8] = 'd';
+	while(usb_ttl_done == false);
+	send_usb_ttl(message, 9, &huart1);
+	HAL_UART_Receive_DMA(&huart1, (uint8_t *) receivefifo_usb_ttl, 1);
 }
 
 void set_time_and_date(volatile RTC_TimeTypeDef *time, volatile RTC_DateTypeDef *date){
@@ -1204,7 +1238,7 @@ void set_time_and_date(volatile RTC_TimeTypeDef *time, volatile RTC_DateTypeDef 
 }
 
 void send_usb_ttl(uint8_t * message, uint8_t length, UART_HandleTypeDef * huart){
-	while (usb_ttl_done == false){
+	while (usb_ttl_done == false || huart->gState != HAL_UART_STATE_READY){
 		//do nothing
 	}
 	usb_ttl_done = false;
@@ -1228,7 +1262,7 @@ void connected_test_all(void){
 	//lpuart1
 
 	//send something to USB-TTL (don't require a response because it might not be connected)
-	uint8_t message [6];
+	//uint8_t message [6];
 	message[0] = 't';
 	message[1] = 'e';
 	message[2] = 's';
@@ -1317,6 +1351,9 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 		if(receivefifo_usb_ttl[0] == 100){ //special character to indicate setting RTC
 			uart_set_rtc();
 			//HAL_UART_Receive_DMA(&huart1, (uint8_t *)receivefifo_usb_ttl, 1);
+		}
+		else if(receivefifo_usb_ttl[0] == 111){
+			ban_addr();//ban addr
 		}
 		else{//ignore
 			HAL_UART_Receive_DMA(&huart1, (uint8_t *)receivefifo_usb_ttl, 1); //usb-ttl

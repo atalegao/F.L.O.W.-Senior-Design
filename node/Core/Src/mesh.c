@@ -11,6 +11,11 @@ extern volatile uint8_t node_distance [2];
 
 extern volatile uint8_t rx_data [1];
 
+extern volatile bool banned_addr1_valid;
+extern volatile bool banned_addr2_valid;
+extern volatile uint8_t banned_addr1 [ADDR_LENGTH];
+extern volatile uint8_t banned_addr2 [ADDR_LENGTH];
+
 extern uint8_t self_addr [ADDR_LENGTH];
 extern uint8_t addr_any_direction [ADDR_LENGTH];
 extern uint8_t addr_right_direction [ADDR_LENGTH];
@@ -28,6 +33,7 @@ volatile message_id_history message1, message2, message3, message4, message5, me
 volatile sent_message_buffer sent_buffer;
 
 volatile sending_buffer_type sending_buffer;
+uint8_t message_1 [64];
 
 volatile uint8_t send_buffer_add_index = 1; //is where to add the next message (counts up)
 volatile uint8_t send_buffer_send_index = 1; //is where the next message to be sent is (counts up)
@@ -1796,7 +1802,7 @@ bool mesh_handle_id_and_message_type(volatile uint8_t * z,volatile uint8_t * dat
 	if(match[0] == true){
 		//matched
 		if(match[1] == true){//this node sent the message
-			clear_sent_message_buffer(message_id);//don't send this message again
+			//clear_sent_message_buffer(message_id);//don't send this message again
 			return false;
 		}
 		else{//this node did not send the message
@@ -1840,7 +1846,21 @@ bool mesh_message_type_helper(volatile uint8_t * data, mesh_msg_type type, uint8
 	return good;
 }
 
-
+bool check_ban_addr(uint8_t * dest_addr){
+	uint8_t i = 0;
+	bool match1 = banned_addr1_valid;
+	bool match2 = banned_addr2_valid;
+	while(i < ADDR_LENGTH){
+		if(banned_addr1[i] != dest_addr[i]){
+			match1 = false;
+		}
+		if(banned_addr2[i] != dest_addr[i]){
+			match2 = false;
+		}
+		i += 1;
+	}
+	return (match1 | match2);
+}
 
 
 bool mesh_main_rec(volatile uint8_t * data,DMA_HandleTypeDef * hdma_usart_tx, UART_HandleTypeDef * huart){//////////////////////////done
@@ -1874,6 +1894,7 @@ bool mesh_main_rec(volatile uint8_t * data,DMA_HandleTypeDef * hdma_usart_tx, UA
 		}
 		i += 1;
 	}
+
 	volatile mesh_msg_type type [1];
 	uint8_t message_id [4];
 	bool id_valid = mesh_handle_id_and_message_type(&z, data, type, message_id);
@@ -1885,6 +1906,20 @@ bool mesh_main_rec(volatile uint8_t * data,DMA_HandleTypeDef * hdma_usart_tx, UA
 		sending_addr[q] = data[z];
 		z += 1;
 		q += 1;
+	}
+	//ban logic
+	bool banned = check_ban_addr(sending_addr);
+	if(banned){
+		//uint8_t message [64];
+		char* str1 ="\r\n\r\nIgnored message due to banned addr";
+		while(usb_ttl_done == false);
+		memcpy(&message_1[0], str1, strlen(str1));
+		send_usb_ttl(message_1, strlen(str1), &huart1);
+		return true;
+	}
+	//end ban logic
+	if(id_valid == false){
+			clear_sent_message_buffer(message_id);
 	}
 
 	if(id_valid == false){//this means received a message with the same id as previously seen, send an ack to stop the node from sending it again
@@ -2023,18 +2058,18 @@ bool mesh_rec_data(volatile uint8_t * data, uint8_t * send_addr, uint8_t * messa
 
 void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, uint8_t time_or_ignore_reason, uint8_t * send_or_rec_addr, UART_HandleTypeDef * huart){
 	//this prints a message to the usb-ttl about sent and received messages
-	uint8_t message [64];
+	//uint8_t message [64];
 	if(sent){
 		char* str1 ="\r\n\r\nSent a message with id: ";
 		while(usb_ttl_done == false);
-		memcpy(&message[0], str1, strlen(str1));
-		send_usb_ttl(message, strlen(str1), huart);
+		memcpy(&message_1[0], str1, strlen(str1));
+		send_usb_ttl(message_1, strlen(str1), huart);
 	}
 	else {
 		char* str1 ="\r\n\r\nReceived a message with id: ";
 		while(usb_ttl_done == false);
-		memcpy(&message[0], str1, strlen(str1));
-		send_usb_ttl(message, strlen(str1), huart);
+		memcpy(&message_1[0], str1, strlen(str1));
+		send_usb_ttl(message_1, strlen(str1), huart);
 	}
 	while(usb_ttl_done == false);
 	send_usb_ttl(message_id, 4, huart);
@@ -2063,18 +2098,18 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		break;
 	}
 	while(usb_ttl_done == false);
-	memcpy(&message[0], str2, strlen(str2));
-	send_usb_ttl(message, strlen(str2), huart);
+	memcpy(&message_1[0], str2, strlen(str2));
+	send_usb_ttl(message_1, strlen(str2), huart);
 	if(sent){
 		char* str3 =" for the";
 		while(usb_ttl_done == false);
-		memcpy(&message[0], str3, strlen(str3));
-		send_usb_ttl(message, strlen(str3), huart);
+		memcpy(&message_1[0], str3, strlen(str3));
+		send_usb_ttl(message_1, strlen(str3), huart);
 		while(usb_ttl_done == false);
 		if(time_or_ignore_reason == 0){
 			char* str999 =" crc error ack sent to ";
-			memcpy(&message[0], str999, strlen(str999));
-			send_usb_ttl(message, strlen(str999), huart);
+			memcpy(&message_1[0], str999, strlen(str999));
+			send_usb_ttl(message_1, strlen(str999), huart);
 			while(usb_ttl_done == false);
 			send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);
 			return;
@@ -2082,8 +2117,8 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 		send_usb_ttl(&time_or_ignore_reason, 1, huart);
 		char* str5 =" time, rec addr is";
 		while(usb_ttl_done == false);
-		memcpy(&message[0], str5, strlen(str5));
-		send_usb_ttl(message, strlen(str5), huart);
+		memcpy(&message_1[0], str5, strlen(str5));
+		send_usb_ttl(message_1, strlen(str5), huart);
 		while(usb_ttl_done == false);
 		send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);
 	}
@@ -2104,8 +2139,8 @@ void send_usb_ttl_message(bool sent, mesh_msg_type type, uint8_t * message_id, u
 			break;
 		}
 		while(usb_ttl_done == false);
-		memcpy(&message[0], str4, strlen(str4));
-		send_usb_ttl(message, strlen(str4), huart);
+		memcpy(&message_1[0], str4, strlen(str4));
+		send_usb_ttl(message_1, strlen(str4), huart);
 		while(usb_ttl_done == false);
 		send_usb_ttl(send_or_rec_addr, ADDR_LENGTH, huart);
 	}
