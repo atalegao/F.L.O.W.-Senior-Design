@@ -615,15 +615,15 @@ void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){
 		}
 	}
 
-	if((attempt == 1) | (attempt == 2)){ //farthest away from hub
+	if((attempt == 1) | (attempt == 2)){ //closest away from hub
 		switch(sum){
 		case 3:
-			dest_addr[0] = neighbor_away_hub3.addr[0];
-			dest_addr[1] = neighbor_away_hub3.addr[1];
+			dest_addr[0] = neighbor_away_hub1.addr[0];
+			dest_addr[1] = neighbor_away_hub1.addr[1];
 			break;
 		case 2:
-			dest_addr[0] = neighbor_away_hub2.addr[0];
-			dest_addr[1] = neighbor_away_hub2.addr[1];
+			dest_addr[0] = neighbor_away_hub1.addr[0];
+			dest_addr[1] = neighbor_away_hub1.addr[1];
 			break;
 		case 1:
 			dest_addr[0] = neighbor_away_hub1.addr[0];
@@ -631,7 +631,7 @@ void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){
 			break;
 		}
 	}
-	else if((attempt == 3) | (attempt == 4)){//2nd farthest towards hub
+	else if((attempt == 3) | (attempt == 4)){//2nd farthest away hub
 		switch(sum){
 			case 3:
 				dest_addr[0] = neighbor_away_hub2.addr[0];
@@ -647,9 +647,21 @@ void find_dest_addr_away_hub(uint8_t * dest_addr, uint8_t attempt){
 				break;
 				}
 	}
-	else if((attempt == 5) | (attempt == 6)){//3rd farthest towards hub
-		dest_addr[0] = neighbor_away_hub1.addr[0];
-		dest_addr[1] = neighbor_away_hub1.addr[1];
+	else if((attempt == 5) | (attempt == 6)){//farthest away hub
+		switch(sum){
+			case 3:
+				dest_addr[0] = neighbor_away_hub3.addr[0];
+				dest_addr[1] = neighbor_away_hub3.addr[1];
+				break;
+			case 2:
+				dest_addr[0] = neighbor_away_hub2.addr[0];
+				dest_addr[1] = neighbor_away_hub2.addr[1];
+				break;
+			case 1:
+				dest_addr[0] = neighbor_away_hub1.addr[0];
+				dest_addr[1] = neighbor_away_hub1.addr[1];
+				break;
+			}
 	}
 	else if((attempt == 7) | (attempt == 8)){//correct direction (towards hub)
 		dest_addr[0] = addr_right_direction[0];
@@ -1974,7 +1986,13 @@ bool mesh_main_rec(volatile uint8_t * data,DMA_HandleTypeDef * hdma_usart_tx, UA
 			return true; //don't pass on
 		}
 		else if(addr_match_any_direction == true){
-			bool good_pre = check_addr_any_dir(sending_addr, type);
+			bool good_pre;
+			if(type[0] == MESH_MSG_HELLO){
+				good_pre = true;
+			}
+			else{
+				good_pre = check_addr_any_dir(sending_addr, type);
+			}
 			if(good_pre == true){
 				send_usb_ttl_message(false, type[0], message_id, 0, sending_addr, &huart1);//usb ttl debug print
 				bool good = mesh_message_type_helper(data, type[0], message_id, sending_addr,hdma_usart_tx, huart);//pass on
