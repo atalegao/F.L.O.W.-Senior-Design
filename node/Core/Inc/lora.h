@@ -10,7 +10,7 @@
 #define CAD_BOL //for cad cycle
 
 #define RH_WRITE_MASK 0x80
-#define PREAMBLE_LENGTH 0xF0 //was 8
+#define PREAMBLE_LENGTH 15 //was F0
 #define CENTER_FREQUENCY 868
 #define TXPOWER 13
 #define ADDRTO 0x10 //address of message that should receive any sent message

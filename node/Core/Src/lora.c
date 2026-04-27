@@ -747,7 +747,7 @@ void change_lora_timer_period(int cause, TIM_HandleTypeDef * htim){
 	//input clock is APB2Tim_clock (currently 32 MHz)
 	//period is 1/ (APB2Tim_clock / (Prescaler + 1) / (Period + 1))
 	if(cause == 1){
-		htim->Init.Prescaler = 10000;
+		htim->Init.Prescaler = 1000;
 		htim->Init.Period = 65535;
 		htim->Init.ClockDivision = TIM_CLOCKDIVISION_DIV4;
 	}
