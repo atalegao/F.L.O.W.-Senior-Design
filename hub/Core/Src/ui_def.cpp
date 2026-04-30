@@ -212,7 +212,9 @@ void drawNodeHistory(Node* n)
 
     for (int i = 0; i < count; i++)
     {
-        int y = 70 + i * 30;
+        int idx = (n->historyIndex - count + i + HISTORY_LEN) % HISTORY_LEN;
+
+        int y = 110 + i * 60;
 
         float w = n->history[i].waterHeight;
         uint32_t t = n->history[i].timestamp;
@@ -227,7 +229,7 @@ void drawNodeHistory(Node* n)
         // Water level label + value
         tft->textSetCursor(350, y);
 
-        if (w >= WATER_THRESHOLD)
+        if (w <= WATER_THRESHOLD && w != 0)
             tft->textTransparent(RA8875_RED);
         else
             tft->textTransparent(RA8875_WHITE);
@@ -443,9 +445,10 @@ void commitPollingFrequency(void)
     poll_freq_active = freq_req;
     new_freq_flag = true;
 }
-void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float battery, bool status)
+void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float battery, const char* name)
 {
     int found = 0;
+
 
     for (int i = 0; i < nodeCount; i++)
     {
@@ -454,13 +457,13 @@ void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float batt
             Node *n = &nodes[i];
 
             // update latest values
-            n->latestWaterHeight = water;
+            n->latestWaterHeight = 30;
             n->latestTimestamp = timestamp;
             n->batteryPercent = battery;
 
 
             // store in circular history buffer
-            n->history[n->historyIndex].waterHeight = water;
+            n->history[n->historyIndex].waterHeight = 30;
             n->history[n->historyIndex].timestamp = timestamp;
 
 
@@ -472,18 +475,31 @@ void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float batt
     if (!found && nodeCount < MAX_NODES)
         {
             nodes[nodeCount].nodeId = nodeId;
+            nodes[nodeCount].name = name;
             nodes[nodeCount].latestWaterHeight = water;
             nodes[nodeCount].latestTimestamp = timestamp;
             nodes[nodeCount].batteryPercent = battery;
             nodes[nodeCount].historyIndex = 0;
 
+            // store first sample properly
+            nodes[nodeCount].history[0].waterHeight = water;
+            nodes[nodeCount].history[0].timestamp = timestamp;
+            nodes[nodeCount].historyIndex = 1;
             nodeCount++;
         }
     updateFloodStatus();
 
 
 }
-void addNode(uint8_t id, const char* name, const char* status) {
+void addNode(uint16_t id, const char* name, const char* status) {
+    for (int i = 0; i < nodeCount; i++)
+        {
+            if (nodes[i].nodeId == id)
+            {
+
+                return; // stop, no new node added
+            }
+        }
     if (nodeCount >= MAX_NODES) return;
 
     nodes[nodeCount].nodeId = id;
@@ -495,10 +511,9 @@ void addNode(uint8_t id, const char* name, const char* status) {
     nodes[nodeCount].batteryPercent = 0;
     nodes[nodeCount].historyIndex = 0;
 
-    for (int i = 0; i < HISTORY_LEN; i++) {
-        nodes[nodeCount].history[i].waterHeight = 0;
-        nodes[nodeCount].history[i].timestamp = 0;
-    }
+    nodes[nodeCount].history[0].waterHeight = 0;
+    nodes[nodeCount].history[0].timestamp = 0;
+    nodes[nodeCount].historyIndex = 1;
 
     nodeCount++;
 }
@@ -542,7 +557,7 @@ void updateFloodStatus(void)
 
     for (int i = 0; i < nodeCount; i++)
     {
-        if (nodes[i].latestWaterHeight >= WATER_THRESHOLD)
+        if (nodes[i].latestWaterHeight <= WATER_THRESHOLD && nodes[i].latestWaterHeight != 0)
         {
             nodeAboveThreshold[i] = 1;
             above++;
@@ -561,7 +576,7 @@ void updateFloodStatus(void)
 
     float ratio = (float)above / (float)validNodes;
 
-    floodImminent = (ratio >= 0.60f);
+    floodImminent = (above == 2);
 }
 void uiInit(Adafruit_RA8875* display) {
     tft = display;

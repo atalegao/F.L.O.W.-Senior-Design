@@ -124,7 +124,7 @@ static void MX_TIM6_Init(void);
 static void MX_TIM21_Init(void);
 void MX_SPI1_ReInit(uint32_t scaler);
 /* USER CODE BEGIN PFP */
-void ESP_SendAlert(void);
+void ESP_SendAlert(int nodeId, uint32_t distance);
 void ProcessLoRaMessage(char* msg);
 /* USER CODE END PFP */
 
@@ -414,7 +414,7 @@ int main(void)
 
       handle_send_hello();
             //setup_lora_send_timer(&htim6, 0x000004FF);
-      ESP_SendAlert();
+      //ESP_SendAlert(1, 2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -430,12 +430,13 @@ int main(void)
 
 	         update_on_touch();   // REQUIRED
 	         HAL_GPIO_WritePin(PB14_LED_GPIO_Port, PB14_LED_Pin, GPIO_PIN_RESET);
+			 //ESP_SendAlert(1,2);
 
 	     }
 
 	  if(floodImminent)
 	  {
-		  ESP_SendAlert();
+		  ESP_SendAlert(1,2);
 	  }
 	  //following is to change polling
 	  if (new_freq_flag)
@@ -1134,11 +1135,10 @@ void HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart){
 
 }
 
-void ESP_SendAlert()
+void ESP_SendAlert(int nodeId, uint32_t distance)
 {
   char buf[64];
-  //snprintf(buf, sizeof(buf), "FLOOD:%d:%lu\n", nodeId, distance);
-  snprintf(buf, sizeof(buf), "FLOOD IMMINENT. 60% of nodes are above threshold");
+  snprintf(buf, sizeof(buf), "FLOOD:%d:%lu\n", nodeId, distance);
   HAL_UART_Transmit(&huart1, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
 }
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)

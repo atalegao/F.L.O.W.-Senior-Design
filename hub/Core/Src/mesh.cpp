@@ -2255,14 +2255,24 @@ bool mesh_rec_data(volatile uint8_t * data, uint8_t * send_addr, uint8_t * messa
 		    	return false;
 		    }
 
-		    uint16_t node_id = (node_addr[0] << 8) | node_addr[1];
+		    uint16_t node_id = (node_addr[1] << 8) | node_addr[0];
+		    static char nameBuf[10][10];
+		    		    static uint8_t nameIndex = 0;
+
+		    		    char *name = nameBuf[nameIndex];
+		    		    nameIndex = (nameIndex + 1) % 10;
+
+		    		    name[0] = 'N'; name[1] = 'o'; name[2] = 'd'; name[3] = 'e'; name[4] = ' ';
+		    		    name[5] = '0' + ((node_id / 10) % 10);
+		    		    name[6] = '0' + (node_id % 10);
+		    		    name[7] = '\0';
 
 		    float water = (float)water_height[0];
 		    float battery = (float)battery_status[0];
 
 		    uint32_t new_time;
 		    memcpy(&new_time, time, sizeof(uint32_t));
-		    updateNodeData(node_id, water, new_time, battery, 1);
+		    updateNodeData(node_id, water, new_time, battery, name);
 		    uint32_t new_id;
 		    memcpy(&new_id, message_id, sizeof(uint32_t));
 		    mesh_send_ack(send_addr, new_id, 1, hdma_usart_tx, huart);

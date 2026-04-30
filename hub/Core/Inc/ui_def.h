@@ -66,7 +66,7 @@ extern Adafruit_RA8875* tft;
 void uiInit(Adafruit_RA8875* display);
 void uiHandleTouch(uint16_t x, uint16_t y);
 
-void addNode(uint8_t id, const char* name, const char* status);
+void addNode(uint16_t id, const char* name, const char* status);
 
 void addPhone(const char* number);
 
@@ -80,7 +80,8 @@ void drawKeypad(void);
 void ftoa(float n, char* res, int afterpoint);
 int intToStr(int x, char str[], int d);
 void reverse(char* str, int len);
-void updateNodeData(uint16_t node_id, float water_height, uint32_t timestamp, float battery, bool status);
+void updateNodeData(uint16_t nodeId, float water, uint32_t timestamp, float battery, const char* name);
+
 void updateFloodStatus(void);
 void commitPollingFrequency(void);
 
